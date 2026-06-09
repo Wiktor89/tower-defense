@@ -1,0 +1,101 @@
+export const CONFIG = {
+  COLS: 9,
+  ROWS: 5,
+  CELL_W: 80,
+  CELL_H: 90,
+  GRID_X: 50,
+  GRID_Y: 10,
+
+  START_SUN: 50,
+  START_LIVES: 5,
+  TOTAL_WAVES: 5,
+
+  SUN_FALL_INTERVAL: 8000,
+  SUN_FALL_AMOUNT: 25,
+  SUN_LIFETIME: 10000,
+
+  LAWNMOWER: {
+    speed: 420,
+    col: 0,
+  },
+
+  PLANTS: {
+    sunflower: {
+      name: 'Подсолнух',
+      cost: 50,
+      hp: 80,
+      icon: '🌻',
+      color: '#ffd700',
+      sunInterval: 12000,
+      sunAmount: 25,
+    },
+    peashooter: {
+      name: 'Горохострел',
+      cost: 100,
+      hp: 100,
+      icon: '🌱',
+      color: '#4caf50',
+      damage: 20,
+      fireRate: 1400,
+      projectileSpeed: 280,
+    },
+    wallnut: {
+      name: 'Орех',
+      cost: 50,
+      hp: 400,
+      icon: '🥜',
+      color: '#8d6e63',
+    },
+    cherrybomb: {
+      name: 'Вишневая бомба',
+      cost: 150,
+      hp: 1,
+      icon: '🍒',
+      color: '#e53935',
+      damage: 500,
+      radius: 120,
+      fuseTime: 1500,
+    },
+  },
+
+  ZOMBIES: {
+    normal: {
+      name: 'Зомби',
+      hp: 100,
+      speed: 25,
+      damage: 15,
+      eatRate: 1000,
+      icon: '🧟',
+      color: '#78909c',
+      reward: 0,
+    },
+    cone: {
+      name: 'Зомби с конусом',
+      hp: 200,
+      speed: 22,
+      damage: 15,
+      eatRate: 1000,
+      icon: '🧟‍♂️',
+      color: '#ff9800',
+      reward: 0,
+    },
+    bucket: {
+      name: 'Зомби с ведром',
+      hp: 350,
+      speed: 18,
+      damage: 20,
+      eatRate: 800,
+      icon: '🪣',
+      color: '#607d8b',
+      reward: 0,
+    },
+  },
+
+  WAVES: [
+    { count: 3, types: ['normal'], interval: 3000 },
+    { count: 5, types: ['normal', 'normal', 'cone'], interval: 2500 },
+    { count: 7, types: ['normal', 'cone', 'cone'], interval: 2200 },
+    { count: 9, types: ['normal', 'cone', 'bucket'], interval: 2000 },
+    { count: 12, types: ['normal', 'cone', 'bucket', 'bucket'], interval: 1800 },
+  ],
+};
