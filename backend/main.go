@@ -29,7 +29,8 @@ func main() {
 	mux.Handle("/", spaHandler(absStatic))
 
 	addr := fmt.Sprintf(":%d", *port)
-	log.Printf("server listening on http://localhost%s", addr)
+	log.Printf("server listening on http://0.0.0.0%s (все интерфейсы)", addr)
+	log.Printf("локально: http://localhost%s", addr)
 	log.Printf("serving static files from %s", absStatic)
 	if err := http.ListenAndServe(addr, withCORS(mux)); err != nil {
 		log.Fatal(err)
