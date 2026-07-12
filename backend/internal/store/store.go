@@ -83,6 +83,15 @@ func (s *Store) migrate(ctx context.Context) error {
 			verified_at TIMESTAMPTZ,
 			UNIQUE(user_id, game_id, stage)
 		);
+
+		CREATE TABLE IF NOT EXISTS game_settings (
+			game_id VARCHAR(64) PRIMARY KEY,
+			session_size INTEGER NOT NULL DEFAULT 50 CHECK (session_size >= 1 AND session_size <= 200)
+		);
+
+		INSERT INTO game_settings (game_id, session_size)
+		VALUES ('math-columns', 50)
+		ON CONFLICT (game_id) DO NOTHING;
 	`)
 	return err
 }

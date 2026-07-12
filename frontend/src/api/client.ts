@@ -1,4 +1,4 @@
-import type { GameCatalogItem, MathCheckResult, MathProblem, OpMode, StageCompletion, StatsDelta, User, UserStatsRow, VerifyResult } from '../types';
+import type { GameCatalogItem, GameSettings, MathCheckResult, MathProblem, OpMode, StageCompletion, StatsDelta, User, UserStatsRow, VerifyResult } from '../types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -103,5 +103,23 @@ export function adminVerify(
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify(data),
+  });
+}
+
+export function fetchMathColumnsSettings(): Promise<GameSettings> {
+  return request<GameSettings>('/api/settings/math-columns');
+}
+
+export function fetchAdminMathColumnsSettings(token: string): Promise<GameSettings> {
+  return request<GameSettings>('/api/admin/settings/math-columns', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function updateMathColumnsSettings(token: string, sessionSize: number): Promise<GameSettings> {
+  return request<GameSettings>('/api/admin/settings/math-columns', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ sessionSize }),
   });
 }

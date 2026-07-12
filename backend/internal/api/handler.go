@@ -32,10 +32,13 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/users/login", h.userLogin)
 	mux.HandleFunc("POST /api/stats", h.addStats)
 	mux.HandleFunc("POST /api/stages/complete", h.completeStage)
+	mux.HandleFunc("GET /api/settings/math-columns", h.mathColumnsSettings)
 	mux.HandleFunc("POST /api/admin/login", h.adminLogin)
 	mux.HandleFunc("GET /api/admin/stats", h.adminStats)
 	mux.HandleFunc("GET /api/admin/stages", h.adminStages)
 	mux.HandleFunc("POST /api/admin/verify", h.adminVerify)
+	mux.HandleFunc("GET /api/admin/settings/math-columns", h.adminGetMathColumnsSettings)
+	mux.HandleFunc("PUT /api/admin/settings/math-columns", h.adminSetMathColumnsSettings)
 }
 
 func (h *Handler) health(w http.ResponseWriter, _ *http.Request) {
@@ -293,6 +296,74 @@ func (h *Handler) adminVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) mathColumnsSettings(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	size, err := h.db.GetSessionSize(ctx, "math-columns")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load settings")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"gameId":      "math-columns",
+		"sessionSize": size,
+	})
+}
+
+func (h *Handler) adminGetMathColumnsSettings(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	size, err := h.db.GetSessionSize(ctx, "math-columns")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load settings")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"gameId":      "math-columns",
+		"sessionSize": size,
+	})
+}
+
+type mathColumnsSettingsRequest struct {
+	SessionSize int `json:"sessionSize"`
+}
+
+func (h *Handler) adminSetMathColumnsSettings(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req mathColumnsSettingsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.SessionSize < store.MinSessionSize || req.SessionSize > store.MaxSessionSize {
+		writeError(w, http.StatusBadRequest, "sessionSize must be between 1 and 200")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	gs, err := h.db.SetSessionSize(ctx, "math-columns", req.SessionSize)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, gs)
 }
 
 func bearerToken(r *http.Request) string {

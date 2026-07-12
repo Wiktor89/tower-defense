@@ -1,6 +1,11 @@
-export const SESSION_SIZE = 50;
+export const DEFAULT_SESSION_SIZE = 50;
 
-const WRINKLE_THRESHOLDS = [1, 3, 5, 8, 11, 15, 19, 24, 30, 36, 42, 47];
+const BASE_WRINKLE_THRESHOLDS = [1, 3, 5, 8, 11, 15, 19, 24, 30, 36, 42, 47];
+
+export function wrinkleThresholds(sessionSize: number): number[] {
+  const factor = sessionSize / DEFAULT_SESSION_SIZE;
+  return BASE_WRINKLE_THRESHOLDS.map(t => Math.max(1, Math.round(t * factor)));
+}
 
 export function createBrainSvg(): string {
   const wrinkles = [
@@ -47,20 +52,25 @@ export interface BrainProgressElements {
   wrinkles: NodeListOf<SVGPathElement>;
 }
 
-export function updateBrainProgress(solved: number, elements: BrainProgressElements): void {
+export function updateBrainProgress(
+  solved: number,
+  sessionSize: number,
+  elements: BrainProgressElements,
+): void {
   const { fillEl, brainEl, textEl, wrinkles } = elements;
-  const pct = Math.min((solved / SESSION_SIZE) * 100, 100);
+  const pct = Math.min((solved / sessionSize) * 100, 100);
+  const thresholds = wrinkleThresholds(sessionSize);
 
   fillEl.style.width = `${pct}%`;
   brainEl.style.left = `${pct}%`;
-  textEl.textContent = `${solved} / ${SESSION_SIZE}`;
+  textEl.textContent = `${solved} / ${sessionSize}`;
 
   wrinkles.forEach((path, i) => {
-    const visible = solved >= (WRINKLE_THRESHOLDS[i] ?? Infinity);
+    const visible = solved >= (thresholds[i] ?? Infinity);
     path.style.opacity = visible ? String(0.35 + (i / wrinkles.length) * 0.55) : '0';
     path.style.strokeWidth = visible ? String(1.1 + i * 0.08) : '1.1';
   });
 
   brainEl.classList.toggle('brain--active', solved > 0);
-  brainEl.classList.toggle('brain--max', solved >= SESSION_SIZE);
+  brainEl.classList.toggle('brain--max', solved >= sessionSize);
 }

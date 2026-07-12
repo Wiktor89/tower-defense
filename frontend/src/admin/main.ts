@@ -1,7 +1,7 @@
 import './admin.css';
 import '../shared/modal.css';
-import { adminLogin, adminVerify, fetchAdminStages, fetchAdminStats } from '../api/client';
-import type { StageCompletion, UserStatsRow } from '../types';
+import { adminLogin, adminVerify, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateMathColumnsSettings } from '../api/client';
+import type { GameSettings, StageCompletion, UserStatsRow } from '../types';
 import { PLANETS } from '../games/math-columns/planets';
 import { getAdminToken, setAdminToken, clearAdminToken } from '../shared/user';
 
@@ -51,6 +51,7 @@ function renderDashboard(
   token: string,
   rows: UserStatsRow[],
   stages: StageCompletion[],
+  mathSettings: GameSettings | null,
   loadError?: string,
   loading = false,
 ): void {
@@ -104,6 +105,20 @@ function renderDashboard(
     </header>
     ${loadError ? `<p class="admin-load-error">${loadError}</p>` : ''}
     ${loading ? '<p class="admin-loading-inline">Загрузка данных…</p>' : ''}
+
+    <section class="admin-section">
+      <h2>📐 Настройки «Столбик»</h2>
+      <p class="admin-section__hint">Сколько правильных примеров нужно решить для завершения серии</p>
+      <form id="settings-form" class="admin-verify-form">
+        <label class="admin-field">
+          <span>Примеров в серии</span>
+          <input type="number" id="session-size" min="1" max="200"
+            value="${mathSettings?.sessionSize ?? 50}" required>
+        </label>
+        <button type="submit" class="admin-btn">Сохранить</button>
+      </form>
+      <p class="admin-verify-result hidden" id="settings-result"></p>
+    </section>
 
     <section class="admin-section">
       <h2>🔍 Проверка прохождения этапа</h2>
@@ -179,10 +194,6 @@ function renderDashboard(
     renderLogin();
   });
 
-  appEl.querySelector('#refresh-btn')?.addEventListener('click', () => {
-    void loadDashboard(token);
-  });
-
   appEl.querySelector<HTMLFormElement>('#verify-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const resultEl = appEl.querySelector<HTMLParagraphElement>('#verify-result')!;
@@ -204,17 +215,37 @@ function renderDashboard(
       resultEl.className = 'admin-verify-result admin-verify-result--fail';
     }
   });
+
+  appEl.querySelector('#refresh-btn')?.addEventListener('click', () => {
+    void loadDashboard(token);
+  });
+
+  appEl.querySelector<HTMLFormElement>('#settings-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const resultEl = appEl.querySelector<HTMLParagraphElement>('#settings-result')!;
+    const sessionSize = Number((appEl.querySelector('#session-size') as HTMLInputElement).value);
+
+    try {
+      const settings = await updateMathColumnsSettings(token, sessionSize);
+      resultEl.textContent = `Сохранено: ${settings.sessionSize} примеров в серии`;
+      resultEl.className = 'admin-verify-result admin-verify-result--ok';
+    } catch (err) {
+      resultEl.textContent = err instanceof Error ? err.message : 'Ошибка сохранения';
+      resultEl.className = 'admin-verify-result admin-verify-result--fail';
+    }
+  });
 }
 
 async function loadDashboard(token: string): Promise<void> {
-  renderDashboard(token, [], [], undefined, true);
+  renderDashboard(token, [], [], null, undefined, true);
 
-  const [statsResult, stagesResult] = await Promise.allSettled([
+  const [statsResult, stagesResult, settingsResult] = await Promise.allSettled([
     fetchAdminStats(token),
     fetchAdminStages(token),
+    fetchAdminMathColumnsSettings(token),
   ]);
 
-  const unauthorized = [statsResult, stagesResult].some(
+  const unauthorized = [statsResult, stagesResult, settingsResult].some(
     r => r.status === 'rejected' && r.reason instanceof Error && r.reason.message.toLowerCase().includes('unauthorized'),
   );
   if (unauthorized) {
@@ -225,6 +256,7 @@ async function loadDashboard(token: string): Promise<void> {
 
   const rows = statsResult.status === 'fulfilled' ? statsResult.value : [];
   const stages = stagesResult.status === 'fulfilled' ? stagesResult.value : [];
+  const mathSettings = settingsResult.status === 'fulfilled' ? settingsResult.value : null;
 
   const errors: string[] = [];
   if (statsResult.status === 'rejected') {
@@ -235,8 +267,12 @@ async function loadDashboard(token: string): Promise<void> {
     const msg = stagesResult.reason instanceof Error ? stagesResult.reason.message : 'не удалось загрузить этапы';
     errors.push(msg);
   }
+  if (settingsResult.status === 'rejected') {
+    const msg = settingsResult.reason instanceof Error ? settingsResult.reason.message : 'не удалось загрузить настройки';
+    errors.push(msg);
+  }
 
-  renderDashboard(token, rows, stages, errors.length ? `⚠️ ${errors.join('; ')}` : undefined);
+  renderDashboard(token, rows, stages, mathSettings, errors.length ? `⚠️ ${errors.join('; ')}` : undefined);
 }
 
 async function init(): Promise<void> {

@@ -1,10 +1,10 @@
 import './style.css';
-import { checkMathAnswer, completeStage, fetchMathProblem } from '../../api/client';
+import { checkMathAnswer, completeStage, fetchMathColumnsSettings, fetchMathProblem } from '../../api/client';
 import type { MathProblem, OpMode } from '../../types';
 import { ensureUserLogin } from '../../shared/login';
 import { reportStats } from '../../shared/stats';
 import { getUser } from '../../shared/user';
-import { SESSION_SIZE, createBrainSvg, updateBrainProgress } from './brain';
+import { DEFAULT_SESSION_SIZE, createBrainSvg, updateBrainProgress } from './brain';
 import { showSolarSystemReward } from './solar-system';
 import { splitDigits } from './utils';
 
@@ -47,6 +47,7 @@ let correct = 0;
 let wrong = 0;
 let sessionSolved = 0;
 let sessionComplete = false;
+let sessionSize = DEFAULT_SESSION_SIZE;
 
 ui.progressBrainEl.innerHTML = createBrainSvg();
 
@@ -58,7 +59,7 @@ const progressElements = {
 };
 
 function updateProgress(): void {
-  updateBrainProgress(sessionSolved, progressElements);
+  updateBrainProgress(sessionSolved, sessionSize, progressElements);
 }
 
 function resetSession(): void {
@@ -170,14 +171,14 @@ function completeSession(): void {
 
   const user = getUser();
   if (!user) {
-    showFeedback(`Серия из ${SESSION_SIZE} примеров завершена! Мозг вырос! 🧠`, 'correct');
+    showFeedback(`Серия из ${sessionSize} примеров завершена! Мозг вырос! 🧠`, 'correct');
     return;
   }
 
   void completeStage(user.id, 'math-columns', level)
     .then(completion => {
       showSolarSystemReward(completion, () => {
-        showFeedback(`Серия из ${SESSION_SIZE} примеров завершена! Мозг вырос! 🧠`, 'correct');
+        showFeedback(`Серия из ${sessionSize} примеров завершена! Мозг вырос! 🧠`, 'correct');
       });
     })
     .catch(() => {
@@ -213,7 +214,7 @@ async function checkAnswer(): Promise<void> {
       updateProgress();
       showFeedback('Верно! 🎉', 'correct');
 
-      if (sessionSolved >= SESSION_SIZE) {
+      if (sessionSolved >= sessionSize) {
         completeSession();
         updateScore();
         return;
@@ -292,4 +293,14 @@ ui.nextBtn.addEventListener('click', () => {
 ui.hintBtn.addEventListener('click', showHint);
 
 updateProgress();
-void ensureUserLogin().then(() => renderColumn());
+void ensureUserLogin()
+  .then(() => fetchMathColumnsSettings())
+  .then(settings => {
+    sessionSize = settings.sessionSize;
+    updateProgress();
+  })
+  .catch(() => {
+    sessionSize = DEFAULT_SESSION_SIZE;
+    updateProgress();
+  })
+  .then(() => renderColumn());

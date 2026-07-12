@@ -74,6 +74,11 @@ export interface VerifyResult {
   message: string;
 }
 
+export interface GameSettings {
+  gameId: string;
+  sessionSize: number;
+}
+
 export type OpMode = 'add' | 'sub' | 'mixed';
 export type PlantType = 'sunflower' | 'peashooter' | 'wallnut' | 'cherrybomb';
 export type ZombieType = 'normal' | 'cone' | 'bucket';
