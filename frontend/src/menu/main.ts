@@ -1,11 +1,18 @@
 import './menu.css';
+import '../shared/modal.css';
 import { fetchGames } from '../api/client';
 import type { GameCatalogItem } from '../types';
+import { ensureUserLogin, showAdminLoginModal } from '../shared/login';
+import { getUser, setAdminToken } from '../shared/user';
 
 const grid = document.getElementById('games-grid');
-if (!grid) throw new Error('games-grid not found');
+const userLabel = document.getElementById('user-label');
+const adminBtn = document.getElementById('admin-btn');
+
+if (!grid || !userLabel || !adminBtn) throw new Error('Missing DOM elements');
 
 const gamesGrid = grid;
+const userLabelEl = userLabel;
 
 function createGameCard(game: GameCatalogItem): HTMLElement {
   const card = document.createElement('article');
@@ -38,13 +45,30 @@ function createGameCard(game: GameCatalogItem): HTMLElement {
   return card;
 }
 
+function updateUserLabel(): void {
+  const user = getUser();
+  userLabelEl.textContent = user ? `👤 ${user.login}` : '';
+}
+
+adminBtn.addEventListener('click', () => {
+  showAdminLoginModal((token) => {
+    setAdminToken(token);
+    window.location.href = '/admin/';
+  });
+});
+
 async function init() {
+  const user = await ensureUserLogin();
+  updateUserLabel();
+
   try {
     const games = await fetchGames();
     games.forEach(game => gamesGrid.appendChild(createGameCard(game)));
   } catch {
     gamesGrid.innerHTML = '<p class="menu-error">Не удалось загрузить список игр. Запустите backend.</p>';
   }
+
+  void user;
 }
 
 void init();

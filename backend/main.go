@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -10,8 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"games/internal/admin"
 	"games/internal/api"
 	mathpkg "games/internal/math"
+	"games/internal/store"
 )
 
 func main() {
@@ -19,13 +22,27 @@ func main() {
 	staticDir := flag.String("static", "../frontend/dist", "path to frontend build")
 	flag.Parse()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	db, err := store.Connect(ctx)
+	if err != nil {
+		log.Fatalf("database: %v", err)
+	}
+	defer db.Close()
+	log.Println("connected to PostgreSQL")
+
 	absStatic, err := filepath.Abs(*staticDir)
 	if err != nil {
 		log.Fatalf("resolve static dir: %v", err)
 	}
 
 	mux := http.NewServeMux()
-	api.NewHandler(mathpkg.NewStore(30 * time.Minute)).Register(mux)
+	api.NewHandler(
+		mathpkg.NewStore(30*time.Minute),
+		db,
+		admin.NewAuth(),
+	).Register(mux)
 	mux.Handle("/", spaHandler(absStatic))
 
 	addr := fmt.Sprintf(":%d", *port)
@@ -74,7 +91,7 @@ func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

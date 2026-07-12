@@ -1,6 +1,8 @@
 import './style.css';
 import { checkMathAnswer, fetchMathProblem } from '../../api/client';
 import type { MathProblem, OpMode } from '../../types';
+import { ensureUserLogin } from '../../shared/login';
+import { reportStats } from '../../shared/stats';
 import { SESSION_SIZE, createBrainSvg, updateBrainProgress } from './brain';
 import { splitDigits } from './utils';
 
@@ -156,6 +158,7 @@ function getUserAnswer(): number | null {
 
 function completeSession(): void {
   sessionComplete = true;
+  void reportStats('math-columns', { sessionsCompleted: 1 });
   showFeedback(`Серия из ${SESSION_SIZE} примеров завершена! Мозг вырос! 🧠`, 'correct');
   ui.checkBtn.classList.add('hidden');
   ui.nextBtn.textContent = 'Новая серия';
@@ -188,6 +191,7 @@ async function checkAnswer(): Promise<void> {
     if (isCorrect) {
       correct++;
       sessionSolved++;
+      void reportStats('math-columns', { correct: 1 });
       updateProgress();
       showFeedback('Верно! 🎉', 'correct');
 
@@ -198,6 +202,7 @@ async function checkAnswer(): Promise<void> {
       }
     } else {
       wrong++;
+      void reportStats('math-columns', { wrong: 1 });
       showFeedback(`Неверно. Правильный ответ: ${result.correctAnswer ?? '?'}`, 'wrong');
     }
   } catch {
@@ -269,4 +274,4 @@ ui.nextBtn.addEventListener('click', () => {
 ui.hintBtn.addEventListener('click', showHint);
 
 updateProgress();
-void renderColumn();
+void ensureUserLogin().then(() => renderColumn());

@@ -1,52 +1,51 @@
 # Браузерные мини-игры
 
-Коллекция браузерных игр: **Go backend** + **TypeScript frontend**.
+Коллекция браузерных игр: **Go backend** + **TypeScript frontend** + **PostgreSQL**.
 
 ## Структура
 
 ```
 backend/          — Go API-сервер
 frontend/         — TypeScript (Vite)
-  src/
-    menu/         — главное меню
-    games/
-      tower-defense/
-      math-columns/
+docker-compose.yml — PostgreSQL
 ```
 
 ## Быстрый старт
 
-### 1. Установка зависимостей
+### 1. PostgreSQL
+
+```bash
+docker compose up -d postgres
+```
+
+### 2. Установка и запуск
 
 ```bash
 make install
-```
-
-### 2. Сборка фронтенда и запуск
-
-```bash
 ./run.sh
 ```
 
-Или через Makefile:
-
-```bash
-make run
-```
+`run.sh` сам поднимет PostgreSQL через Docker (если установлен) и соберёт фронт.
 
 Откройте [http://localhost:8089](http://localhost:8089)
 
-### Разработка (два терминала)
+### Переменные окружения
 
-```bash
-# Терминал 1 — backend API
-make dev-api
+| Переменная | По умолчанию |
+|------------|--------------|
+| `DATABASE_URL` | `postgres://games:games@localhost:5432/games?sslmode=disable` |
+| `ADMIN_LOGIN` | `admin` |
+| `ADMIN_PASSWORD` | `admin` |
+| `PORT` | `8089` |
 
-# Терминал 2 — frontend с hot reload
-make dev-web
-```
+## Пользователи и статистика
 
-Frontend dev-сервер: [http://localhost:5173](http://localhost:5173) (проксирует `/api` на `:8089`)
+- При первом входе пользователь вводит **логин** — он сохраняется в PostgreSQL
+- Статистика по играм пишется автоматически:
+  - **Столбик**: правильные/неправильные ответы, завершённые серии
+  - **Tower Defense**: победы и поражения
+- Кнопка **Администратор** (справа вверху) → логин `admin` / пароль `admin`
+- Страница админа: [http://localhost:8089/admin/](http://localhost:8089/admin/)
 
 ## API
 
@@ -54,8 +53,12 @@ Frontend dev-сервер: [http://localhost:5173](http://localhost:5173) (пр�
 |-------|------|----------|
 | GET | `/api/health` | Проверка сервера |
 | GET | `/api/games` | Каталог игр |
-| POST | `/api/math/problem` | Сгенерировать пример `{ level, op }` |
-| POST | `/api/math/check` | Проверить ответ `{ id, answer }` |
+| POST | `/api/users/login` | Вход пользователя `{ login }` |
+| POST | `/api/stats` | Записать статистику |
+| POST | `/api/admin/login` | Вход админа `{ login, password }` |
+| GET | `/api/admin/stats` | Статистика всех игроков (Bearer token) |
+| POST | `/api/math/problem` | Сгенерировать пример |
+| POST | `/api/math/check` | Проверить ответ |
 
 ## Игры
 
@@ -63,22 +66,11 @@ Frontend dev-сервер: [http://localhost:5173](http://localhost:5173) (пр�
 |------|------|--------|
 | 🌻 Защита от зомби | `/games/tower-defense/` | Готова |
 | 📐 Столбик | `/games/math-columns/` | Готова |
-| 🐍 Змейка | `/games/snake/` | Скоро |
-| 🧱 Арканоид | `/games/breakout/` | Скоро |
-| 🃏 Найди пару | `/games/memory/` | Скоро |
 
-## Как добавить игру
+## Разработка
 
-1. Добавьте запись в `backend/internal/games/catalog.go`
-2. Создайте `frontend/src/games/<название>/` и `frontend/games/<название>/index.html`
-3. Подключите entry в `frontend/vite.config.ts`
-4. Пересоберите: `make build`
-
-## Tower Defense
-
-Canvas-игра в стиле Plants vs Zombies. Логика полностью на клиенте.
-
-## Столбик
-
-Сложение и вычитание столбиком. Примеры генерируются и проверяются на backend.
-Серия — 50 правильных ответов, прогресс отображается мозгом с извилинами.
+```bash
+docker compose up -d postgres
+make dev-api    # Go :8089
+make dev-web    # Vite :5173
+```

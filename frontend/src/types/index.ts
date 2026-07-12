@@ -21,6 +21,39 @@ export interface MathCheckResult {
   correctAnswer?: number;
 }
 
+export interface User {
+  id: number;
+  login: string;
+  createdAt: string;
+}
+
+export interface StatsDelta {
+  userId: number;
+  gameId: string;
+  correct?: number;
+  wrong?: number;
+  sessionsCompleted?: number;
+  gamesWon?: number;
+  gamesLost?: number;
+}
+
+export interface GameStats {
+  gameId: string;
+  correct: number;
+  wrong: number;
+  sessionsCompleted: number;
+  gamesWon: number;
+  gamesLost: number;
+  updatedAt: string;
+}
+
+export interface UserStatsRow {
+  userId: number;
+  login: string;
+  createdAt: string;
+  games: GameStats[];
+}
+
 export type OpMode = 'add' | 'sub' | 'mixed';
 export type PlantType = 'sunflower' | 'peashooter' | 'wallnut' | 'cherrybomb';
 export type ZombieType = 'normal' | 'cone' | 'bucket';

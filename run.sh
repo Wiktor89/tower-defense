@@ -79,6 +79,18 @@ ensure_dist() {
   [ -f "$DIST_DIR/index.html" ]
 }
 
+ensure_postgres() {
+  export DATABASE_URL="${DATABASE_URL:-postgres://games:games@localhost:5432/games?sslmode=disable}"
+
+  if command -v docker >/dev/null 2>&1 && [ -f "$ROOT/docker-compose.yml" ]; then
+    if ! docker compose -f "$ROOT/docker-compose.yml" ps --status running 2>/dev/null | grep -q postgres; then
+      echo "→ Запуск PostgreSQL (docker compose)..."
+      docker compose -f "$ROOT/docker-compose.yml" up -d postgres
+      sleep 2
+    fi
+  fi
+}
+
 run_server() {
   echo "→ Запуск сервера на порту ${PORT}"
   echo "   Локально:  http://localhost:${PORT}"
@@ -110,6 +122,8 @@ else
 fi
 
 # --- бэкенд ---
+ensure_postgres
+
 if find_go >/dev/null 2>&1; then
   build_server
   run_server

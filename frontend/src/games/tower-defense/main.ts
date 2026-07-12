@@ -1,5 +1,7 @@
 import './style.css';
 import type { PlantType } from '../../types';
+import { ensureUserLogin } from '../../shared/login';
+import { reportStats } from '../../shared/stats';
 import { CONFIG } from './config';
 import { Game } from './Game';
 
@@ -31,6 +33,7 @@ const ui = {
 };
 
 const game = new Game(ui.canvas);
+let lastReportedState: 'playing' | 'won' | 'lost' = 'playing';
 
 function updateUI(): void {
   ui.sunDisplay.textContent = `☀️ ${game.sun}`;
@@ -54,10 +57,18 @@ function updateUI(): void {
     ui.overlay.classList.remove('hidden');
     ui.overlayTitle.textContent = '🎉 Победа!';
     ui.overlayText.textContent = 'Вы отбили все волны зомби!';
+    if (lastReportedState !== 'won') {
+      lastReportedState = 'won';
+      void reportStats('tower-defense', { gamesWon: 1 });
+    }
   } else if (game.state === 'lost') {
     ui.overlay.classList.remove('hidden');
     ui.overlayTitle.textContent = '💀 Поражение';
     ui.overlayText.textContent = 'Зомби прорвались к дому...';
+    if (lastReportedState !== 'lost') {
+      lastReportedState = 'lost';
+      void reportStats('tower-defense', { gamesLost: 1 });
+    }
   } else {
     ui.overlay.classList.add('hidden');
   }
@@ -99,7 +110,7 @@ ui.canvas.addEventListener('click', (e) => {
 });
 
 ui.canvas.addEventListener('mousemove', (e) => {
-  const rect = canvas.getBoundingClientRect();
+  const rect = ui.canvas.getBoundingClientRect();
   const scaleX = ui.canvas.width / rect.width;
   const scaleY = ui.canvas.height / rect.height;
   game.handleMouseMove(
@@ -110,8 +121,11 @@ ui.canvas.addEventListener('mousemove', (e) => {
 
 ui.overlayBtn.addEventListener('click', () => {
   game.reset();
+  lastReportedState = 'playing';
   updateUI();
 });
 
-game.start();
-updateUI();
+void ensureUserLogin().then(() => {
+  game.start();
+  updateUI();
+});
