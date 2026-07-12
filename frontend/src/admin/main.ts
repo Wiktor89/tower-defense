@@ -13,7 +13,27 @@ const GAME_NAMES: Record<string, string> = {
   'math-columns': '📐 Столбик',
 };
 
+type AdminTab = 'settings' | 'verify' | 'stats';
+
+const TAB_KEY = 'admin_active_tab';
+
+const TABS: { id: AdminTab; label: string }[] = [
+  { id: 'settings', label: 'Настройки игр' },
+  { id: 'verify', label: 'Проверка прохождения этапа' },
+  { id: 'stats', label: 'Статистика игроков' },
+];
+
 const appEl = app;
+
+function getActiveTab(): AdminTab {
+  const saved = sessionStorage.getItem(TAB_KEY);
+  if (saved === 'settings' || saved === 'verify' || saved === 'stats') return saved;
+  return 'settings';
+}
+
+function setActiveTab(tab: AdminTab): void {
+  sessionStorage.setItem(TAB_KEY, tab);
+}
 
 function renderLogin(): void {
   appEl.innerHTML = `
@@ -47,14 +67,7 @@ function renderLogin(): void {
   });
 }
 
-function renderDashboard(
-  token: string,
-  rows: UserStatsRow[],
-  stages: StageCompletion[],
-  mathSettings: GameSettings | null,
-  loadError?: string,
-  loading = false,
-): void {
+function renderStatsTable(rows: UserStatsRow[]): string {
   const tableRows = rows.map(user => {
     if (user.games.length === 0) {
       return `
@@ -77,6 +90,29 @@ function renderDashboard(
     `).join('');
   }).join('');
 
+  return `
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Логин</th>
+            <th>Игра</th>
+            <th>✓</th>
+            <th>✗</th>
+            <th>Серии</th>
+            <th>Победы</th>
+            <th>Поражения</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows || '<tr><td colspan="7" class="admin-empty">Нет данных</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderStagesTable(stages: StageCompletion[]): string {
   const stageRows = stages.map(s => `
     <tr class="${s.verified ? 'admin-row--verified' : ''}">
       <td>${s.userLogin ?? '—'}</td>
@@ -90,24 +126,33 @@ function renderDashboard(
     </tr>
   `).join('');
 
-  const planetOptions = PLANETS.map(p =>
-    `<option value="${p.id}">${p.name}</option>`
-  ).join('');
+  return `
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Логин</th>
+            <th>Игра</th>
+            <th>Этап</th>
+            <th>Планета</th>
+            <th>Код</th>
+            <th>Награда</th>
+            <th>Подтверждён</th>
+            <th>Дата</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${stageRows || '<tr><td colspan="8" class="admin-empty">Пока нет прохождений</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
 
-  appEl.innerHTML = `
-    <header class="admin-header">
-      <h1>📊 Администратор</h1>
-      <div class="admin-header__actions">
-        <button id="refresh-btn" class="admin-btn admin-btn--ghost">Обновить</button>
-        <button id="logout-btn" class="admin-btn admin-btn--ghost">Выйти</button>
-        <a href="/" class="admin-btn admin-btn--ghost">← Меню</a>
-      </div>
-    </header>
-    ${loadError ? `<p class="admin-load-error">${loadError}</p>` : ''}
-    ${loading ? '<p class="admin-loading-inline">Загрузка данных…</p>' : ''}
-
+function renderSettingsTab(mathSettings: GameSettings | null): string {
+  return `
     <section class="admin-section">
-      <h2>📐 Настройки «Столбик»</h2>
+      <h2>📐 Столбик</h2>
       <p class="admin-section__hint">Сколько правильных примеров нужно решить для завершения серии</p>
       <form id="settings-form" class="admin-verify-form">
         <label class="admin-field">
@@ -119,9 +164,17 @@ function renderDashboard(
       </form>
       <p class="admin-verify-result hidden" id="settings-result"></p>
     </section>
+  `;
+}
 
+function renderVerifyTab(stages: StageCompletion[]): string {
+  const planetOptions = PLANETS.map(p =>
+    `<option value="${p.id}">${p.name}</option>`
+  ).join('');
+
+  return `
     <section class="admin-section">
-      <h2>🔍 Проверка прохождения этапа</h2>
+      <h2>🔍 Проверка кода</h2>
       <p class="admin-section__hint">Спросите у ребёнка планету и двузначную цифру с экрана награды</p>
       <form id="verify-form" class="admin-verify-form">
         <input type="text" id="verify-login" placeholder="Логин пользователя" required>
@@ -145,53 +198,75 @@ function renderDashboard(
 
     <section class="admin-section">
       <h2>🪐 Пройденные этапы</h2>
-      <div class="admin-table-wrap">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th>Логин</th>
-              <th>Игра</th>
-              <th>Этап</th>
-              <th>Планета</th>
-              <th>Код</th>
-              <th>Награда</th>
-              <th>Подтверждён</th>
-              <th>Дата</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${stageRows || '<tr><td colspan="8" class="admin-empty">Пока нет прохождений</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="admin-section">
-      <h2>📈 Статистика игроков</h2>
-      <div class="admin-table-wrap">
-        <table class="admin-table">
-          <thead>
-            <tr>
-              <th>Логин</th>
-              <th>Игра</th>
-              <th>✓</th>
-              <th>✗</th>
-              <th>Серии</th>
-              <th>Победы</th>
-              <th>Поражения</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${tableRows || '<tr><td colspan="7" class="admin-empty">Нет данных</td></tr>'}
-          </tbody>
-        </table>
-      </div>
+      ${renderStagesTable(stages)}
     </section>
   `;
+}
+
+function renderDashboard(
+  token: string,
+  rows: UserStatsRow[],
+  stages: StageCompletion[],
+  mathSettings: GameSettings | null,
+  loadError?: string,
+  loading = false,
+): void {
+  const activeTab = getActiveTab();
+
+  const tabButtons = TABS.map(tab => `
+    <button type="button" class="admin-tab${tab.id === activeTab ? ' admin-tab--active' : ''}"
+      data-tab="${tab.id}">${tab.label}</button>
+  `).join('');
+
+  appEl.innerHTML = `
+    <header class="admin-header">
+      <h1>📊 Администратор</h1>
+      <div class="admin-header__actions">
+        <button id="refresh-btn" class="admin-btn admin-btn--ghost">Обновить</button>
+        <button id="logout-btn" class="admin-btn admin-btn--ghost">Выйти</button>
+        <a href="/" class="admin-btn admin-btn--ghost">← Меню</a>
+      </div>
+    </header>
+    ${loadError ? `<p class="admin-load-error">${loadError}</p>` : ''}
+    ${loading ? '<p class="admin-loading-inline">Загрузка данных…</p>' : ''}
+
+    <nav class="admin-tabs">${tabButtons}</nav>
+
+    <div class="admin-tab-panel${activeTab === 'settings' ? ' admin-tab-panel--active' : ''}" data-panel="settings">
+      ${renderSettingsTab(mathSettings)}
+    </div>
+
+    <div class="admin-tab-panel${activeTab === 'verify' ? ' admin-tab-panel--active' : ''}" data-panel="verify">
+      ${renderVerifyTab(stages)}
+    </div>
+
+    <div class="admin-tab-panel${activeTab === 'stats' ? ' admin-tab-panel--active' : ''}" data-panel="stats">
+      <section class="admin-section">
+        <h2>📈 Статистика игроков</h2>
+        ${renderStatsTable(rows)}
+      </section>
+    </div>
+  `;
+
+  appEl.querySelectorAll<HTMLButtonElement>('.admin-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab as AdminTab;
+      setActiveTab(tab);
+      appEl.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('admin-tab--active'));
+      btn.classList.add('admin-tab--active');
+      appEl.querySelectorAll('.admin-tab-panel').forEach(panel => {
+        panel.classList.toggle('admin-tab-panel--active', panel.getAttribute('data-panel') === tab);
+      });
+    });
+  });
 
   appEl.querySelector('#logout-btn')?.addEventListener('click', () => {
     clearAdminToken();
     renderLogin();
+  });
+
+  appEl.querySelector('#refresh-btn')?.addEventListener('click', () => {
+    void loadDashboard(token);
   });
 
   appEl.querySelector<HTMLFormElement>('#verify-form')?.addEventListener('submit', async (e) => {
@@ -208,16 +283,13 @@ function renderDashboard(
       resultEl.textContent = result.message;
       resultEl.className = `admin-verify-result ${result.verified ? 'admin-verify-result--ok' : 'admin-verify-result--fail'}`;
       if (result.verified) {
+        setActiveTab('verify');
         void loadDashboard(token);
       }
     } catch (err) {
       resultEl.textContent = err instanceof Error ? err.message : 'Ошибка проверки';
       resultEl.className = 'admin-verify-result admin-verify-result--fail';
     }
-  });
-
-  appEl.querySelector('#refresh-btn')?.addEventListener('click', () => {
-    void loadDashboard(token);
   });
 
   appEl.querySelector<HTMLFormElement>('#settings-form')?.addEventListener('submit', async (e) => {
@@ -237,7 +309,9 @@ function renderDashboard(
 }
 
 async function loadDashboard(token: string): Promise<void> {
+  const activeTab = getActiveTab();
   renderDashboard(token, [], [], null, undefined, true);
+  setActiveTab(activeTab);
 
   const [statsResult, stagesResult, settingsResult] = await Promise.allSettled([
     fetchAdminStats(token),
