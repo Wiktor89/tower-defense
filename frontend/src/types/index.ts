@@ -24,6 +24,7 @@ export interface MathCheckResult {
 export interface User {
   id: number;
   login: string;
+  hasPassword?: boolean;
   createdAt: string;
 }
 

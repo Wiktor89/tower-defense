@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -30,6 +31,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/math/problem", h.createMathProblem)
 	mux.HandleFunc("POST /api/math/check", h.checkMathAnswer)
 	mux.HandleFunc("POST /api/users/login", h.userLogin)
+	mux.HandleFunc("PUT /api/users/password", h.setUserPassword)
 	mux.HandleFunc("POST /api/stats", h.addStats)
 	mux.HandleFunc("POST /api/stages/complete", h.completeStage)
 	mux.HandleFunc("GET /api/settings/math-columns", h.mathColumnsSettings)
@@ -109,7 +111,8 @@ func (h *Handler) checkMathAnswer(w http.ResponseWriter, r *http.Request) {
 }
 
 type userLoginRequest struct {
-	Login string `json:"login"`
+	Login    string `json:"login"`
+	Password string `json:"password"`
 }
 
 func (h *Handler) userLogin(w http.ResponseWriter, r *http.Request) {
@@ -122,9 +125,55 @@ func (h *Handler) userLogin(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	user, err := h.db.GetOrCreateUser(ctx, req.Login)
+	user, err := h.db.LoginUser(ctx, req.Login, req.Password)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		switch {
+		case errors.Is(err, store.ErrPasswordRequired):
+			writeError(w, http.StatusUnauthorized, "password required")
+		case errors.Is(err, store.ErrInvalidPassword):
+			writeError(w, http.StatusUnauthorized, "invalid password")
+		default:
+			writeError(w, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, user)
+}
+
+type setUserPasswordRequest struct {
+	UserID          int    `json:"userId"`
+	Password        string `json:"password"`
+	CurrentPassword string `json:"currentPassword"`
+}
+
+func (h *Handler) setUserPassword(w http.ResponseWriter, r *http.Request) {
+	var req setUserPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.UserID <= 0 || req.Password == "" {
+		writeError(w, http.StatusBadRequest, "userId and password are required")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	user, err := h.db.SetUserPassword(ctx, req.UserID, req.Password, req.CurrentPassword)
+	if err != nil {
+		switch {
+		case errors.Is(err, store.ErrUserNotFound):
+			writeError(w, http.StatusNotFound, "user not found")
+		case errors.Is(err, store.ErrPasswordRequired):
+			writeError(w, http.StatusBadRequest, "current password is required")
+		case errors.Is(err, store.ErrPasswordMismatch):
+			writeError(w, http.StatusUnauthorized, "current password is incorrect")
+		case errors.Is(err, store.ErrPasswordTooShort):
+			writeError(w, http.StatusBadRequest, "password must be at least 4 characters")
+		default:
+			writeError(w, http.StatusInternalServerError, "failed to set password")
+		}
 		return
 	}
 	writeJSON(w, http.StatusOK, user)

@@ -47,10 +47,21 @@ export function checkMathAnswer(id: string, answer: number): Promise<MathCheckRe
   });
 }
 
-export function loginUser(login: string): Promise<User> {
+export function loginUser(login: string, password?: string): Promise<User> {
   return request<User>('/api/users/login', {
     method: 'POST',
-    body: JSON.stringify({ login }),
+    body: JSON.stringify({ login, password: password ?? '' }),
+  });
+}
+
+export function setUserPassword(userId: number, password: string, currentPassword?: string): Promise<User> {
+  return request<User>('/api/users/password', {
+    method: 'PUT',
+    body: JSON.stringify({
+      userId,
+      password,
+      currentPassword: currentPassword ?? '',
+    }),
   });
 }
 

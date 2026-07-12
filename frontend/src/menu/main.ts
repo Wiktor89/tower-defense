@@ -2,17 +2,23 @@ import './menu.css';
 import '../shared/modal.css';
 import { fetchGames } from '../api/client';
 import type { GameCatalogItem } from '../types';
-import { ensureUserLogin } from '../shared/login';
-import { getUser } from '../shared/user';
+import { ensureUserLogin, promptUserLogin, showSetPasswordModal } from '../shared/login';
+import { clearUser, getUser } from '../shared/user';
 
 const grid = document.getElementById('games-grid');
 const userLabel = document.getElementById('user-label');
+const switchUserBtn = document.getElementById('switch-user-btn');
+const passwordBtn = document.getElementById('password-btn');
 const adminBtn = document.getElementById('admin-btn');
 
-if (!grid || !userLabel || !adminBtn) throw new Error('Missing DOM elements');
+if (!grid || !userLabel || !switchUserBtn || !passwordBtn || !adminBtn) {
+  throw new Error('Missing DOM elements');
+}
 
 const gamesGrid = grid;
 const userLabelEl = userLabel;
+const switchUserBtnEl = switchUserBtn;
+const passwordBtnEl = passwordBtn;
 
 function createGameCard(game: GameCatalogItem): HTMLElement {
   const card = document.createElement('article');
@@ -47,15 +53,37 @@ function createGameCard(game: GameCatalogItem): HTMLElement {
 
 function updateUserLabel(): void {
   const user = getUser();
-  userLabelEl.textContent = user ? `👤 ${user.login}` : '';
+  if (user) {
+    const lock = user.hasPassword ? ' 🔒' : '';
+    userLabelEl.textContent = `👤 ${user.login}${lock}`;
+    switchUserBtnEl.classList.remove('hidden');
+    passwordBtnEl.classList.remove('hidden');
+    passwordBtnEl.textContent = user.hasPassword ? 'Сменить пароль' : 'Задать пароль';
+  } else {
+    userLabelEl.textContent = '';
+    switchUserBtnEl.classList.add('hidden');
+    passwordBtnEl.classList.add('hidden');
+  }
 }
+
+switchUserBtnEl.addEventListener('click', () => {
+  clearUser();
+  updateUserLabel();
+  void promptUserLogin().then(() => updateUserLabel());
+});
+
+passwordBtnEl.addEventListener('click', () => {
+  const user = getUser();
+  if (!user) return;
+  showSetPasswordModal(user, () => updateUserLabel());
+});
 
 adminBtn.addEventListener('click', () => {
   window.location.href = '/admin/';
 });
 
 async function init() {
-  const user = await ensureUserLogin();
+  await ensureUserLogin();
   updateUserLabel();
 
   try {
@@ -64,8 +92,6 @@ async function init() {
   } catch {
     gamesGrid.innerHTML = '<p class="menu-error">Не удалось загрузить список игр. Запустите backend.</p>';
   }
-
-  void user;
 }
 
 void init();

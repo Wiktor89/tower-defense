@@ -54,8 +54,11 @@ func (s *Store) migrate(ctx context.Context) error {
 		CREATE TABLE IF NOT EXISTS users (
 			id SERIAL PRIMARY KEY,
 			login VARCHAR(64) UNIQUE NOT NULL,
+			password_hash VARCHAR(255),
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
+
+		ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
 
 		CREATE TABLE IF NOT EXISTS user_game_stats (
 			id SERIAL PRIMARY KEY,
