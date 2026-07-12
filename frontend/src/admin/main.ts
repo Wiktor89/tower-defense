@@ -47,7 +47,12 @@ function renderLogin(): void {
   });
 }
 
-function renderDashboard(token: string, rows: UserStatsRow[], stages: StageCompletion[]): void {
+function renderDashboard(
+  token: string,
+  rows: UserStatsRow[],
+  stages: StageCompletion[],
+  loadError?: string,
+): void {
   const tableRows = rows.map(user => {
     if (user.games.length === 0) {
       return `
@@ -96,6 +101,7 @@ function renderDashboard(token: string, rows: UserStatsRow[], stages: StageCompl
         <a href="/" class="admin-btn admin-btn--ghost">← Меню</a>
       </div>
     </header>
+    ${loadError ? `<p class="admin-load-error">${loadError}</p>` : ''}
 
     <section class="admin-section">
       <h2>🔍 Проверка прохождения этапа</h2>
@@ -199,16 +205,39 @@ function renderDashboard(token: string, rows: UserStatsRow[], stages: StageCompl
 }
 
 async function loadDashboard(token: string): Promise<void> {
-  try {
-    const [rows, stages] = await Promise.all([
-      fetchAdminStats(token),
-      fetchAdminStages(token),
-    ]);
-    renderDashboard(token, rows, stages);
-  } catch {
+  appEl.innerHTML = `
+    <div class="admin-loading">
+      <h1>📊 Администратор</h1>
+      <p>Загрузка…</p>
+    </div>
+  `;
+
+  const [statsResult, stagesResult] = await Promise.allSettled([
+    fetchAdminStats(token),
+    fetchAdminStages(token),
+  ]);
+
+  const unauthorized = [statsResult, stagesResult].some(
+    r => r.status === 'rejected' && r.reason instanceof Error && r.reason.message.toLowerCase().includes('unauthorized'),
+  );
+  if (unauthorized) {
     clearAdminToken();
     renderLogin();
+    return;
   }
+
+  const rows = statsResult.status === 'fulfilled' ? statsResult.value : [];
+  const stages = stagesResult.status === 'fulfilled' ? stagesResult.value : [];
+
+  const errors: string[] = [];
+  if (statsResult.status === 'rejected') {
+    errors.push('не удалось загрузить статистику');
+  }
+  if (stagesResult.status === 'rejected') {
+    errors.push('не удалось загрузить этапы (перезапустите сервер с новой версией)');
+  }
+
+  renderDashboard(token, rows, stages, errors.length ? `⚠️ ${errors.join('; ')}` : undefined);
 }
 
 async function init(): Promise<void> {

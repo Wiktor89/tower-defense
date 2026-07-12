@@ -2,8 +2,8 @@ import './menu.css';
 import '../shared/modal.css';
 import { fetchGames } from '../api/client';
 import type { GameCatalogItem } from '../types';
-import { ensureUserLogin, showAdminLoginModal } from '../shared/login';
-import { getUser, setAdminToken } from '../shared/user';
+import { ensureUserLogin } from '../shared/login';
+import { getUser } from '../shared/user';
 
 const grid = document.getElementById('games-grid');
 const userLabel = document.getElementById('user-label');
@@ -51,10 +51,7 @@ function updateUserLabel(): void {
 }
 
 adminBtn.addEventListener('click', () => {
-  showAdminLoginModal((token) => {
-    setAdminToken(token);
-    window.location.href = '/admin/';
-  });
+  window.location.href = '/admin/';
 });
 
 async function init() {
