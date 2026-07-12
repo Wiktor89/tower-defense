@@ -1,17 +1,32 @@
 import type { GameCatalogItem, MathCheckResult, MathProblem, OpMode, StageCompletion, StatsDelta, User, UserStatsRow, VerifyResult } from '../types';
 
+const REQUEST_TIMEOUT_MS = 10_000;
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-    ...init,
-  });
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({})) as { error?: string };
-    throw new Error(body.error ?? `Request failed: ${response.status}`);
+  try {
+    const response = await fetch(url, {
+      headers: { 'Content-Type': 'application/json', ...init?.headers },
+      ...init,
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      throw new Error(body.error ?? `Request failed: ${response.status}`);
+    }
+
+    return response.json() as Promise<T>;
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error('Сервер не отвечает. Проверьте, что PostgreSQL запущен и выполните ./run.sh');
+    }
+    throw err;
+  } finally {
+    window.clearTimeout(timeoutId);
   }
-
-  return response.json() as Promise<T>;
 }
 
 export function fetchGames(): Promise<GameCatalogItem[]> {

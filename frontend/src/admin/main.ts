@@ -52,6 +52,7 @@ function renderDashboard(
   rows: UserStatsRow[],
   stages: StageCompletion[],
   loadError?: string,
+  loading = false,
 ): void {
   const tableRows = rows.map(user => {
     if (user.games.length === 0) {
@@ -102,6 +103,7 @@ function renderDashboard(
       </div>
     </header>
     ${loadError ? `<p class="admin-load-error">${loadError}</p>` : ''}
+    ${loading ? '<p class="admin-loading-inline">Загрузка данных…</p>' : ''}
 
     <section class="admin-section">
       <h2>🔍 Проверка прохождения этапа</h2>
@@ -205,12 +207,7 @@ function renderDashboard(
 }
 
 async function loadDashboard(token: string): Promise<void> {
-  appEl.innerHTML = `
-    <div class="admin-loading">
-      <h1>📊 Администратор</h1>
-      <p>Загрузка…</p>
-    </div>
-  `;
+  renderDashboard(token, [], [], undefined, true);
 
   const [statsResult, stagesResult] = await Promise.allSettled([
     fetchAdminStats(token),
@@ -231,10 +228,12 @@ async function loadDashboard(token: string): Promise<void> {
 
   const errors: string[] = [];
   if (statsResult.status === 'rejected') {
-    errors.push('не удалось загрузить статистику');
+    const msg = statsResult.reason instanceof Error ? statsResult.reason.message : 'не удалось загрузить статистику';
+    errors.push(msg);
   }
   if (stagesResult.status === 'rejected') {
-    errors.push('не удалось загрузить этапы (перезапустите сервер с новой версией)');
+    const msg = stagesResult.reason instanceof Error ? stagesResult.reason.message : 'не удалось загрузить этапы';
+    errors.push(msg);
   }
 
   renderDashboard(token, rows, stages, errors.length ? `⚠️ ${errors.join('; ')}` : undefined);
