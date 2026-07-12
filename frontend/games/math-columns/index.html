@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Столбик</title>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <a href="/" class="back-btn" title="Вернуться в меню">← Меню</a>
+      <div class="header-title">
+        <h1>📐 Столбик</h1>
+      </div>
+      <div class="stats">
+        <span id="score-correct">✓ 0</span>
+        <span id="score-wrong">✗ 0</span>
+      </div>
+    </header>
+
+    <div class="controls">
+      <div class="control-group">
+        <span class="control-label">Класс</span>
+        <div class="btn-group" id="level-btns">
+          <button class="ctrl-btn active" data-level="1">1</button>
+          <button class="ctrl-btn" data-level="2">2</button>
+          <button class="ctrl-btn" data-level="3">3</button>
+        </div>
+      </div>
+      <div class="control-group">
+        <span class="control-label">Действие</span>
+        <div class="btn-group" id="op-btns">
+          <button class="ctrl-btn active" data-op="add">+</button>
+          <button class="ctrl-btn" data-op="sub">−</button>
+          <button class="ctrl-btn" data-op="mixed">±</button>
+        </div>
+      </div>
+    </div>
+
+    <main class="notebook">
+      <div id="column" class="column"></div>
+      <div id="feedback" class="feedback hidden"></div>
+      <div class="actions">
+        <button id="check-btn" class="action-btn action-btn--primary">Проверить</button>
+        <button id="next-btn" class="action-btn hidden">Следующий пример</button>
+        <button id="hint-btn" class="action-btn action-btn--ghost">Подсказка</button>
+      </div>
+    </main>
+
+    <footer class="progress-section">
+      <div class="progress-header">
+        <span class="progress-label">Прогресс серии</span>
+        <span id="progress-text" class="progress-count">0 / 50</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+        <div class="progress-brain" id="progress-brain"></div>
+      </div>
+    </footer>
+  </div>
+
+  <script type="module" src="/src/games/math-columns/main.ts"></script>
+</body>
+</html>
