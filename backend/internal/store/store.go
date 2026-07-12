@@ -69,6 +69,20 @@ func (s *Store) migrate(ctx context.Context) error {
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			UNIQUE(user_id, game_id)
 		);
+
+		CREATE TABLE IF NOT EXISTS stage_completions (
+			id SERIAL PRIMARY KEY,
+			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			game_id VARCHAR(64) NOT NULL,
+			stage INTEGER NOT NULL,
+			planet VARCHAR(32) NOT NULL,
+			code INTEGER NOT NULL CHECK (code >= 10 AND code <= 99),
+			reward_rub INTEGER NOT NULL DEFAULT 100,
+			verified BOOLEAN NOT NULL DEFAULT FALSE,
+			completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			verified_at TIMESTAMPTZ,
+			UNIQUE(user_id, game_id, stage)
+		);
 	`)
 	return err
 }

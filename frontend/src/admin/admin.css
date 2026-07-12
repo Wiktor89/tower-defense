@@ -119,3 +119,64 @@ body {
   color: rgba(255, 255, 255, 0.4);
   text-align: center;
 }
+
+.admin-section {
+  margin-bottom: 32px;
+}
+
+.admin-section h2 {
+  font-size: 1.15rem;
+  margin-bottom: 12px;
+}
+
+.admin-section__hint {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 12px;
+}
+
+.admin-verify-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.admin-verify-form input,
+.admin-verify-form select {
+  padding: 10px 12px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.admin-verify-form input[type="number"] {
+  width: 110px;
+}
+
+.admin-verify-result {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.admin-verify-result.hidden {
+  display: none;
+}
+
+.admin-verify-result--ok {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+}
+
+.admin-verify-result--fail {
+  background: rgba(248, 113, 113, 0.15);
+  color: #fca5a5;
+}
+
+.admin-row--verified td {
+  opacity: 0.7;
+}

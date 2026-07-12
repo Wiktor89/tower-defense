@@ -1,0 +1,138 @@
+.solar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 8, 0.92);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  padding: 16px;
+}
+
+.solar-modal {
+  text-align: center;
+  color: #fff;
+  max-width: 520px;
+  width: 100%;
+}
+
+.solar-title {
+  font-size: 1.6rem;
+  margin-bottom: 8px;
+}
+
+.solar-reward {
+  font-size: 1.3rem;
+  margin-bottom: 6px;
+}
+
+.solar-reward strong {
+  color: #4ade80;
+  font-size: 1.5rem;
+}
+
+.solar-hint {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.55);
+  margin-bottom: 20px;
+}
+
+.solar-system {
+  position: relative;
+  width: 440px;
+  height: 440px;
+  margin: 0 auto 24px;
+}
+
+.solar-orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.solar-sun {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2.8rem;
+  z-index: 2;
+  filter: drop-shadow(0 0 20px rgba(255, 200, 0, 0.8));
+}
+
+.solar-planet {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  z-index: 3;
+  box-shadow: inset -2px -2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.solar-planet--active {
+  box-shadow:
+    0 0 0 3px #fbbf24,
+    0 0 20px rgba(251, 191, 36, 0.6);
+  z-index: 5;
+}
+
+.solar-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 160%;
+  height: 40%;
+  transform: translate(-50%, -50%) rotateX(70deg);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.solar-planet__code {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  z-index: 6;
+}
+
+.solar-planet__name {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.55rem;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.solar-planet--active .solar-planet__name {
+  color: #fbbf24;
+  font-weight: 700;
+}
+
+.solar-close {
+  padding: 12px 32px;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  border: none;
+  border-radius: 10px;
+  color: #1e293b;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 480px) {
+  .solar-system {
+    width: 300px;
+    height: 300px;
+    transform: scale(0.85);
+  }
+}

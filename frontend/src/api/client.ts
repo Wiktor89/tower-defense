@@ -1,4 +1,4 @@
-import type { GameCatalogItem, MathCheckResult, MathProblem, OpMode, StatsDelta, User, UserStatsRow } from '../types';
+import type { GameCatalogItem, MathCheckResult, MathProblem, OpMode, StageCompletion, StatsDelta, User, UserStatsRow, VerifyResult } from '../types';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -64,5 +64,29 @@ export function adminLogin(login: string, password: string): Promise<string> {
 export function fetchAdminStats(token: string): Promise<UserStatsRow[]> {
   return request<UserStatsRow[]>('/api/admin/stats', {
     headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function completeStage(userId: number, gameId: string, stage: number): Promise<StageCompletion> {
+  return request<StageCompletion>('/api/stages/complete', {
+    method: 'POST',
+    body: JSON.stringify({ userId, gameId, stage }),
+  });
+}
+
+export function fetchAdminStages(token: string): Promise<StageCompletion[]> {
+  return request<StageCompletion[]>('/api/admin/stages', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function adminVerify(
+  token: string,
+  data: { userLogin: string; gameId: string; stage: number; planet: string; code: number },
+): Promise<VerifyResult> {
+  return request<VerifyResult>('/api/admin/verify', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(data),
   });
 }

@@ -54,6 +54,26 @@ export interface UserStatsRow {
   games: GameStats[];
 }
 
+export interface StageCompletion {
+  id: number;
+  userId: number;
+  userLogin?: string;
+  gameId: string;
+  stage: number;
+  planet: string;
+  planetName: string;
+  code: number;
+  rewardRub: number;
+  verified: boolean;
+  completedAt: string;
+  verifiedAt?: string;
+}
+
+export interface VerifyResult {
+  verified: boolean;
+  message: string;
+}
+
 export type OpMode = 'add' | 'sub' | 'mixed';
 export type PlantType = 'sunflower' | 'peashooter' | 'wallnut' | 'cherrybomb';
 export type ZombieType = 'normal' | 'cone' | 'bucket';

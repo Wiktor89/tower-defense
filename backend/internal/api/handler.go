@@ -31,8 +31,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/math/check", h.checkMathAnswer)
 	mux.HandleFunc("POST /api/users/login", h.userLogin)
 	mux.HandleFunc("POST /api/stats", h.addStats)
+	mux.HandleFunc("POST /api/stages/complete", h.completeStage)
 	mux.HandleFunc("POST /api/admin/login", h.adminLogin)
 	mux.HandleFunc("GET /api/admin/stats", h.adminStats)
+	mux.HandleFunc("GET /api/admin/stages", h.adminStages)
+	mux.HandleFunc("POST /api/admin/verify", h.adminVerify)
 }
 
 func (h *Handler) health(w http.ResponseWriter, _ *http.Request) {
@@ -203,6 +206,93 @@ func (h *Handler) adminStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, stats)
+}
+
+type completeStageRequest struct {
+	UserID int    `json:"userId"`
+	GameID string `json:"gameId"`
+	Stage  int    `json:"stage"`
+}
+
+func (h *Handler) completeStage(w http.ResponseWriter, r *http.Request) {
+	var req completeStageRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.UserID <= 0 || req.GameID == "" || req.Stage <= 0 {
+		writeError(w, http.StatusBadRequest, "userId, gameId and stage are required")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if _, err := h.db.GetUser(ctx, req.UserID); err != nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+
+	result, err := h.db.CompleteStage(ctx, req.UserID, req.GameID, req.Stage)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to complete stage")
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+func (h *Handler) adminStages(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	stages, err := h.db.ListStageCompletions(ctx)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load stages")
+		return
+	}
+	writeJSON(w, http.StatusOK, stages)
+}
+
+type adminVerifyRequest struct {
+	UserLogin string `json:"userLogin"`
+	GameID    string `json:"gameId"`
+	Stage     int    `json:"stage"`
+	Planet    string `json:"planet"`
+	Code      int    `json:"code"`
+}
+
+func (h *Handler) adminVerify(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req adminVerifyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.UserLogin == "" || req.GameID == "" || req.Planet == "" || req.Code < 10 {
+		writeError(w, http.StatusBadRequest, "all fields are required")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	result, err := h.db.VerifyStage(ctx, req.UserLogin, req.GameID, req.Stage, req.Planet, req.Code)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "verification failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
 }
 
 func bearerToken(r *http.Request) string {

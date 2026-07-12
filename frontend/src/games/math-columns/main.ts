@@ -1,9 +1,11 @@
 import './style.css';
-import { checkMathAnswer, fetchMathProblem } from '../../api/client';
+import { checkMathAnswer, completeStage, fetchMathProblem } from '../../api/client';
 import type { MathProblem, OpMode } from '../../types';
 import { ensureUserLogin } from '../../shared/login';
 import { reportStats } from '../../shared/stats';
+import { getUser } from '../../shared/user';
 import { SESSION_SIZE, createBrainSvg, updateBrainProgress } from './brain';
+import { showSolarSystemReward } from './solar-system';
 import { splitDigits } from './utils';
 
 const columnEl = document.getElementById('column');
@@ -159,12 +161,28 @@ function getUserAnswer(): number | null {
 function completeSession(): void {
   sessionComplete = true;
   void reportStats('math-columns', { sessionsCompleted: 1 });
-  showFeedback(`Серия из ${SESSION_SIZE} примеров завершена! Мозг вырос! 🧠`, 'correct');
   ui.checkBtn.classList.add('hidden');
   ui.nextBtn.textContent = 'Новая серия';
   ui.nextBtn.classList.remove('hidden');
   ui.hintBtn.disabled = true;
   updateProgress();
+  hideFeedback();
+
+  const user = getUser();
+  if (!user) {
+    showFeedback(`Серия из ${SESSION_SIZE} примеров завершена! Мозг вырос! 🧠`, 'correct');
+    return;
+  }
+
+  void completeStage(user.id, 'math-columns', level)
+    .then(completion => {
+      showSolarSystemReward(completion, () => {
+        showFeedback(`Серия из ${SESSION_SIZE} примеров завершена! Мозг вырос! 🧠`, 'correct');
+      });
+    })
+    .catch(() => {
+      showFeedback(`Серия завершена, но не удалось сохранить награду. Попробуйте ещё раз.`, 'wrong');
+    });
 }
 
 async function checkAnswer(): Promise<void> {
