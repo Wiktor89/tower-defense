@@ -4,35 +4,41 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  min-height: 100vh;
-  color: #1a2330;
-  background:
-    radial-gradient(ellipse at 70% 0%, rgba(255, 180, 80, 0.18) 0%, transparent 50%),
-    linear-gradient(165deg, #f4f0e8 0%, #e4ebe8 50%, #d7e2df 100%);
-  display: flex;
-  justify-content: center;
-  padding: 20px;
+  color: #e8eef5;
+  background: #151c26;
 }
 
 #app {
+  position: relative;
   width: 100%;
-  max-width: 960px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  height: 100%;
 }
 
 header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 16px 20px;
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 16px;
-  border: 1px solid #d5d0c4;
-  box-shadow: 0 4px 18px rgba(40, 30, 10, 0.06);
+  padding: 14px 18px;
+  background: linear-gradient(180deg, rgba(12, 16, 24, 0.82) 0%, rgba(12, 16, 24, 0) 100%);
+  pointer-events: none;
+}
+
+header > * {
+  pointer-events: auto;
 }
 
 .back-btn {
@@ -41,15 +47,16 @@ header {
   font-size: 0.85rem;
   font-weight: 600;
   text-decoration: none;
-  color: #4a5560;
-  background: #eef1f3;
-  border: 1px solid #cfd6db;
+  color: #e8eef5;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 8px;
-  margin-top: 4px;
+  margin-top: 2px;
+  backdrop-filter: blur(8px);
 }
 
 .back-btn:hover {
-  background: #e2e7eb;
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .header-title {
@@ -57,35 +64,34 @@ header {
 }
 
 .header-title h1 {
-  font-size: 1.35rem;
+  font-size: 1.25rem;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
 }
 
 .subtitle {
   margin-top: 4px;
   font-size: 0.88rem;
-  color: #66707a;
+  color: rgba(232, 238, 245, 0.75);
   transition: color 0.15s ease;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
 }
 
 .subtitle.status-reject {
-  color: #c62828;
+  color: #ff6b6b;
   font-weight: 700;
 }
 
 .stage-wrap {
-  position: relative;
-  background: linear-gradient(180deg, #2a3544 0%, #1b2430 100%);
-  border-radius: 18px;
-  border: 1px solid #3a4656;
+  position: absolute;
+  inset: 0;
+  background: #151c26;
   overflow: hidden;
-  min-height: 420px;
-  box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.25);
 }
 
 #stage {
   display: block;
   width: 100%;
-  height: 460px;
+  height: 100%;
   cursor: grab;
   touch-action: none;
 }
@@ -96,12 +102,14 @@ header {
 
 .hint {
   position: absolute;
-  left: 16px;
-  bottom: 14px;
-  right: 16px;
+  left: 18px;
+  bottom: 88px;
+  right: 18px;
   font-size: 0.82rem;
   color: rgba(255, 255, 255, 0.55);
   pointer-events: none;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+  z-index: 2;
 }
 
 .win-banner {
@@ -137,14 +145,17 @@ header {
 }
 
 .toolbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
-  padding: 14px 16px;
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 16px;
-  border: 1px solid #d5d0c4;
+  padding: 14px 18px 18px;
+  background: linear-gradient(0deg, rgba(12, 16, 24, 0.88) 0%, rgba(12, 16, 24, 0) 100%);
 }
 
 .action-btn {
@@ -152,14 +163,15 @@ header {
   font-size: 0.95rem;
   font-weight: 600;
   border-radius: 10px;
-  border: 1px solid #cfd6db;
-  background: #eef1f3;
-  color: #1a2330;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.12);
+  color: #e8eef5;
   cursor: pointer;
+  backdrop-filter: blur(8px);
 }
 
 .action-btn:hover:not(:disabled) {
-  background: #e2e7eb;
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .action-btn:disabled {
@@ -198,15 +210,16 @@ header {
   font-size: 0.78rem;
   font-weight: 600;
   border: 2px solid transparent;
-  background: #eef1f3;
-  color: #334155;
+  background: rgba(255, 255, 255, 0.12);
+  color: #e8eef5;
   cursor: pointer;
+  backdrop-filter: blur(8px);
 }
 
 .part-chip.selected {
   border-color: #d97706;
-  background: #fff7ed;
-  color: #9a3412;
+  background: rgba(217, 119, 6, 0.25);
+  color: #ffd8a8;
 }
 
 .part-chip.joined {
@@ -214,12 +227,12 @@ header {
 }
 
 @media (max-width: 640px) {
-  #stage {
-    height: 360px;
-  }
-
   .parts-legend {
     margin-left: 0;
     width: 100%;
+  }
+
+  .hint {
+    bottom: 120px;
   }
 }
