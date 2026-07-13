@@ -40,6 +40,15 @@ func Catalog() []Game {
 			Tags:        []string{"слова", "скороговорка"},
 		},
 		{
+			ID:          "disassemble",
+			Title:       "Разбери и собери",
+			Description: "Разберите предмет на детали и соберите снова.",
+			Icon:        "🔧",
+			URL:         "/games/disassemble/",
+			Available:   true,
+			Tags:        []string{"3D", "логика"},
+		},
+		{
 			ID:          "snake",
 			Title:       "Змейка",
 			Description: "Классическая аркада — собирайте яблоки и не врезайтесь в стены.",

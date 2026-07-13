@@ -13,6 +13,7 @@ const GAME_NAMES: Record<string, string> = {
   'tower-defense': '🌻 Защита от зомби',
   'math-columns': '📐 Столбик',
   'fill-blanks': '📝 Заполни пропуски',
+  'disassemble': '🔧 Разбери и собери',
 };
 
 type AdminTab = 'settings' | 'verify' | 'stats';

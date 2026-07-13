@@ -10,6 +10,7 @@ export default defineConfig({
         towerDefense: resolve(__dirname, 'games/tower-defense/index.html'),
         mathColumns: resolve(__dirname, 'games/math-columns/index.html'),
         fillBlanks: resolve(__dirname, 'games/fill-blanks/index.html'),
+        disassemble: resolve(__dirname, 'games/disassemble/index.html'),
         admin: resolve(__dirname, 'admin/index.html'),
       },
     },

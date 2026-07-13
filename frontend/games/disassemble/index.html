@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Разбери и собери</title>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <a href="/" class="back-btn">← Меню</a>
+      <div class="header-title">
+        <h1>🔧 Разбери и собери</h1>
+        <p class="subtitle" id="status-text">Покрутите ручку, затем нажмите «Разобрать»</p>
+      </div>
+    </header>
+
+    <div class="stage-wrap">
+      <canvas id="stage"></canvas>
+      <div id="win-banner" class="win-banner hidden">Ты собрал!</div>
+      <p class="hint" id="hint-text">Зажмите мышь и крутите, чтобы осмотреть предмет</p>
+    </div>
+
+    <div class="toolbar">
+      <button id="disassemble-btn" class="action-btn action-btn--primary" type="button">Разобрать</button>
+      <button id="assemble-hint-btn" class="action-btn action-btn--ghost hidden" type="button">Сбросить выбор</button>
+      <div id="parts-legend" class="parts-legend"></div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/games/disassemble/main.ts"></script>
+</body>
+</html>

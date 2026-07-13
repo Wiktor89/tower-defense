@@ -80,6 +80,7 @@ make install
 | Защита от зомби | `/games/tower-defense/` | Готова |
 | Столбик | `/games/math-columns/` | Готова |
 | Заполни пропуски | `/games/fill-blanks/` | Готова |
+| Разбери и собери | `/games/disassemble/` | Готова |
 
 ## Разработка
 
