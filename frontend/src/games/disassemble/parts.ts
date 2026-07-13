@@ -9,12 +9,13 @@ export interface PartDef {
   assembledX: number;
 }
 
+/** Proportions close to a retractable ballpoint (~14 cm). */
 export const PARTS: PartDef[] = [
-  { id: 'tip', name: 'Наконечник', color: 0xc0c8d0, assembledX: -2.35 },
-  { id: 'cartridge', name: 'Стержень', color: 0x1a73e8, assembledX: -0.85 },
-  { id: 'barrel', name: 'Корпус', color: 0xf5c542, assembledX: 0.65 },
-  { id: 'spring', name: 'Пружина', color: 0xa8b4bc, assembledX: 1.95 },
-  { id: 'button', name: 'Кнопка', color: 0xe53935, assembledX: 2.45 },
+  { id: 'tip', name: 'Наконечник', color: 0xc5ccd3, assembledX: -2.55 },
+  { id: 'cartridge', name: 'Стержень', color: 0x1e88e5, assembledX: -0.75 },
+  { id: 'barrel', name: 'Корпус', color: 0xf0c14a, assembledX: 0.7 },
+  { id: 'spring', name: 'Пружина', color: 0xb0bec5, assembledX: 2.05 },
+  { id: 'button', name: 'Кнопка', color: 0xd32f2f, assembledX: 2.55 },
 ];
 
 export const CONNECTIONS: Array<[PartId, PartId]> = [
@@ -30,23 +31,65 @@ export function canConnect(a: PartId, b: PartId): boolean {
   );
 }
 
-function mat(opts: {
-  color: number;
-  metalness?: number;
-  roughness?: number;
-  transparent?: boolean;
-  opacity?: number;
-  emissive?: number;
-}): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
-    color: opts.color,
-    metalness: opts.metalness ?? 0.2,
-    roughness: opts.roughness ?? 0.4,
-    transparent: opts.transparent ?? false,
-    opacity: opts.opacity ?? 1,
-    emissive: opts.emissive ? new THREE.Color(opts.emissive) : undefined,
-    emissiveIntensity: opts.emissive ? 0.15 : 0,
+function chrome(): THREE.MeshPhysicalMaterial {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0xe8ecef,
+    metalness: 1,
+    roughness: 0.12,
+    clearcoat: 0.6,
+    clearcoatRoughness: 0.15,
   });
+}
+
+function brushedSteel(): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color: 0x9aa3ab,
+    metalness: 0.92,
+    roughness: 0.38,
+  });
+}
+
+function rubber(color: number): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color,
+    metalness: 0,
+    roughness: 0.92,
+  });
+}
+
+function plastic(color: number, rough = 0.35): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color,
+    metalness: 0.05,
+    roughness: rough,
+  });
+}
+
+function clearPlastic(color: number): THREE.MeshPhysicalMaterial {
+  return new THREE.MeshPhysicalMaterial({
+    color,
+    metalness: 0,
+    roughness: 0.12,
+    transmission: 0.62,
+    thickness: 0.55,
+    ior: 1.49,
+    transparent: true,
+    opacity: 1,
+    clearcoat: 0.4,
+    clearcoatRoughness: 0.2,
+  });
+}
+
+/** Lathe profile: [radius, yAlongAxis]. Axis is Y; rotated to +X. */
+function lathe(
+  profile: Array<[number, number]>,
+  material: THREE.Material,
+  segments = 72,
+): THREE.Mesh {
+  const pts = profile.map(([r, y]) => new THREE.Vector2(Math.max(0.001, r), y));
+  const mesh = new THREE.Mesh(new THREE.LatheGeometry(pts, segments), material);
+  mesh.rotation.z = -Math.PI / 2;
+  return mesh;
 }
 
 function cyl(
@@ -54,7 +97,7 @@ function cyl(
   rBot: number,
   h: number,
   material: THREE.Material,
-  segs = 32,
+  segs = 48,
 ): THREE.Mesh {
   const m = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, h, segs), material);
   m.rotation.z = Math.PI / 2;
@@ -63,18 +106,40 @@ function cyl(
 
 function helixSpring(turns: number, radius: number, tube: number, length: number): THREE.Mesh {
   const pts: THREE.Vector3[] = [];
-  const steps = Math.max(48, turns * 24);
+  const steps = turns * 32;
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
     const a = t * turns * Math.PI * 2;
     pts.push(new THREE.Vector3((t - 0.5) * length, Math.cos(a) * radius, Math.sin(a) * radius));
   }
   const curve = new THREE.CatmullRomCurve3(pts);
-  const geo = new THREE.TubeGeometry(curve, steps, tube, 8, false);
   return new THREE.Mesh(
-    geo,
-    mat({ color: 0xb0bec5, metalness: 0.85, roughness: 0.25 }),
+    new THREE.TubeGeometry(curve, steps, tube, 10, false),
+    new THREE.MeshStandardMaterial({
+      color: 0xc5ced4,
+      metalness: 0.95,
+      roughness: 0.22,
+    }),
   );
+}
+
+function makeClip(material: THREE.Material): THREE.Group {
+  const g = new THREE.Group();
+  // Mount ring around barrel
+  const mount = cyl(0.305, 0.305, 0.1, material, 40);
+  mount.position.x = 0.15;
+  // Long arm — slightly bent via thin boxes
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.035, 0.11), material);
+  arm.position.set(0.55, 0.33, 0);
+  arm.rotation.z = -0.04;
+  // Tip hook
+  const hook = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.09, 0.12), material);
+  hook.position.set(-0.05, 0.3, 0);
+  const pad = new THREE.Mesh(new THREE.SphereGeometry(0.055, 16, 12), material);
+  pad.scale.set(1.2, 0.55, 1);
+  pad.position.set(1.1, 0.28, 0);
+  g.add(mount, arm, hook, pad);
+  return g;
 }
 
 export function createPartMesh(def: PartDef): THREE.Group {
@@ -83,91 +148,251 @@ export function createPartMesh(def: PartDef): THREE.Group {
 
   switch (def.id) {
     case 'tip': {
-      const chrome = mat({ color: 0xd7dde3, metalness: 0.92, roughness: 0.18 });
-      const dark = mat({ color: 0x6b737a, metalness: 0.7, roughness: 0.35 });
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.62, 28), chrome);
-      cone.rotation.z = Math.PI / 2;
-      cone.position.x = -0.18;
-      const collar = cyl(0.22, 0.24, 0.22, chrome);
-      collar.position.x = 0.2;
-      const thread = cyl(0.2, 0.2, 0.14, dark, 24);
-      thread.position.x = 0.36;
-      const ball = new THREE.Mesh(
-        new THREE.SphereGeometry(0.045, 16, 12),
-        mat({ color: 0xe8ecef, metalness: 1, roughness: 0.1 }),
+      // Metal writing cone — smooth lathe like a real tip
+      const metal = chrome();
+      const tip = lathe(
+        [
+          [0.012, -0.42],
+          [0.028, -0.36],
+          [0.055, -0.22],
+          [0.12, -0.05],
+          [0.175, 0.08],
+          [0.205, 0.18],
+          [0.215, 0.28],
+          [0.215, 0.36],
+          [0.19, 0.4],
+          [0.17, 0.42],
+        ],
+        metal,
+        80,
       );
-      ball.position.x = -0.5;
-      group.add(cone, collar, thread, ball);
+      const thread = lathe(
+        [
+          [0.165, 0.42],
+          [0.165, 0.52],
+          [0.155, 0.58],
+          [0.155, 0.68],
+        ],
+        brushedSteel(),
+        48,
+      );
+      // Tiny tungsten carbide ball
+      const ball = new THREE.Mesh(
+        new THREE.SphereGeometry(0.028, 24, 18),
+        new THREE.MeshStandardMaterial({ color: 0xf5f7fa, metalness: 1, roughness: 0.08 }),
+      );
+      ball.position.x = -0.42;
+      // Fine grooves on collar
+      for (let i = 0; i < 4; i++) {
+        const ring = cyl(0.218, 0.218, 0.012, brushedSteel(), 48);
+        ring.position.x = 0.22 + i * 0.035;
+        group.add(ring);
+      }
+      group.add(tip, thread, ball);
       break;
     }
     case 'cartridge': {
-      const tube = mat({
-        color: 0x90caf9,
-        metalness: 0.05,
-        roughness: 0.15,
+      const tubeMat = new THREE.MeshPhysicalMaterial({
+        color: 0xb3e5fc,
+        metalness: 0,
+        roughness: 0.08,
+        transmission: 0.75,
+        thickness: 0.2,
         transparent: true,
-        opacity: 0.45,
+        opacity: 1,
+        ior: 1.4,
       });
-      const ink = mat({ color: 0x1565c0, metalness: 0.1, roughness: 0.35 });
-      const metal = mat({ color: 0xb0bec5, metalness: 0.85, roughness: 0.22 });
-      const body = cyl(0.09, 0.09, 1.85, tube, 20);
-      const inkCol = cyl(0.055, 0.055, 1.55, ink, 16);
-      inkCol.position.x = 0.05;
-      const tipMetal = cyl(0.04, 0.07, 0.28, metal, 16);
-      tipMetal.position.x = -0.95;
-      const plug = cyl(0.08, 0.08, 0.1, metal, 16);
-      plug.position.x = 0.95;
-      group.add(body, inkCol, tipMetal, plug);
+      const inkMat = new THREE.MeshStandardMaterial({
+        color: 0x0d47a1,
+        metalness: 0.05,
+        roughness: 0.45,
+      });
+      const brass = new THREE.MeshStandardMaterial({
+        color: 0xc9a227,
+        metalness: 0.95,
+        roughness: 0.28,
+      });
+      const body = cyl(0.085, 0.085, 2.35, tubeMat, 36);
+      const ink = cyl(0.058, 0.058, 1.85, inkMat, 28);
+      ink.position.x = 0.12;
+      // Air gap at back (empty tube look)
+      const air = cyl(
+        0.05,
+        0.05,
+        0.35,
+        new THREE.MeshStandardMaterial({
+          color: 0xe3f2fd,
+          metalness: 0,
+          roughness: 0.2,
+          transparent: true,
+          opacity: 0.35,
+        }),
+        20,
+      );
+      air.position.x = 1.05;
+      const point = lathe(
+        [
+          [0.012, -1.28],
+          [0.03, -1.2],
+          [0.055, -1.08],
+          [0.075, -0.98],
+          [0.085, -0.92],
+        ],
+        brass,
+        40,
+      );
+      const plug = lathe(
+        [
+          [0.08, 1.15],
+          [0.09, 1.2],
+          [0.09, 1.28],
+          [0.05, 1.3],
+        ],
+        plastic(0x455a64, 0.5),
+        32,
+      );
+      group.add(body, ink, air, point, plug);
       break;
     }
     case 'barrel': {
-      const plastic = mat({
-        color: 0xf6c445,
-        metalness: 0.08,
-        roughness: 0.35,
-        transparent: true,
-        opacity: 0.88,
-      });
-      const gripMat = mat({ color: 0xe8a317, metalness: 0.05, roughness: 0.55 });
-      const chrome = mat({ color: 0xcfd8dc, metalness: 0.9, roughness: 0.2 });
-      const body = cyl(0.3, 0.3, 2.05, plastic, 36);
-      const nose = cyl(0.26, 0.3, 0.28, chrome, 28);
-      nose.position.x = -1.05;
-      const rear = cyl(0.28, 0.26, 0.22, chrome, 28);
-      rear.position.x = 1.05;
-      for (let i = 0; i < 5; i++) {
-        const ridge = cyl(0.312, 0.312, 0.06, gripMat, 36);
-        ridge.position.x = -0.55 + i * 0.14;
+      const shell = clearPlastic(0xf2c94c);
+      const grip = rubber(0x2b2f36);
+      const trim = chrome();
+
+      // Main translucent body — slight taper
+      const body = lathe(
+        [
+          [0.27, -1.15],
+          [0.295, -1.0],
+          [0.31, -0.6],
+          [0.315, 0.2],
+          [0.31, 0.85],
+          [0.295, 1.15],
+          [0.275, 1.28],
+          [0.26, 1.35],
+        ],
+        shell,
+        80,
+      );
+
+      // Soft rubber grip zone
+      const gripSleeve = lathe(
+        [
+          [0.318, -0.95],
+          [0.335, -0.88],
+          [0.34, -0.7],
+          [0.34, -0.25],
+          [0.335, -0.12],
+          [0.318, -0.05],
+        ],
+        grip,
+        64,
+      );
+      for (let i = 0; i < 8; i++) {
+        const ridge = cyl(0.342, 0.342, 0.028, grip, 48);
+        ridge.position.x = -0.85 + i * 0.09;
         group.add(ridge);
       }
-      const clip = new THREE.Mesh(
-        new THREE.BoxGeometry(0.9, 0.04, 0.12),
-        chrome,
+
+      // Front metal nose ring
+      const nose = lathe(
+        [
+          [0.22, -1.35],
+          [0.25, -1.3],
+          [0.275, -1.22],
+          [0.275, -1.12],
+          [0.265, -1.08],
+        ],
+        trim,
+        64,
       );
-      clip.position.set(0.35, 0.34, 0);
-      const clipHead = new THREE.Mesh(
-        new THREE.BoxGeometry(0.14, 0.08, 0.14),
-        chrome,
+
+      // Rear collar where button sits
+      const rear = lathe(
+        [
+          [0.255, 1.3],
+          [0.27, 1.38],
+          [0.27, 1.48],
+          [0.24, 1.52],
+        ],
+        trim,
+        48,
       );
-      clipHead.position.set(-0.12, 0.34, 0);
-      group.add(body, nose, rear, clip, clipHead);
+
+      // Inner sleeve (visible through clear plastic)
+      const inner = cyl(
+        0.2,
+        0.2,
+        2.2,
+        new THREE.MeshStandardMaterial({
+          color: 0xfff3c4,
+          metalness: 0,
+          roughness: 0.6,
+          transparent: true,
+          opacity: 0.25,
+        }),
+        32,
+      );
+
+      const clip = makeClip(trim);
+      clip.position.x = 0.35;
+
+      group.add(body, gripSleeve, nose, rear, inner, clip);
       break;
     }
     case 'spring': {
-      group.add(helixSpring(7, 0.13, 0.028, 0.55));
+      const coil = helixSpring(9, 0.125, 0.022, 0.62);
+      const washer = cyl(0.14, 0.14, 0.03, brushedSteel(), 32);
+      washer.position.x = -0.32;
+      const washer2 = washer.clone();
+      washer2.position.x = 0.32;
+      group.add(coil, washer, washer2);
       break;
     }
     case 'button': {
-      const red = mat({ color: 0xe53935, metalness: 0.15, roughness: 0.4 });
-      const dark = mat({ color: 0xb71c1c, metalness: 0.2, roughness: 0.45 });
-      const stem = cyl(0.11, 0.11, 0.45, dark, 20);
-      stem.position.x = -0.05;
-      const cap = cyl(0.17, 0.2, 0.28, red, 24);
-      cap.position.x = 0.22;
-      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.17, 20, 14), red);
-      dome.scale.x = 0.55;
-      dome.position.x = 0.38;
-      group.add(stem, cap, dome);
+      const red = plastic(0xc62828, 0.32);
+      const dark = plastic(0x8e0000, 0.4);
+      // Stepped clicker like Pilot/ BIC
+      const stem = lathe(
+        [
+          [0.09, -0.35],
+          [0.1, -0.2],
+          [0.1, 0.05],
+          [0.12, 0.12],
+        ],
+        dark,
+        48,
+      );
+      const head = lathe(
+        [
+          [0.12, 0.12],
+          [0.18, 0.18],
+          [0.2, 0.28],
+          [0.2, 0.42],
+          [0.175, 0.5],
+          [0.12, 0.52],
+          [0.001, 0.52],
+        ],
+        red,
+        64,
+      );
+      // Soft top pad
+      const pad = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 24, 16),
+        rubber(0xb71c1c),
+      );
+      pad.scale.set(1, 0.45, 1);
+      pad.position.x = 0.5;
+      // Side notches (click feel)
+      for (const z of [-1, 1]) {
+        const notch = new THREE.Mesh(
+          new THREE.BoxGeometry(0.16, 0.06, 0.04),
+          dark,
+        );
+        notch.position.set(0.32, 0.16 * z, 0);
+        group.add(notch);
+      }
+      group.add(stem, head, pad);
       break;
     }
   }
@@ -181,16 +406,15 @@ export function createPartMesh(def: PartDef): THREE.Group {
   return group;
 }
 
-/** Scatter target with outward burst + slight height. */
 export function explodeTarget(index: number, total: number, seed: number): {
   pos: THREE.Vector3;
   rot: THREE.Euler;
 } {
   const angle = (index / total) * Math.PI * 2 + seed * 0.7;
-  const radius = 2.4 + (seed % 1) * 1.4 + index * 0.15;
+  const radius = 2.6 + (seed % 1) * 1.4 + index * 0.15;
   const x = Math.cos(angle) * radius;
   const z = Math.sin(angle) * radius * 0.55;
-  const y = 0.35 + ((seed * 3 + index) % 1) * 0.9;
+  const y = 0.4 + ((seed * 3 + index) % 1) * 0.9;
   return {
     pos: new THREE.Vector3(x, y, z),
     rot: new THREE.Euler(

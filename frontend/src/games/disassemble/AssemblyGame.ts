@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   PARTS,
   PartId,
@@ -33,8 +34,8 @@ export class AssemblyGame {
   private orbiting = false;
   private prevX = 0;
   private prevY = 0;
-  private rotY = 0.45;
-  private rotX = -0.28;
+  private rotY = 0.55;
+  private rotX = -0.32;
   private animating = false;
   private raycaster = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
@@ -49,46 +50,52 @@ export class AssemblyGame {
 
   constructor(canvas: HTMLCanvasElement) {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x151c26);
-    this.scene.fog = new THREE.Fog(0x151c26, 12, 22);
+    this.scene.background = new THREE.Color(0x121820);
+    this.scene.fog = new THREE.Fog(0x121820, 14, 26);
 
-    this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-    this.camera.position.set(0, 1.6, 8.2);
+    this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
+    this.camera.position.set(0, 1.35, 7.4);
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    const hemi = new THREE.HemisphereLight(0xe8eef7, 0x2a3544, 0.85);
-    const key = new THREE.DirectionalLight(0xfff6e8, 1.45);
-    key.position.set(4, 7, 5);
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    pmrem.dispose();
+
+    const hemi = new THREE.HemisphereLight(0xf0f4ff, 0x1a222c, 0.55);
+    const key = new THREE.DirectionalLight(0xfff4e5, 1.65);
+    key.position.set(3.5, 6.5, 4.5);
     key.castShadow = true;
-    key.shadow.mapSize.set(1024, 1024);
+    key.shadow.mapSize.set(2048, 2048);
     key.shadow.camera.near = 1;
-    key.shadow.camera.far = 20;
-    key.shadow.camera.left = -6;
-    key.shadow.camera.right = 6;
-    key.shadow.camera.top = 6;
-    key.shadow.camera.bottom = -6;
-    const fill = new THREE.DirectionalLight(0x8ec5ff, 0.35);
-    fill.position.set(-4, 2, -2);
-    const rim = new THREE.PointLight(0xffcc88, 0.55, 16);
-    rim.position.set(-2, 2.5, 3);
+    key.shadow.camera.far = 22;
+    key.shadow.camera.left = -7;
+    key.shadow.camera.right = 7;
+    key.shadow.camera.top = 7;
+    key.shadow.camera.bottom = -7;
+    key.shadow.bias = -0.0002;
+    const fill = new THREE.DirectionalLight(0xa8c8ff, 0.4);
+    fill.position.set(-5, 2.5, -2);
+    const rim = new THREE.PointLight(0xffd8a8, 0.7, 18);
+    rim.position.set(-2.5, 2.2, 3.5);
     this.scene.add(hemi, key, fill, rim, this.world);
 
     const floor = new THREE.Mesh(
-      new THREE.CircleGeometry(7, 64),
+      new THREE.CircleGeometry(8, 72),
       new THREE.MeshStandardMaterial({
-        color: 0x1e2836,
-        roughness: 0.85,
-        metalness: 0.15,
+        color: 0x18202a,
+        roughness: 0.78,
+        metalness: 0.2,
       }),
     );
     floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -1.45;
+    floor.position.y = -1.5;
     floor.receiveShadow = true;
     this.scene.add(floor);
 
