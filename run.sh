@@ -69,10 +69,8 @@ build_frontend() {
   echo "→ Сборка фронтенда..."
   cd "$FRONTEND_DIR"
 
-  if [ ! -d node_modules ]; then
-    echo "→ Установка npm-зависимостей..."
-    "$npm_bin" install
-  fi
+  echo "→ Установка npm-зависимостей..."
+  "$npm_bin" install
 
   "$npm_bin" run build
 }
