@@ -36,12 +36,24 @@ find_npm() {
 
 find_go() {
   local candidate
+
+  # Подхватить PATH из профиля (как в интерактивной сессии)
+  if [ -s "$HOME/.profile" ]; then
+    # shellcheck disable=SC1090
+    source "$HOME/.profile"
+  fi
+  if [ -s "$HOME/.bashrc" ]; then
+    # shellcheck disable=SC1090
+    source "$HOME/.bashrc"
+  fi
+
   for candidate in \
     "$(command -v go 2>/dev/null || true)" \
     /usr/local/go/bin/go \
+    /snap/bin/go \
     /usr/bin/go \
-    "$HOME/go/bin/go" \
-    /snap/bin/go; do
+    "$HOME/.local/go/bin/go" \
+    "$HOME/go/bin/go"; do
     if [ -n "$candidate" ] && [ -x "$candidate" ]; then
       echo "$candidate"
       return 0
@@ -138,22 +150,22 @@ ensure_postgres
 if find_go >/dev/null 2>&1; then
   build_server
   run_server
-fi
-
-if [ -x "$BINARY" ]; then
+elif [ -x "$BINARY" ]; then
   echo "⚠ go не найден — запускаю готовый bin/server"
   run_server
+else
+  echo ""
+  echo "Ошибка: go не найден и bin/server отсутствует."
+  echo ""
+  echo "Установите Go на сервере:"
+  echo "  sudo snap install go --classic"
+  echo "  # или: sudo apt install golang-go"
+  echo ""
+  echo "Либо соберите бинарник на другой машине и скопируйте:"
+  echo "  ./build-server.sh"
+  echo "  scp bin/server user@server:~/project/tower-defense/bin/"
+  exit 1
 fi
 
 echo ""
-echo "Ошибка: go не найден и bin/server отсутствует."
-echo ""
-echo "Установите Go на сервере:"
-echo "  sudo snap install go --classic"
-echo "  # или: sudo apt install golang-go"
-echo "  # или: https://go.dev/dl/"
-echo ""
-echo "Либо соберите бинарник на другой машине и скопируйте:"
-echo "  ./build-server.sh"
-echo "  scp bin/server user@server:~/project/tower-defense/bin/"
-exit 1
+echo "✓ Сервер запущен"
