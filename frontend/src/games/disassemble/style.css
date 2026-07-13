@@ -64,6 +64,12 @@ header {
   margin-top: 4px;
   font-size: 0.88rem;
   color: #66707a;
+  transition: color 0.15s ease;
+}
+
+.subtitle.status-reject {
+  color: #c62828;
+  font-weight: 700;
 }
 
 .stage-wrap {

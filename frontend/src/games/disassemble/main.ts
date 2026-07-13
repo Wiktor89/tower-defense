@@ -19,6 +19,33 @@ const ui = { canvas, statusText, hintText, winBanner, disassembleBtn, clearBtn, 
 
 const game = new AssemblyGame(ui.canvas);
 
+let audioCtx: AudioContext | null = null;
+
+function playRejectBeep(): void {
+  try {
+    audioCtx ??= new AudioContext();
+    const ctx = audioCtx;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(180, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(90, ctx.currentTime + 0.18);
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.22);
+  } catch {
+    // ignore audio failures
+  }
+}
+
+function flashReject(): void {
+  ui.statusText.classList.add('status-reject');
+  window.setTimeout(() => ui.statusText.classList.remove('status-reject'), 450);
+}
+
 function renderLegend(selected: PartId | null, mode: GameMode): void {
   ui.legend.innerHTML = PARTS.map(p => {
     const classes = ['part-chip'];
@@ -41,16 +68,17 @@ function syncUi(mode: GameMode, selected: PartId | null): void {
 
   if (mode === 'assembled') {
     ui.statusText.textContent = 'Покрутите ручку, затем нажмите «Разобрать»';
-    ui.hintText.textContent = 'Зажмите мышь и крутите, чтобы осмотреть предмет';
+    ui.hintText.textContent = 'Зажмите мышь на фоне и крутите, чтобы осмотреть предмет';
     ui.disassembleBtn.disabled = false;
     ui.disassembleBtn.textContent = 'Разобрать';
     ui.clearBtn.classList.add('hidden');
     ui.winBanner.classList.add('hidden');
   } else if (mode === 'exploded') {
     ui.statusText.textContent = selected
-      ? `Выбрано: ${PARTS.find(p => p.id === selected)?.name}. Выберите подходящую деталь`
-      : 'Выберите две детали, которые подходят друг к другу';
-    ui.hintText.textContent = 'Каждая часть соединяется только со своей парой. Клик по детали или по цветной метке.';
+      ? `Взято: ${PARTS.find(p => p.id === selected)?.name}. Перетащите к подходящей детали`
+      : 'Удерживайте ЛКМ и перетащите деталь к другой';
+    ui.hintText.textContent =
+      'Поднесите детали близко: подходящие соединятся. Неподходящие — «Недопустимо».';
     ui.disassembleBtn.disabled = true;
     ui.clearBtn.classList.toggle('hidden', !selected);
     ui.winBanner.classList.add('hidden');
@@ -67,7 +95,9 @@ function syncUi(mode: GameMode, selected: PartId | null): void {
 game.onModeChange = syncUi;
 game.onSelect = id => syncUi(game.getMode(), id);
 game.onWrongPair = () => {
-  ui.statusText.textContent = 'Эти детали не подходят друг к другу. Попробуйте другие.';
+  playRejectBeep();
+  flashReject();
+  ui.statusText.textContent = 'Недопустимо';
 };
 game.onJoined = (a, b) => {
   const na = PARTS.find(p => p.id === a)?.name;

@@ -6,19 +6,17 @@ export interface PartDef {
   id: PartId;
   name: string;
   color: number;
-  /** Local position in fully assembled pen (along X). */
   assembledX: number;
 }
 
 export const PARTS: PartDef[] = [
-  { id: 'tip', name: 'Наконечник', color: 0xb0bec5, assembledX: -2.15 },
-  { id: 'cartridge', name: 'Стержень', color: 0x1e88e5, assembledX: -0.95 },
-  { id: 'barrel', name: 'Корпус', color: 0xffc107, assembledX: 0.55 },
-  { id: 'spring', name: 'Пружина', color: 0x90a4ae, assembledX: 1.75 },
-  { id: 'button', name: 'Кнопка', color: 0xef5350, assembledX: 2.35 },
+  { id: 'tip', name: 'Наконечник', color: 0xc0c8d0, assembledX: -2.35 },
+  { id: 'cartridge', name: 'Стержень', color: 0x1a73e8, assembledX: -0.85 },
+  { id: 'barrel', name: 'Корпус', color: 0xf5c542, assembledX: 0.65 },
+  { id: 'spring', name: 'Пружина', color: 0xa8b4bc, assembledX: 1.95 },
+  { id: 'button', name: 'Кнопка', color: 0xe53935, assembledX: 2.45 },
 ];
 
-/** Undirected compatible pairs — each part fits only its neighbors. */
 export const CONNECTIONS: Array<[PartId, PartId]> = [
   ['tip', 'cartridge'],
   ['cartridge', 'barrel'],
@@ -32,71 +30,144 @@ export function canConnect(a: PartId, b: PartId): boolean {
   );
 }
 
+function mat(opts: {
+  color: number;
+  metalness?: number;
+  roughness?: number;
+  transparent?: boolean;
+  opacity?: number;
+  emissive?: number;
+}): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color: opts.color,
+    metalness: opts.metalness ?? 0.2,
+    roughness: opts.roughness ?? 0.4,
+    transparent: opts.transparent ?? false,
+    opacity: opts.opacity ?? 1,
+    emissive: opts.emissive ? new THREE.Color(opts.emissive) : undefined,
+    emissiveIntensity: opts.emissive ? 0.15 : 0,
+  });
+}
+
+function cyl(
+  rTop: number,
+  rBot: number,
+  h: number,
+  material: THREE.Material,
+  segs = 32,
+): THREE.Mesh {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, h, segs), material);
+  m.rotation.z = Math.PI / 2;
+  return m;
+}
+
+function helixSpring(turns: number, radius: number, tube: number, length: number): THREE.Mesh {
+  const pts: THREE.Vector3[] = [];
+  const steps = Math.max(48, turns * 24);
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const a = t * turns * Math.PI * 2;
+    pts.push(new THREE.Vector3((t - 0.5) * length, Math.cos(a) * radius, Math.sin(a) * radius));
+  }
+  const curve = new THREE.CatmullRomCurve3(pts);
+  const geo = new THREE.TubeGeometry(curve, steps, tube, 8, false);
+  return new THREE.Mesh(
+    geo,
+    mat({ color: 0xb0bec5, metalness: 0.85, roughness: 0.25 }),
+  );
+}
+
 export function createPartMesh(def: PartDef): THREE.Group {
   const group = new THREE.Group();
   group.name = def.id;
-  const mat = new THREE.MeshStandardMaterial({
-    color: def.color,
-    metalness: 0.25,
-    roughness: 0.45,
-  });
 
   switch (def.id) {
     case 'tip': {
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.55, 20), mat);
+      const chrome = mat({ color: 0xd7dde3, metalness: 0.92, roughness: 0.18 });
+      const dark = mat({ color: 0x6b737a, metalness: 0.7, roughness: 0.35 });
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.62, 28), chrome);
       cone.rotation.z = Math.PI / 2;
-      cone.position.x = -0.12;
-      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.18, 20), mat);
-      ring.rotation.z = Math.PI / 2;
-      ring.position.x = 0.18;
-      group.add(cone, ring);
+      cone.position.x = -0.18;
+      const collar = cyl(0.22, 0.24, 0.22, chrome);
+      collar.position.x = 0.2;
+      const thread = cyl(0.2, 0.2, 0.14, dark, 24);
+      thread.position.x = 0.36;
+      const ball = new THREE.Mesh(
+        new THREE.SphereGeometry(0.045, 16, 12),
+        mat({ color: 0xe8ecef, metalness: 1, roughness: 0.1 }),
+      );
+      ball.position.x = -0.5;
+      group.add(cone, collar, thread, ball);
       break;
     }
     case 'cartridge': {
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.4, 16), mat);
-      body.rotation.z = Math.PI / 2;
-      const ink = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.05, 0.05, 1.1, 12),
-        new THREE.MeshStandardMaterial({ color: 0x1565c0, roughness: 0.3 }),
-      );
-      ink.rotation.z = Math.PI / 2;
-      group.add(body, ink);
+      const tube = mat({
+        color: 0x90caf9,
+        metalness: 0.05,
+        roughness: 0.15,
+        transparent: true,
+        opacity: 0.45,
+      });
+      const ink = mat({ color: 0x1565c0, metalness: 0.1, roughness: 0.35 });
+      const metal = mat({ color: 0xb0bec5, metalness: 0.85, roughness: 0.22 });
+      const body = cyl(0.09, 0.09, 1.85, tube, 20);
+      const inkCol = cyl(0.055, 0.055, 1.55, ink, 16);
+      inkCol.position.x = 0.05;
+      const tipMetal = cyl(0.04, 0.07, 0.28, metal, 16);
+      tipMetal.position.x = -0.95;
+      const plug = cyl(0.08, 0.08, 0.1, metal, 16);
+      plug.position.x = 0.95;
+      group.add(body, inkCol, tipMetal, plug);
       break;
     }
     case 'barrel': {
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 1.8, 28), mat);
-      body.rotation.z = Math.PI / 2;
-      const grip = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.3, 0.3, 0.5, 28),
-        new THREE.MeshStandardMaterial({ color: 0xff8f00, roughness: 0.55 }),
+      const plastic = mat({
+        color: 0xf6c445,
+        metalness: 0.08,
+        roughness: 0.35,
+        transparent: true,
+        opacity: 0.88,
+      });
+      const gripMat = mat({ color: 0xe8a317, metalness: 0.05, roughness: 0.55 });
+      const chrome = mat({ color: 0xcfd8dc, metalness: 0.9, roughness: 0.2 });
+      const body = cyl(0.3, 0.3, 2.05, plastic, 36);
+      const nose = cyl(0.26, 0.3, 0.28, chrome, 28);
+      nose.position.x = -1.05;
+      const rear = cyl(0.28, 0.26, 0.22, chrome, 28);
+      rear.position.x = 1.05;
+      for (let i = 0; i < 5; i++) {
+        const ridge = cyl(0.312, 0.312, 0.06, gripMat, 36);
+        ridge.position.x = -0.55 + i * 0.14;
+        group.add(ridge);
+      }
+      const clip = new THREE.Mesh(
+        new THREE.BoxGeometry(0.9, 0.04, 0.12),
+        chrome,
       );
-      grip.rotation.z = Math.PI / 2;
-      grip.position.x = -0.4;
-      group.add(body, grip);
+      clip.position.set(0.35, 0.34, 0);
+      const clipHead = new THREE.Mesh(
+        new THREE.BoxGeometry(0.14, 0.08, 0.14),
+        chrome,
+      );
+      clipHead.position.set(-0.12, 0.34, 0);
+      group.add(body, nose, rear, clip, clipHead);
       break;
     }
     case 'spring': {
-      const coil = new THREE.Mesh(
-        new THREE.TorusGeometry(0.14, 0.035, 10, 24),
-        mat,
-      );
-      coil.rotation.y = Math.PI / 2;
-      const coil2 = coil.clone();
-      coil2.position.x = 0.12;
-      const coil3 = coil.clone();
-      coil3.position.x = -0.12;
-      group.add(coil, coil2, coil3);
+      group.add(helixSpring(7, 0.13, 0.028, 0.55));
       break;
     }
     case 'button': {
-      const top = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.35, 20), mat);
-      top.rotation.z = Math.PI / 2;
-      const tip = new THREE.Mesh(
-        new THREE.SphereGeometry(0.14, 16, 12),
-        new THREE.MeshStandardMaterial({ color: 0xe53935 }),
-      );
-      tip.position.x = 0.22;
-      group.add(top, tip);
+      const red = mat({ color: 0xe53935, metalness: 0.15, roughness: 0.4 });
+      const dark = mat({ color: 0xb71c1c, metalness: 0.2, roughness: 0.45 });
+      const stem = cyl(0.11, 0.11, 0.45, dark, 20);
+      stem.position.x = -0.05;
+      const cap = cyl(0.17, 0.2, 0.28, red, 24);
+      cap.position.x = 0.22;
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(0.17, 20, 14), red);
+      dome.scale.x = 0.55;
+      dome.position.x = 0.38;
+      group.add(stem, cap, dome);
       break;
     }
   }
@@ -110,9 +181,22 @@ export function createPartMesh(def: PartDef): THREE.Group {
   return group;
 }
 
-export function explodePosition(index: number, total: number): THREE.Vector3 {
-  const t = total <= 1 ? 0 : index / (total - 1);
-  const x = (t - 0.5) * 5.2;
-  const y = Math.sin(t * Math.PI) * 0.35;
-  return new THREE.Vector3(x, y, 0);
+/** Scatter target with outward burst + slight height. */
+export function explodeTarget(index: number, total: number, seed: number): {
+  pos: THREE.Vector3;
+  rot: THREE.Euler;
+} {
+  const angle = (index / total) * Math.PI * 2 + seed * 0.7;
+  const radius = 2.4 + (seed % 1) * 1.4 + index * 0.15;
+  const x = Math.cos(angle) * radius;
+  const z = Math.sin(angle) * radius * 0.55;
+  const y = 0.35 + ((seed * 3 + index) % 1) * 0.9;
+  return {
+    pos: new THREE.Vector3(x, y, z),
+    rot: new THREE.Euler(
+      (seed + index) * 1.7,
+      (seed * 2 + index) * 2.1,
+      (seed * 0.5 + index) * 0.9,
+    ),
+  };
 }
