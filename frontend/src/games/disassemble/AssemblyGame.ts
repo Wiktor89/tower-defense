@@ -291,7 +291,7 @@ export class AssemblyGame {
   }
 
   private setHighlight(mesh: THREE.Group, on: boolean): void {
-    mesh.traverse(obj => {
+    mesh.traverse((obj: THREE.Object3D) => {
       if (obj instanceof THREE.Mesh && obj.material instanceof THREE.MeshStandardMaterial) {
         obj.material.emissive = new THREE.Color(on ? 0xff9800 : 0x000000);
         obj.material.emissiveIntensity = on ? 0.35 : 0;
@@ -374,7 +374,7 @@ export class AssemblyGame {
 
     const meshes: THREE.Object3D[] = [];
     for (const mesh of this.partMeshes.values()) {
-      mesh.traverse(o => {
+      mesh.traverse((o: THREE.Object3D) => {
         if (o instanceof THREE.Mesh) meshes.push(o);
       });
     }

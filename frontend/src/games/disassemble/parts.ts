@@ -101,7 +101,7 @@ export function createPartMesh(def: PartDef): THREE.Group {
     }
   }
 
-  group.traverse(obj => {
+  group.traverse((obj: THREE.Object3D) => {
     if (obj instanceof THREE.Mesh) {
       obj.castShadow = true;
       obj.receiveShadow = true;
