@@ -3,6 +3,7 @@ import '../shared/modal.css';
 import { adminDeleteUser, adminLogin, adminVerify, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateMathColumnsSettings } from '../api/client';
 import type { GameSettings, StageCompletion, UserStatsRow } from '../types';
 import { PLANETS } from '../games/math-columns/planets';
+import { captchaFieldHtml, setupCaptcha } from '../shared/captcha';
 import { getAdminToken, setAdminToken, clearAdminToken } from '../shared/user';
 
 const app = document.getElementById('admin-app');
@@ -42,6 +43,7 @@ function renderLogin(): void {
       <form id="login-form" class="admin-form">
         <input type="text" id="login" placeholder="Логин" required autofocus>
         <input type="password" id="password" placeholder="Пароль" required>
+        ${captchaFieldHtml()}
         <button type="submit" class="admin-btn">Войти</button>
       </form>
       <p class="admin-error hidden" id="login-error"></p>
@@ -52,16 +54,24 @@ function renderLogin(): void {
   const form = appEl.querySelector<HTMLFormElement>('#login-form')!;
   const errorEl = appEl.querySelector<HTMLParagraphElement>('#login-error')!;
 
+  let captchaCtrl: Awaited<ReturnType<typeof setupCaptcha>> | null = null;
+  void setupCaptcha(appEl).then(ctrl => { captchaCtrl = ctrl; });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (!captchaCtrl) return;
     const login = (appEl.querySelector('#login') as HTMLInputElement).value;
     const password = (appEl.querySelector('#password') as HTMLInputElement).value;
     try {
-      const token = await adminLogin(login, password);
+      const token = await adminLogin(login, password, captchaCtrl.getValues());
       setAdminToken(token);
       void loadDashboard(token);
     } catch (err) {
-      errorEl.textContent = err instanceof Error ? err.message : 'Ошибка входа';
+      await captchaCtrl.refresh();
+      const message = err instanceof Error ? err.message : 'Ошибка входа';
+      errorEl.textContent = message.toLowerCase().includes('captcha')
+        ? 'Фигурка не совпала — сдвиньте точнее'
+        : message;
       errorEl.classList.remove('hidden');
     }
   });

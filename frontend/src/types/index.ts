@@ -28,6 +28,21 @@ export interface User {
   createdAt: string;
 }
 
+export interface CaptchaChallenge {
+  id: string;
+  background: string;
+  piece: string;
+  pieceY: number;
+  trackWidth: number;
+  pieceWidth: number;
+  imageHeight: number;
+}
+
+export interface CaptchaPayload {
+  captchaId: string;
+  captchaAnswer: number;
+}
+
 export interface StatsDelta {
   userId: number;
   gameId: string;

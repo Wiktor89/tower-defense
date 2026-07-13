@@ -13,6 +13,7 @@ import (
 
 	"games/internal/admin"
 	"games/internal/api"
+	"games/internal/captcha"
 	mathpkg "games/internal/math"
 	"games/internal/store"
 )
@@ -42,6 +43,7 @@ func main() {
 		mathpkg.NewStore(30*time.Minute),
 		db,
 		admin.NewAuth(),
+		captcha.NewStore(),
 	).Register(mux)
 	mux.Handle("/", spaHandler(absStatic))
 

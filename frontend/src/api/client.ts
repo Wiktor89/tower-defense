@@ -1,4 +1,4 @@
-import type { GameCatalogItem, GameSettings, MathCheckResult, MathProblem, OpMode, StageCompletion, StatsDelta, User, UserStatsRow, VerifyResult } from '../types';
+import type { CaptchaChallenge, CaptchaPayload, GameCatalogItem, GameSettings, MathCheckResult, MathProblem, OpMode, StageCompletion, StatsDelta, User, UserStatsRow, VerifyResult } from '../types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -33,6 +33,10 @@ export function fetchGames(): Promise<GameCatalogItem[]> {
   return request<GameCatalogItem[]>('/api/games');
 }
 
+export function fetchCaptcha(): Promise<CaptchaChallenge> {
+  return request<CaptchaChallenge>('/api/captcha');
+}
+
 export function fetchMathProblem(level: number, op: OpMode): Promise<MathProblem> {
   return request<MathProblem>('/api/math/problem', {
     method: 'POST',
@@ -47,10 +51,15 @@ export function checkMathAnswer(id: string, answer: number): Promise<MathCheckRe
   });
 }
 
-export function loginUser(login: string, password?: string): Promise<User> {
+export function loginUser(login: string, password: string | undefined, captcha: CaptchaPayload): Promise<User> {
   return request<User>('/api/users/login', {
     method: 'POST',
-    body: JSON.stringify({ login, password: password ?? '' }),
+    body: JSON.stringify({
+      login,
+      password: password ?? '',
+      captchaId: captcha.captchaId,
+      captchaAnswer: captcha.captchaAnswer,
+    }),
   });
 }
 
@@ -80,10 +89,19 @@ export function sendStats(delta: StatsDelta): Promise<void> {
   }).then(() => undefined);
 }
 
-export function adminLogin(login: string, password: string): Promise<string> {
+export function adminLogin(
+  login: string,
+  password: string,
+  captcha: CaptchaPayload,
+): Promise<string> {
   return request<{ token: string }>('/api/admin/login', {
     method: 'POST',
-    body: JSON.stringify({ login, password }),
+    body: JSON.stringify({
+      login,
+      password,
+      captchaId: captcha.captchaId,
+      captchaAnswer: captcha.captchaAnswer,
+    }),
   }).then(r => r.token);
 }
 

@@ -1,5 +1,6 @@
 import { loginUser, setUserPassword } from '../api/client';
 import type { User } from '../types';
+import { captchaFieldHtml, setupCaptcha } from './captcha';
 import { getUser, setUser } from './user';
 import './modal.css';
 
@@ -21,6 +22,7 @@ export function promptUserLogin(): Promise<User> {
           <input type="text" id="user-login-input" placeholder="Ваш логин" maxlength="64" required autofocus>
           <input type="password" id="user-password-input" class="hidden" placeholder="Пароль">
           <p class="modal-hint hidden" id="user-password-hint">У этого пользователя задан пароль</p>
+          ${captchaFieldHtml()}
           <button type="submit" class="modal-btn modal-btn--primary">Войти</button>
         </form>
         <p class="modal-error hidden" id="user-login-error"></p>
@@ -34,6 +36,9 @@ export function promptUserLogin(): Promise<User> {
     const passwordHint = overlay.querySelector<HTMLParagraphElement>('#user-password-hint')!;
     const errorEl = overlay.querySelector<HTMLParagraphElement>('#user-login-error')!;
 
+    let captchaCtrl: Awaited<ReturnType<typeof setupCaptcha>> | null = null;
+    void setupCaptcha(overlay).then(ctrl => { captchaCtrl = ctrl; });
+
     const showPasswordField = () => {
       passwordInput.classList.remove('hidden');
       passwordHint.classList.remove('hidden');
@@ -44,22 +49,25 @@ export function promptUserLogin(): Promise<User> {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const login = input.value.trim();
-      if (!login) return;
+      if (!login || !captchaCtrl) return;
 
       errorEl.classList.add('hidden');
       try {
-        const user = await loginUser(login, passwordInput.value);
+        const user = await loginUser(login, passwordInput.value, captchaCtrl.getValues());
         setUser(user);
         overlay.remove();
         resolve(user);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Ошибка входа';
+        await captchaCtrl.refresh();
         if (message.toLowerCase().includes('password required')) {
           showPasswordField();
           errorEl.textContent = 'Введите пароль для этого пользователя';
         } else if (message.toLowerCase().includes('invalid password')) {
           showPasswordField();
           errorEl.textContent = 'Неверный пароль';
+        } else if (message.toLowerCase().includes('invalid captcha') || message.toLowerCase().includes('captcha')) {
+          errorEl.textContent = 'Фигурка не совпала — сдвиньте точнее';
         } else {
           errorEl.textContent = message;
         }
@@ -134,6 +142,7 @@ export function showAdminLoginModal(onSuccess: (token: string) => void): void {
       <form id="admin-login-form">
         <input type="text" id="admin-login" placeholder="Логин" required autofocus>
         <input type="password" id="admin-password" placeholder="Пароль" required>
+        ${captchaFieldHtml()}
         <div class="modal-actions">
           <button type="button" class="modal-btn modal-btn--ghost" id="admin-cancel">Отмена</button>
           <button type="submit" class="modal-btn modal-btn--primary">Войти</button>
@@ -147,20 +156,28 @@ export function showAdminLoginModal(onSuccess: (token: string) => void): void {
   const form = overlay.querySelector<HTMLFormElement>('#admin-login-form')!;
   const errorEl = overlay.querySelector<HTMLParagraphElement>('#admin-login-error')!;
 
+  let captchaCtrl: Awaited<ReturnType<typeof setupCaptcha>> | null = null;
+  void setupCaptcha(overlay).then(ctrl => { captchaCtrl = ctrl; });
+
   overlay.querySelector('#admin-cancel')?.addEventListener('click', () => overlay.remove());
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (!captchaCtrl) return;
     const login = (overlay.querySelector('#admin-login') as HTMLInputElement).value;
     const password = (overlay.querySelector('#admin-password') as HTMLInputElement).value;
 
     try {
       const { adminLogin } = await import('../api/client');
-      const token = await adminLogin(login, password);
+      const token = await adminLogin(login, password, captchaCtrl.getValues());
       overlay.remove();
       onSuccess(token);
     } catch (err) {
-      errorEl.textContent = err instanceof Error ? err.message : 'Неверный логин или пароль';
+      await captchaCtrl.refresh();
+      const message = err instanceof Error ? err.message : 'Неверный логин или пароль';
+      errorEl.textContent = message.toLowerCase().includes('captcha')
+        ? 'Фигурка не совпала — сдвиньте точнее'
+        : message;
       errorEl.classList.remove('hidden');
     }
   });

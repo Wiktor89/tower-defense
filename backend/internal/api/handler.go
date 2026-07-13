@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"games/internal/admin"
+	"games/internal/captcha"
 	"games/internal/games"
 	mathpkg "games/internal/math"
 	"games/internal/store"
@@ -19,14 +20,16 @@ type Handler struct {
 	mathStore *mathpkg.Store
 	db        *store.Store
 	adminAuth *admin.Auth
+	captcha   *captcha.Store
 }
 
-func NewHandler(mathStore *mathpkg.Store, db *store.Store, adminAuth *admin.Auth) *Handler {
-	return &Handler{mathStore: mathStore, db: db, adminAuth: adminAuth}
+func NewHandler(mathStore *mathpkg.Store, db *store.Store, adminAuth *admin.Auth, captchaStore *captcha.Store) *Handler {
+	return &Handler{mathStore: mathStore, db: db, adminAuth: adminAuth, captcha: captchaStore}
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/health", h.health)
+	mux.HandleFunc("GET /api/captcha", h.getCaptcha)
 	mux.HandleFunc("GET /api/games", h.listGames)
 	mux.HandleFunc("POST /api/math/problem", h.createMathProblem)
 	mux.HandleFunc("POST /api/math/check", h.checkMathAnswer)
@@ -46,6 +49,22 @@ func (h *Handler) Register(mux *http.ServeMux) {
 
 func (h *Handler) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) getCaptcha(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, h.captcha.Create())
+}
+
+func (h *Handler) checkCaptcha(w http.ResponseWriter, id string, answer int) bool {
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "captcha is required")
+		return false
+	}
+	if !h.captcha.Verify(id, answer) {
+		writeError(w, http.StatusBadRequest, "invalid captcha")
+		return false
+	}
+	return true
 }
 
 func (h *Handler) listGames(w http.ResponseWriter, _ *http.Request) {
@@ -112,14 +131,19 @@ func (h *Handler) checkMathAnswer(w http.ResponseWriter, r *http.Request) {
 }
 
 type userLoginRequest struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
+	Login         string `json:"login"`
+	Password      string `json:"password"`
+	CaptchaID     string `json:"captchaId"`
+	CaptchaAnswer int    `json:"captchaAnswer"`
 }
 
 func (h *Handler) userLogin(w http.ResponseWriter, r *http.Request) {
 	var req userLoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if !h.checkCaptcha(w, req.CaptchaID, req.CaptchaAnswer) {
 		return
 	}
 
@@ -224,14 +248,19 @@ func (h *Handler) addStats(w http.ResponseWriter, r *http.Request) {
 }
 
 type adminLoginRequest struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
+	Login         string `json:"login"`
+	Password      string `json:"password"`
+	CaptchaID     string `json:"captchaId"`
+	CaptchaAnswer int    `json:"captchaAnswer"`
 }
 
 func (h *Handler) adminLogin(w http.ResponseWriter, r *http.Request) {
 	var req adminLoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if !h.checkCaptcha(w, req.CaptchaID, req.CaptchaAnswer) {
 		return
 	}
 

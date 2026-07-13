@@ -37,6 +37,10 @@ body {
   font-size: 1rem;
 }
 
+.admin-form .captcha-field input {
+  width: 100%;
+}
+
 .admin-btn {
   padding: 10px 20px;
   border: none;
