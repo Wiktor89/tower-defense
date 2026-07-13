@@ -123,13 +123,18 @@ header {
 
 .play-area {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 240px;
+  grid-template-columns: minmax(0, 1fr) 260px;
   gap: 16px;
   align-items: start;
+  min-height: 280px;
+  max-height: min(72vh, 760px);
 }
 
 .play-area__text {
   min-width: 0;
+  max-height: inherit;
+  overflow-y: auto;
+  padding-right: 6px;
 }
 
 .sentence {
@@ -273,10 +278,11 @@ header {
   background: #f3faf9;
   border-radius: 14px;
   border: 1px solid #b7d4d8;
-  position: sticky;
-  top: 16px;
-  max-height: calc(100vh - 120px);
+  max-height: inherit;
   overflow-y: auto;
+  position: sticky;
+  top: 0;
+  align-self: stretch;
 }
 
 .bank-title {
@@ -331,11 +337,16 @@ header {
 @media (max-width: 800px) {
   .play-area {
     grid-template-columns: 1fr;
+    max-height: none;
+  }
+
+  .play-area__text {
+    max-height: 50vh;
   }
 
   .bank-section {
     position: static;
-    max-height: none;
+    max-height: 40vh;
   }
 
   .word-bank {
