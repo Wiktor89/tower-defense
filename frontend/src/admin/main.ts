@@ -259,7 +259,7 @@ function renderSettingsTab(mathSettings: GameSettings | null, fillTexts: FillBla
 
     <section class="admin-section">
       <h2>📝 Заполни пропуски</h2>
-      <p class="admin-section__hint">Добавьте полный текст (абзацы через Enter). Игра сама уберёт слова; у каждого абзаца — свой список слов справа.</p>
+      <p class="admin-section__hint">Добавьте полный текст. Если больше 30 слов — разобьётся на абзацы/предложения; у каждого — свой список слов справа.</p>
       <form id="fill-text-form" class="admin-fill-form">
         <textarea id="fill-text-input" rows="5" placeholder="Вставьте текст скороговорки или предложения…" required></textarea>
         <button type="submit" class="admin-btn">Добавить текст</button>

@@ -189,11 +189,21 @@ func (s *Store) Check(id string, answers []string) (correct bool, ok bool) {
 	return true, true
 }
 
+const maxWordsWithoutSplit = 30
+
 func splitUnits(text string) []string {
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return nil
+	}
+
+	if wordCount(text) <= maxWordsWithoutSplit {
+		collapsed := strings.Join(strings.Fields(text), " ")
+		if collapsed == "" {
+			return nil
+		}
+		return []string{collapsed}
 	}
 
 	raw := strings.Split(text, "\n")
@@ -216,6 +226,10 @@ func splitUnits(text string) []string {
 		return sents
 	}
 	return paras
+}
+
+func wordCount(text string) int {
+	return len(strings.Fields(text))
 }
 
 func splitSentences(text string) []string {

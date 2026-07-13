@@ -26,9 +26,65 @@ body {
 }
 
 .menu-header__logo {
-  font-size: 3.5rem;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
   filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+  display: inline-block;
+  transform-origin: center bottom;
+  animation: joystick-invite 2.4s ease-in-out infinite;
+  line-height: 0;
+}
+
+.gamepad {
+  width: 88px;
+  height: auto;
+  overflow: visible;
+}
+
+.gamepad__btn {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: gamepad-btn-press 2.4s ease-in-out infinite;
+}
+
+.gamepad__btn--y { animation-delay: 0s; }
+.gamepad__btn--b { animation-delay: 0.6s; }
+.gamepad__btn--a { animation-delay: 1.2s; }
+.gamepad__btn--x { animation-delay: 1.8s; }
+
+@keyframes joystick-invite {
+  0%, 100% {
+    transform: translateX(0) rotate(0deg);
+  }
+  20% {
+    transform: translateX(-10px) rotate(-12deg);
+  }
+  40% {
+    transform: translateX(10px) rotate(12deg);
+  }
+  60% {
+    transform: translateX(-6px) rotate(-7deg);
+  }
+  80% {
+    transform: translateX(6px) rotate(7deg);
+  }
+}
+
+@keyframes gamepad-btn-press {
+  0%, 18%, 100% {
+    transform: scale(1) translateY(0);
+    filter: brightness(1);
+  }
+  6%, 12% {
+    transform: scale(0.78) translateY(1.5px);
+    filter: brightness(0.75);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-header__logo,
+  .gamepad__btn {
+    animation: none;
+  }
 }
 
 .menu-header h1 {

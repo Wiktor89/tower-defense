@@ -33,7 +33,7 @@ func Catalog() []Game {
 		{
 			ID:          "fill-blanks",
 			Title:       "Заполни пропуски",
-			Description: "Перетащите слова в пропуски — тексты задаёт администратор.",
+			Description: "Перетащите слова в пропуски.",
 			Icon:        "📝",
 			URL:         "/games/fill-blanks/",
 			Available:   true,

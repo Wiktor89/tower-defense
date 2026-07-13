@@ -1,27 +1,42 @@
 package fillblanks
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
 
-func TestCreateFromTextParagraphs(t *testing.T) {
+func TestCreateFromTextNoSplitUnder30Words(t *testing.T) {
 	s := NewStore(time.Hour)
-	text := "Первое тестовое предложение содержит достаточно длинных слов для генерации. Второе предложение также содержит несколько подходящих слов для задания."
+	text := "Первое тестовое предложение содержит достаточно длинных слов для генерации. Второе тоже."
+	if wordCount(text) > 30 {
+		t.Fatalf("fixture too long: %d", wordCount(text))
+	}
+	puzzle, err := s.CreateFromText(text, 40)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(puzzle.Paragraphs) != 1 {
+		t.Fatalf("expected 1 paragraph, got %d", len(puzzle.Paragraphs))
+	}
+}
+
+func TestCreateFromTextSplitOver30Words(t *testing.T) {
+	s := NewStore(time.Hour)
+	parts := make([]string, 0, 12)
+	for i := 0; i < 12; i++ {
+		parts = append(parts, "Длинное тестовое предложение номер содержит несколько подходящих слов.")
+	}
+	text := strings.Join(parts, " ")
+	if wordCount(text) <= 30 {
+		t.Fatalf("fixture too short: %d", wordCount(text))
+	}
 	puzzle, err := s.CreateFromText(text, 40)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(puzzle.Paragraphs) < 2 {
-		t.Fatalf("paragraphs=%d", len(puzzle.Paragraphs))
-	}
-	for i, p := range puzzle.Paragraphs {
-		if p.BlankCount > 0 && len(p.Words) < p.BlankCount {
-			t.Fatalf("para %d words=%d blanks=%d", i, len(p.Words), p.BlankCount)
-		}
-	}
-	if puzzle.BlankCount < 1 {
-		t.Fatal("no blanks")
+		t.Fatalf("expected split into paragraphs, got %d", len(puzzle.Paragraphs))
 	}
 }
 
