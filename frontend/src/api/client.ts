@@ -1,4 +1,4 @@
-import type { CaptchaChallenge, CaptchaPayload, GameCatalogItem, GameSettings, MathCheckResult, MathProblem, OpMode, StageCompletion, StatsDelta, User, UserStatsRow, VerifyResult } from '../types';
+import type { CaptchaChallenge, CaptchaPayload, GameCatalogItem, GameSettings, MathCheckResult, MathProblem, OpMode, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -44,10 +44,10 @@ export function fetchMathProblem(level: number, op: OpMode): Promise<MathProblem
   });
 }
 
-export function checkMathAnswer(id: string, answer: number): Promise<MathCheckResult> {
+export function checkMathAnswer(id: string, answer: number, userId?: number): Promise<MathCheckResult> {
   return request<MathCheckResult>('/api/math/check', {
     method: 'POST',
-    body: JSON.stringify({ id, answer }),
+    body: JSON.stringify({ id, answer, userId: userId ?? 0 }),
   });
 }
 
@@ -74,18 +74,23 @@ export function setUserPassword(userId: number, password: string, currentPasswor
   });
 }
 
-export function sendStats(delta: StatsDelta): Promise<void> {
-  return request<{ status: string }>('/api/stats', {
+export interface TdSessionStart {
+  sessionId: string;
+  minDurationMs: number;
+  minLossDurationMs: number;
+}
+
+export function startTowerDefense(userId: number): Promise<TdSessionStart> {
+  return request<TdSessionStart>('/api/tower-defense/start', {
     method: 'POST',
-    body: JSON.stringify({
-      userId: delta.userId,
-      gameId: delta.gameId,
-      correct: delta.correct ?? 0,
-      wrong: delta.wrong ?? 0,
-      sessionsCompleted: delta.sessionsCompleted ?? 0,
-      gamesWon: delta.gamesWon ?? 0,
-      gamesLost: delta.gamesLost ?? 0,
-    }),
+    body: JSON.stringify({ userId }),
+  });
+}
+
+export function finishTowerDefense(sessionId: string, result: 'won' | 'lost'): Promise<void> {
+  return request<{ status: string }>('/api/tower-defense/finish', {
+    method: 'POST',
+    body: JSON.stringify({ sessionId, result }),
   }).then(() => undefined);
 }
 
@@ -108,13 +113,6 @@ export function adminLogin(
 export function fetchAdminStats(token: string): Promise<UserStatsRow[]> {
   return request<UserStatsRow[]>('/api/admin/stats', {
     headers: { Authorization: `Bearer ${token}` },
-  });
-}
-
-export function completeStage(userId: number, gameId: string, stage: number): Promise<StageCompletion> {
-  return request<StageCompletion>('/api/stages/complete', {
-    method: 'POST',
-    body: JSON.stringify({ userId, gameId, stage }),
   });
 }
 

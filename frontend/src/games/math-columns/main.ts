@@ -1,8 +1,7 @@
 import './style.css';
-import { checkMathAnswer, completeStage, fetchMathColumnsSettings, fetchMathProblem } from '../../api/client';
+import { checkMathAnswer, fetchMathColumnsSettings, fetchMathProblem } from '../../api/client';
 import type { MathProblem, OpMode } from '../../types';
 import { ensureUserLogin } from '../../shared/login';
-import { reportStats } from '../../shared/stats';
 import { getUser } from '../../shared/user';
 import { DEFAULT_SESSION_SIZE, createBrainSvg, updateBrainProgress } from './brain';
 import { showSolarSystemReward } from './solar-system';
@@ -159,31 +158,13 @@ function getUserAnswer(): number | null {
   return parseInt(raw, 10);
 }
 
-function completeSession(): void {
+function finishSessionUI(): void {
   sessionComplete = true;
-  void reportStats('math-columns', { sessionsCompleted: 1 });
   ui.checkBtn.classList.add('hidden');
   ui.nextBtn.textContent = 'Новая серия';
   ui.nextBtn.classList.remove('hidden');
   ui.hintBtn.disabled = true;
   updateProgress();
-  hideFeedback();
-
-  const user = getUser();
-  if (!user) {
-    showFeedback(`Серия из ${sessionSize} примеров завершена! Мозг вырос! 🧠`, 'correct');
-    return;
-  }
-
-  void completeStage(user.id, 'math-columns', level)
-    .then(completion => {
-      showSolarSystemReward(completion, () => {
-        showFeedback(`Серия из ${sessionSize} примеров завершена! Мозг вырос! 🧠`, 'correct');
-      });
-    })
-    .catch(() => {
-      showFeedback(`Серия завершена, но не удалось сохранить награду. Попробуйте ещё раз.`, 'wrong');
-    });
 }
 
 async function checkAnswer(): Promise<void> {
@@ -197,9 +178,10 @@ async function checkAnswer(): Promise<void> {
 
   answered = true;
   const inputs = ui.columnEl.querySelectorAll<HTMLInputElement>('.digit-input');
+  const user = getUser();
 
   try {
-    const result = await checkMathAnswer(problem.id, userAnswer);
+    const result = await checkMathAnswer(problem.id, userAnswer, user?.id);
     const isCorrect = result.correct;
 
     inputs.forEach(input => {
@@ -209,19 +191,30 @@ async function checkAnswer(): Promise<void> {
 
     if (isCorrect) {
       correct++;
-      sessionSolved++;
-      void reportStats('math-columns', { correct: 1 });
+      if (typeof result.sessionSolved === 'number') {
+        sessionSolved = result.sessionSolved;
+      } else {
+        sessionSolved++;
+      }
       updateProgress();
       showFeedback('Верно! 🎉', 'correct');
 
-      if (sessionSolved >= sessionSize) {
-        completeSession();
+      const done = result.sessionComplete || sessionSolved >= sessionSize;
+      if (done) {
+        sessionSolved = sessionSize;
+        finishSessionUI();
+        if (result.stageCompletion) {
+          showSolarSystemReward(result.stageCompletion, () => {
+            showFeedback(`Серия из ${sessionSize} примеров завершена! Мозг вырос! 🧠`, 'correct');
+          });
+        } else {
+          showFeedback(`Серия из ${sessionSize} примеров завершена! Мозг вырос! 🧠`, 'correct');
+        }
         updateScore();
         return;
       }
     } else {
       wrong++;
-      void reportStats('math-columns', { wrong: 1 });
       showFeedback(`Неверно. Правильный ответ: ${result.correctAnswer ?? '?'}`, 'wrong');
     }
   } catch {

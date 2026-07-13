@@ -40,10 +40,11 @@ make install
 
 ## Пользователи и статистика
 
-- При первом входе пользователь вводит **логин** — он сохраняется в PostgreSQL
-- Статистика по играм пишется автоматически:
-  - **Столбик**: правильные/неправильные ответы, завершённые серии
-  - **Tower Defense**: победы и поражения
+- При первом входе пользователь вводит **логин** (и проходит captcha) — он сохраняется в PostgreSQL
+- Статистика пишется **только после серверной проверки**:
+  - **Столбик**: `correct`/`wrong` и завершение серии — из `POST /api/math/check` (ответ проверяется на сервере; этап/награда выдаётся только при завершении серии)
+  - **Tower Defense**: победа/поражение — через одноразовую сессию `start` → `finish` с минимальной длительностью партии
+- Открытого `POST /api/stats` нет: клиент не может сам накрутить счётчики
 - Кнопка **Администратор** (справа вверху) → логин `admin` / пароль `admin`
 - Страница админа: [http://localhost:8089/admin/](http://localhost:8089/admin/)
 
@@ -52,20 +53,28 @@ make install
 | Метод | Путь | Описание |
 |-------|------|----------|
 | GET | `/api/health` | Проверка сервера |
+| GET | `/api/captcha` | Puzzle-captcha |
 | GET | `/api/games` | Каталог игр |
-| POST | `/api/users/login` | Вход пользователя `{ login }` |
-| POST | `/api/stats` | Записать статистику |
-| POST | `/api/admin/login` | Вход админа `{ login, password }` |
-| GET | `/api/admin/stats` | Статистика всех игроков (Bearer token) |
+| POST | `/api/users/login` | Вход пользователя `{ login, password?, captchaId, captchaAnswer }` |
+| PUT | `/api/users/password` | Установить пароль |
 | POST | `/api/math/problem` | Сгенерировать пример |
-| POST | `/api/math/check` | Проверить ответ |
+| POST | `/api/math/check` | Проверить ответ; при `userId` пишет статы и может вернуть `stageCompletion` |
+| POST | `/api/tower-defense/start` | Начать партию `{ userId }` → `{ sessionId, minDurationMs }` |
+| POST | `/api/tower-defense/finish` | Завершить партию `{ sessionId, result: won\|lost }` |
+| GET | `/api/settings/math-columns` | Размер серии |
+| POST | `/api/admin/login` | Вход админа |
+| GET | `/api/admin/stats` | Статистика игроков (Bearer) |
+| GET | `/api/admin/stages` | Завершённые этапы (Bearer) |
+| POST | `/api/admin/verify` | Подтвердить награду этапа (Bearer) |
+| GET/PUT | `/api/admin/settings/math-columns` | Настройки серии (Bearer) |
+| DELETE | `/api/admin/users/{id}` | Удалить пользователя (Bearer) |
 
 ## Игры
 
 | Игра | Путь | Статус |
 |------|------|--------|
-| 🌻 Защита от зомби | `/games/tower-defense/` | Готова |
-| 📐 Столбик | `/games/math-columns/` | Готова |
+| Защита от зомби | `/games/tower-defense/` | Готова |
+| Столбик | `/games/math-columns/` | Готова |
 
 ## Разработка
 

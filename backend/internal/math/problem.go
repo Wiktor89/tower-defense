@@ -24,6 +24,7 @@ type Problem struct {
 	A      int    `json:"a"`
 	B      int    `json:"b"`
 	Op     string `json:"op"`
+	Level  int    `json:"-"`
 	Answer int    `json:"-"`
 	Width  int    `json:"width"`
 }
@@ -118,11 +119,16 @@ func Generate(level int, opMode string) Problem {
 		answer = a - b
 	}
 
+	if level < 1 || level > 3 {
+		level = 1
+	}
+
 	return Problem{
 		ID:     newID(),
 		A:      a,
 		B:      b,
 		Op:     op,
+		Level:  level,
 		Answer: answer,
 		Width:  digitWidth(a, b, answer),
 	}

@@ -1,7 +1,8 @@
 import './style.css';
 import type { PlantType } from '../../types';
+import { finishTowerDefense, startTowerDefense } from '../../api/client';
 import { ensureUserLogin } from '../../shared/login';
-import { reportStats } from '../../shared/stats';
+import { getUser } from '../../shared/user';
 import { CONFIG } from './config';
 import { Game } from './Game';
 
@@ -34,6 +35,28 @@ const ui = {
 
 const game = new Game(ui.canvas);
 let lastReportedState: 'playing' | 'won' | 'lost' = 'playing';
+let sessionId: string | null = null;
+
+async function beginMatch(): Promise<void> {
+  sessionId = null;
+  const user = getUser();
+  if (!user) return;
+  try {
+    const sess = await startTowerDefense(user.id);
+    sessionId = sess.sessionId;
+  } catch {
+    sessionId = null;
+  }
+}
+
+function reportResult(result: 'won' | 'lost'): void {
+  if (!sessionId) return;
+  const id = sessionId;
+  sessionId = null;
+  void finishTowerDefense(id, result).catch(() => {
+    // best-effort; invalid/early sessions are rejected by server
+  });
+}
 
 function updateUI(): void {
   ui.sunDisplay.textContent = `☀️ ${game.sun}`;
@@ -59,7 +82,7 @@ function updateUI(): void {
     ui.overlayText.textContent = 'Вы отбили все волны зомби!';
     if (lastReportedState !== 'won') {
       lastReportedState = 'won';
-      void reportStats('tower-defense', { gamesWon: 1 });
+      reportResult('won');
     }
   } else if (game.state === 'lost') {
     ui.overlay.classList.remove('hidden');
@@ -67,7 +90,7 @@ function updateUI(): void {
     ui.overlayText.textContent = 'Зомби прорвались к дому...';
     if (lastReportedState !== 'lost') {
       lastReportedState = 'lost';
-      void reportStats('tower-defense', { gamesLost: 1 });
+      reportResult('lost');
     }
   } else {
     ui.overlay.classList.add('hidden');
@@ -120,12 +143,14 @@ ui.canvas.addEventListener('mousemove', (e) => {
 });
 
 ui.overlayBtn.addEventListener('click', () => {
-  game.reset();
-  lastReportedState = 'playing';
-  updateUI();
+  void beginMatch().then(() => {
+    game.reset();
+    lastReportedState = 'playing';
+    updateUI();
+  });
 });
 
-void ensureUserLogin().then(() => {
+void ensureUserLogin().then(() => beginMatch()).then(() => {
   game.start();
   updateUI();
 });

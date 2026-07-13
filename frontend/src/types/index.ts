@@ -16,11 +16,6 @@ export interface MathProblem {
   width: number;
 }
 
-export interface MathCheckResult {
-  correct: boolean;
-  correctAnswer?: number;
-}
-
 export interface User {
   id: number;
   login: string;
@@ -41,16 +36,6 @@ export interface CaptchaChallenge {
 export interface CaptchaPayload {
   captchaId: string;
   captchaAnswer: number;
-}
-
-export interface StatsDelta {
-  userId: number;
-  gameId: string;
-  correct?: number;
-  wrong?: number;
-  sessionsCompleted?: number;
-  gamesWon?: number;
-  gamesLost?: number;
 }
 
 export interface GameStats {
@@ -83,6 +68,14 @@ export interface StageCompletion {
   verified: boolean;
   completedAt: string;
   verifiedAt?: string;
+}
+
+export interface MathCheckResult {
+  correct: boolean;
+  correctAnswer?: number;
+  sessionSolved?: number;
+  sessionComplete?: boolean;
+  stageCompletion?: StageCompletion;
 }
 
 export interface VerifyResult {

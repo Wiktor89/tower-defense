@@ -14,17 +14,34 @@ import (
 	"games/internal/games"
 	mathpkg "games/internal/math"
 	"games/internal/store"
+	"games/internal/td"
 )
 
 type Handler struct {
-	mathStore *mathpkg.Store
-	db        *store.Store
-	adminAuth *admin.Auth
-	captcha   *captcha.Store
+	mathStore    *mathpkg.Store
+	mathSessions *mathpkg.SessionTracker
+	tdSessions   *td.Store
+	db           *store.Store
+	adminAuth    *admin.Auth
+	captcha      *captcha.Store
 }
 
-func NewHandler(mathStore *mathpkg.Store, db *store.Store, adminAuth *admin.Auth, captchaStore *captcha.Store) *Handler {
-	return &Handler{mathStore: mathStore, db: db, adminAuth: adminAuth, captcha: captchaStore}
+func NewHandler(
+	mathStore *mathpkg.Store,
+	mathSessions *mathpkg.SessionTracker,
+	tdSessions *td.Store,
+	db *store.Store,
+	adminAuth *admin.Auth,
+	captchaStore *captcha.Store,
+) *Handler {
+	return &Handler{
+		mathStore:    mathStore,
+		mathSessions: mathSessions,
+		tdSessions:   tdSessions,
+		db:           db,
+		adminAuth:    adminAuth,
+		captcha:      captchaStore,
+	}
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
@@ -35,8 +52,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/math/check", h.checkMathAnswer)
 	mux.HandleFunc("POST /api/users/login", h.userLogin)
 	mux.HandleFunc("PUT /api/users/password", h.setUserPassword)
-	mux.HandleFunc("POST /api/stats", h.addStats)
-	mux.HandleFunc("POST /api/stages/complete", h.completeStage)
+	mux.HandleFunc("POST /api/tower-defense/start", h.tdStart)
+	mux.HandleFunc("POST /api/tower-defense/finish", h.tdFinish)
 	mux.HandleFunc("GET /api/settings/math-columns", h.mathColumnsSettings)
 	mux.HandleFunc("POST /api/admin/login", h.adminLogin)
 	mux.HandleFunc("GET /api/admin/stats", h.adminStats)
@@ -97,11 +114,15 @@ func (h *Handler) createMathProblem(w http.ResponseWriter, r *http.Request) {
 type mathCheckRequest struct {
 	ID     string `json:"id"`
 	Answer int    `json:"answer"`
+	UserID int    `json:"userId"`
 }
 
 type mathCheckResponse struct {
-	Correct       bool `json:"correct"`
-	CorrectAnswer int  `json:"correctAnswer,omitempty"`
+	Correct         bool                   `json:"correct"`
+	CorrectAnswer   int                    `json:"correctAnswer,omitempty"`
+	SessionSolved   int                    `json:"sessionSolved,omitempty"`
+	SessionComplete bool                   `json:"sessionComplete,omitempty"`
+	StageCompletion *store.StageCompletion `json:"stageCompletion,omitempty"`
 }
 
 func (h *Handler) checkMathAnswer(w http.ResponseWriter, r *http.Request) {
@@ -127,6 +148,50 @@ func (h *Handler) checkMathAnswer(w http.ResponseWriter, r *http.Request) {
 	if !correct {
 		resp.CorrectAnswer = problem.Answer
 	}
+
+	if req.UserID > 0 {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		if _, err := h.db.GetUser(ctx, req.UserID); err != nil {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+
+		delta := store.StatsDelta{}
+		if correct {
+			delta.Correct = 1
+		} else {
+			delta.Wrong = 1
+		}
+		if err := h.db.AddStats(ctx, req.UserID, "math-columns", delta); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to save stats")
+			return
+		}
+
+		if correct {
+			sessionSize, err := h.db.GetSessionSize(ctx, "math-columns")
+			if err != nil {
+				sessionSize = store.DefaultSessionSize
+			}
+			solved, completed := h.mathSessions.RecordCorrect(req.UserID, problem.Level, sessionSize)
+			resp.SessionSolved = solved
+			if completed {
+				resp.SessionComplete = true
+				if err := h.db.AddStats(ctx, req.UserID, "math-columns", store.StatsDelta{SessionsCompleted: 1}); err != nil {
+					writeError(w, http.StatusInternalServerError, "failed to save stats")
+					return
+				}
+				stage, err := h.db.CompleteStage(ctx, req.UserID, "math-columns", problem.Level)
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, "failed to complete stage")
+					return
+				}
+				resp.StageCompletion = &stage
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -204,24 +269,18 @@ func (h *Handler) setUserPassword(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, user)
 }
 
-type statsRequest struct {
-	UserID            int    `json:"userId"`
-	GameID            string `json:"gameId"`
-	Correct           int    `json:"correct"`
-	Wrong             int    `json:"wrong"`
-	SessionsCompleted int    `json:"sessionsCompleted"`
-	GamesWon          int    `json:"gamesWon"`
-	GamesLost         int    `json:"gamesLost"`
+type tdStartRequest struct {
+	UserID int `json:"userId"`
 }
 
-func (h *Handler) addStats(w http.ResponseWriter, r *http.Request) {
-	var req statsRequest
+func (h *Handler) tdStart(w http.ResponseWriter, r *http.Request) {
+	var req tdStartRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if req.UserID <= 0 || req.GameID == "" {
-		writeError(w, http.StatusBadRequest, "userId and gameId are required")
+	if req.UserID <= 0 {
+		writeError(w, http.StatusBadRequest, "userId is required")
 		return
 	}
 
@@ -233,14 +292,58 @@ func (h *Handler) addStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.db.AddStats(ctx, req.UserID, req.GameID, store.StatsDelta{
-		Correct:           req.Correct,
-		Wrong:             req.Wrong,
-		SessionsCompleted: req.SessionsCompleted,
-		GamesWon:          req.GamesWon,
-		GamesLost:         req.GamesLost,
+	sess := h.tdSessions.Start(req.UserID)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"sessionId":      sess.ID,
+		"minDurationMs":  td.MinWinDuration().Milliseconds(),
+		"minLossDurationMs": td.MinLossDuration().Milliseconds(),
 	})
+}
+
+type tdFinishRequest struct {
+	SessionID string `json:"sessionId"`
+	Result    string `json:"result"`
+}
+
+func (h *Handler) tdFinish(w http.ResponseWriter, r *http.Request) {
+	var req tdFinishRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.SessionID == "" {
+		writeError(w, http.StatusBadRequest, "sessionId is required")
+		return
+	}
+
+	userID, err := h.tdSessions.Finish(req.SessionID, req.Result)
 	if err != nil {
+		switch {
+		case errors.Is(err, td.ErrSessionNotFound):
+			writeError(w, http.StatusNotFound, "session not found or expired")
+		case errors.Is(err, td.ErrSessionUsed):
+			writeError(w, http.StatusConflict, "session already finished")
+		case errors.Is(err, td.ErrTooEarly):
+			writeError(w, http.StatusBadRequest, "finished too early")
+		case errors.Is(err, td.ErrInvalidResult):
+			writeError(w, http.StatusBadRequest, "result must be won or lost")
+		default:
+			writeError(w, http.StatusInternalServerError, "failed to finish session")
+		}
+		return
+	}
+
+	delta := store.StatsDelta{}
+	if req.Result == "won" {
+		delta.GamesWon = 1
+	} else {
+		delta.GamesLost = 1
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := h.db.AddStats(ctx, userID, "tower-defense", delta); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save stats")
 		return
 	}
@@ -288,39 +391,6 @@ func (h *Handler) adminStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, stats)
-}
-
-type completeStageRequest struct {
-	UserID int    `json:"userId"`
-	GameID string `json:"gameId"`
-	Stage  int    `json:"stage"`
-}
-
-func (h *Handler) completeStage(w http.ResponseWriter, r *http.Request) {
-	var req completeStageRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if req.UserID <= 0 || req.GameID == "" || req.Stage <= 0 {
-		writeError(w, http.StatusBadRequest, "userId, gameId and stage are required")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	if _, err := h.db.GetUser(ctx, req.UserID); err != nil {
-		writeError(w, http.StatusNotFound, "user not found")
-		return
-	}
-
-	result, err := h.db.CompleteStage(ctx, req.UserID, req.GameID, req.Stage)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to complete stage")
-		return
-	}
-	writeJSON(w, http.StatusOK, result)
 }
 
 func (h *Handler) adminStages(w http.ResponseWriter, r *http.Request) {
