@@ -9,3 +9,9 @@
 # Editor-based HTTP Client requests
 /httpRequests/
 .idea/
+*.iml
+
+**/ .idea/
+**/*.iml
+
+pass.txt
