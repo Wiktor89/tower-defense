@@ -107,8 +107,10 @@ export interface FillBlanksCheckResult {
 
 export interface FillBlankText {
   id: number;
-  body: string;
+  preview: string;
+  blankPercent: number;
   createdAt: string;
+  body?: string;
 }
 
 export type OpMode = 'add' | 'sub' | 'mixed';

@@ -1,6 +1,6 @@
 import './admin.css';
 import '../shared/modal.css';
-import { adminDeleteUser, adminLogin, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminFillBlankTexts, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateMathColumnsSettings } from '../api/client';
+import { adminDeleteUser, adminLogin, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminFillBlankTexts, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateAdminFillBlankPercent, updateMathColumnsSettings } from '../api/client';
 import type { FillBlankText, GameSettings, StageCompletion, UserStatsRow } from '../types';
 import { PLANETS } from '../games/math-columns/planets';
 import { captchaFieldHtml, setupCaptcha } from '../shared/captcha';
@@ -203,8 +203,15 @@ function renderFillTextsList(texts: FillBlankText[]): string {
   return `
     <ul class="admin-text-list">
       ${texts.map(t => `
-        <li class="admin-text-item">
-          <p class="admin-text-body">${escapeHtml(t.body)}</p>
+        <li class="admin-text-item" data-id="${t.id}">
+          <div class="admin-text-main">
+            <p class="admin-text-preview">${escapeHtml(t.preview)}</p>
+            <label class="admin-percent-field">
+              <span class="admin-percent-label">Пропусков: <strong data-percent-value>${t.blankPercent}%</strong></span>
+              <input type="range" class="admin-percent-slider" min="10" max="90" step="5"
+                value="${t.blankPercent}" data-id="${t.id}">
+            </label>
+          </div>
           <button type="button" class="admin-btn admin-btn--danger admin-fill-delete"
             data-id="${t.id}">Удалить</button>
         </li>
@@ -422,6 +429,27 @@ function renderDashboard(
         .catch(err => {
           alert(err instanceof Error ? err.message : 'Не удалось удалить');
         });
+    });
+  });
+
+  const percentTimers = new Map<number, number>();
+  appEl.querySelectorAll<HTMLInputElement>('.admin-percent-slider').forEach(slider => {
+    slider.addEventListener('input', () => {
+      const item = slider.closest('.admin-text-item');
+      const label = item?.querySelector<HTMLElement>('[data-percent-value]');
+      if (label) label.textContent = `${slider.value}%`;
+    });
+    slider.addEventListener('change', () => {
+      const id = Number(slider.dataset.id);
+      const blankPercent = Number(slider.value);
+      const prev = percentTimers.get(id);
+      if (prev) window.clearTimeout(prev);
+      const timer = window.setTimeout(() => {
+        void updateAdminFillBlankPercent(token, id, blankPercent).catch(err => {
+          alert(err instanceof Error ? err.message : 'Не удалось сохранить процент');
+        });
+      }, 200);
+      percentTimers.set(id, timer);
     });
   });
 

@@ -69,6 +69,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/admin/settings/math-columns", h.adminSetMathColumnsSettings)
 	mux.HandleFunc("GET /api/admin/settings/fill-blanks", h.adminListFillTexts)
 	mux.HandleFunc("POST /api/admin/settings/fill-blanks", h.adminAddFillText)
+	mux.HandleFunc("PUT /api/admin/settings/fill-blanks/{id}", h.adminSetFillBlankPercent)
 	mux.HandleFunc("DELETE /api/admin/settings/fill-blanks/{id}", h.adminDeleteFillText)
 	mux.HandleFunc("DELETE /api/admin/users/{id}", h.adminDeleteUser)
 }
@@ -368,7 +369,7 @@ func (h *Handler) fillBlanksPuzzle(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "no texts configured")
 		return
 	}
-	puzzle, err := h.fillStore.CreateFromText(text.Body)
+	puzzle, err := h.fillStore.CreateFromText(text.Body, text.BlankPercent)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "text is too short for this game")
 		return
@@ -480,6 +481,45 @@ func (h *Handler) adminAddFillText(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "text is too short")
 		default:
 			writeError(w, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, text)
+}
+
+func (h *Handler) adminSetFillBlankPercent(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+
+	var req struct {
+		BlankPercent int `json:"blankPercent"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	text, err := h.db.SetFillBlankPercent(ctx, id, req.BlankPercent)
+	if err != nil {
+		switch {
+		case errors.Is(err, store.ErrInvalidBlankPercent):
+			writeError(w, http.StatusBadRequest, "blankPercent must be between 10 and 90")
+		case errors.Is(err, store.ErrFillTextNotFound):
+			writeError(w, http.StatusNotFound, "text not found")
+		default:
+			writeError(w, http.StatusInternalServerError, "failed to update")
 		}
 		return
 	}

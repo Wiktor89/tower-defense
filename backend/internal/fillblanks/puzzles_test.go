@@ -7,12 +7,12 @@ import (
 
 func TestCreateFromTextAndCheck(t *testing.T) {
 	s := NewStore(time.Hour)
-	text := "В четверг четвертого числа в четыре с четвертью часа лигурийский регулировщик регулировал в Лигурии."
-	puzzle, err := s.CreateFromText(text)
+	text := "Первое тестовое предложение содержит достаточно длинных слов для генерации пропусков."
+	puzzle, err := s.CreateFromText(text, 40)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if puzzle.BlankCount < 3 {
+	if puzzle.BlankCount < 1 {
 		t.Fatalf("blankCount=%d", puzzle.BlankCount)
 	}
 	if len(puzzle.Words) < puzzle.BlankCount {
@@ -34,7 +34,7 @@ func TestCreateFromTextAndCheck(t *testing.T) {
 
 func TestCreateFromTextTooShort(t *testing.T) {
 	s := NewStore(time.Hour)
-	_, err := s.CreateFromText("Раз два три")
+	_, err := s.CreateFromText("Раз два три", 30)
 	if err != ErrTextTooShort {
 		t.Fatalf("got %v", err)
 	}

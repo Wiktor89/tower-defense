@@ -48,7 +48,14 @@ type PublicPuzzle struct {
 	BlankCount int           `json:"blankCount"`
 }
 
-func (s *Store) CreateFromText(fullText string) (PublicPuzzle, error) {
+func (s *Store) CreateFromText(fullText string, blankPercent int) (PublicPuzzle, error) {
+	if blankPercent < 10 {
+		blankPercent = 10
+	}
+	if blankPercent > 90 {
+		blankPercent = 90
+	}
+
 	tokens := tokenize(fullText)
 	wordIdxs := make([]int, 0)
 	for i, t := range tokens {
@@ -60,12 +67,9 @@ func (s *Store) CreateFromText(fullText string) (PublicPuzzle, error) {
 		return PublicPuzzle{}, ErrTextTooShort
 	}
 
-	blankCount := len(wordIdxs) / 3
-	if blankCount < 3 {
-		blankCount = 3
-	}
-	if blankCount > 10 {
-		blankCount = 10
+	blankCount := (len(wordIdxs)*blankPercent + 99) / 100
+	if blankCount < 1 {
+		blankCount = 1
 	}
 	if blankCount > len(wordIdxs) {
 		blankCount = len(wordIdxs)

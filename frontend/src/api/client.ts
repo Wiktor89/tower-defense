@@ -126,6 +126,14 @@ export function deleteAdminFillBlankText(token: string, id: number): Promise<voi
   }).then(() => undefined);
 }
 
+export function updateAdminFillBlankPercent(token: string, id: number, blankPercent: number): Promise<FillBlankText> {
+  return request<FillBlankText>(`/api/admin/settings/fill-blanks/${id}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ blankPercent }),
+  });
+}
+
 export function adminLogin(
   login: string,
   password: string,
