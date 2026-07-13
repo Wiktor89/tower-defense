@@ -13,9 +13,11 @@ type LevelRange struct {
 
 var levelRanges = map[int]LevelRange{
 	1: {Min: 1, Max: 9},
-	2: {Min: 10, Max: 99},
-	3: {Min: 100, Max: 999},
+	2: {Min: 1, Max: 20},
+	3: {Min: 1, Max: 20},
 }
+
+const maxSumLevel23 = 20
 
 type Problem struct {
 	ID     string `json:"id"`
@@ -96,12 +98,23 @@ func Generate(level int, opMode string) Problem {
 	var a, b, answer int
 
 	if op == "+" {
-		a = randInt(rangeCfg.Min, rangeCfg.Max)
-		b = randInt(rangeCfg.Min, rangeCfg.Max)
+		if level == 2 || level == 3 {
+			a = randInt(1, maxSumLevel23)
+			maxB := maxSumLevel23 - a
+			b = randInt(1, maxB)
+		} else {
+			a = randInt(rangeCfg.Min, rangeCfg.Max)
+			b = randInt(rangeCfg.Min, rangeCfg.Max)
+		}
 		answer = a + b
 	} else {
-		a = randInt(rangeCfg.Min, rangeCfg.Max)
-		b = randInt(rangeCfg.Min, a)
+		if level == 2 || level == 3 {
+			a = randInt(1, maxSumLevel23)
+			b = randInt(1, a)
+		} else {
+			a = randInt(rangeCfg.Min, rangeCfg.Max)
+			b = randInt(rangeCfg.Min, a)
+		}
 		answer = a - b
 	}
 
