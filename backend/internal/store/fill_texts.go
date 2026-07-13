@@ -44,10 +44,26 @@ func PreviewFillText(body string) string {
 func scanFillBlankText(id int, body string, blankPercent int, createdAt string) FillBlankText {
 	return FillBlankText{
 		ID:           id,
+		Body:         body,
 		Preview:      PreviewFillText(body),
 		BlankPercent: blankPercent,
 		CreatedAt:    createdAt,
 	}
+}
+
+func validateFillBody(body string) (string, error) {
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return "", ErrFillTextEmpty
+	}
+	n := utf8.RuneCountInString(body)
+	if n < MinFillTextRunes {
+		return "", ErrFillTextTooShort
+	}
+	if n > MaxFillTextRunes {
+		return "", errors.New("text is too long")
+	}
+	return body, nil
 }
 
 func (s *Store) ListFillBlankTexts(ctx context.Context) ([]FillBlankText, error) {
@@ -75,21 +91,14 @@ func (s *Store) ListFillBlankTexts(ctx context.Context) ([]FillBlankText, error)
 }
 
 func (s *Store) AddFillBlankText(ctx context.Context, body string) (FillBlankText, error) {
-	body = strings.TrimSpace(body)
-	if body == "" {
-		return FillBlankText{}, ErrFillTextEmpty
-	}
-	n := utf8.RuneCountInString(body)
-	if n < MinFillTextRunes {
-		return FillBlankText{}, ErrFillTextTooShort
-	}
-	if n > MaxFillTextRunes {
-		return FillBlankText{}, errors.New("text is too long")
+	body, err := validateFillBody(body)
+	if err != nil {
+		return FillBlankText{}, err
 	}
 
 	var id, blankPercent int
 	var storedBody, createdAt string
-	err := s.pool.QueryRow(ctx, `
+	err = s.pool.QueryRow(ctx, `
 		INSERT INTO fill_blank_texts (body, blank_percent)
 		VALUES ($1, $2)
 		RETURNING id, body, blank_percent,
@@ -99,6 +108,27 @@ func (s *Store) AddFillBlankText(ctx context.Context, body string) (FillBlankTex
 		return FillBlankText{}, err
 	}
 	return scanFillBlankText(id, storedBody, blankPercent, createdAt), nil
+}
+
+func (s *Store) UpdateFillBlankText(ctx context.Context, id int, body string) (FillBlankText, error) {
+	body, err := validateFillBody(body)
+	if err != nil {
+		return FillBlankText{}, err
+	}
+
+	var outID, blankPercent int
+	var storedBody, createdAt string
+	err = s.pool.QueryRow(ctx, `
+		UPDATE fill_blank_texts
+		SET body = $2
+		WHERE id = $1
+		RETURNING id, body, blank_percent,
+		          to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+	`, id, body).Scan(&outID, &storedBody, &blankPercent, &createdAt)
+	if err != nil {
+		return FillBlankText{}, ErrFillTextNotFound
+	}
+	return scanFillBlankText(outID, storedBody, blankPercent, createdAt), nil
 }
 
 func (s *Store) SetFillBlankPercent(ctx context.Context, id, percent int) (FillBlankText, error) {
@@ -146,6 +176,5 @@ func (s *Store) RandomFillBlankText(ctx context.Context) (FillBlankText, error) 
 		return FillBlankText{}, ErrFillTextNotFound
 	}
 	t := scanFillBlankText(id, body, blankPercent, createdAt)
-	t.Body = body
 	return t, nil
 }

@@ -1,6 +1,6 @@
 import './admin.css';
 import '../shared/modal.css';
-import { adminDeleteUser, adminLogin, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminFillBlankTexts, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateAdminFillBlankPercent, updateMathColumnsSettings } from '../api/client';
+import { adminDeleteUser, adminLogin, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminFillBlankTexts, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateAdminFillBlankPercent, updateAdminFillBlankText, updateMathColumnsSettings } from '../api/client';
 import type { FillBlankText, GameSettings, StageCompletion, UserStatsRow } from '../types';
 import { PLANETS } from '../games/math-columns/planets';
 import { captchaFieldHtml, setupCaptcha } from '../shared/captcha';
@@ -205,15 +205,28 @@ function renderFillTextsList(texts: FillBlankText[]): string {
       ${texts.map(t => `
         <li class="admin-text-item" data-id="${t.id}">
           <div class="admin-text-main">
-            <p class="admin-text-preview">${escapeHtml(t.preview)}</p>
+            <div class="admin-text-top">
+              <p class="admin-text-preview">${escapeHtml(t.preview)}</p>
+              <div class="admin-text-actions">
+                <button type="button" class="admin-btn admin-btn--ghost admin-fill-expand"
+                  data-id="${t.id}" title="Показать весь текст" aria-expanded="false">▼</button>
+                <button type="button" class="admin-btn admin-btn--danger admin-fill-delete"
+                  data-id="${t.id}">Удалить</button>
+              </div>
+            </div>
+            <div class="admin-text-editor hidden" data-editor-for="${t.id}">
+              <textarea class="admin-fill-edit" rows="5">${escapeHtml(t.body ?? '')}</textarea>
+              <div class="admin-text-editor-actions">
+                <button type="button" class="admin-btn admin-fill-save" data-id="${t.id}">Сохранить</button>
+                <span class="admin-fill-save-status" data-status-for="${t.id}"></span>
+              </div>
+            </div>
             <label class="admin-percent-field">
               <span class="admin-percent-label">Пропусков: <strong data-percent-value>${t.blankPercent}%</strong></span>
               <input type="range" class="admin-percent-slider" min="10" max="90" step="5"
                 value="${t.blankPercent}" data-id="${t.id}">
             </label>
           </div>
-          <button type="button" class="admin-btn admin-btn--danger admin-fill-delete"
-            data-id="${t.id}">Удалить</button>
         </li>
       `).join('')}
     </ul>
@@ -415,6 +428,44 @@ function renderDashboard(
       resultEl.textContent = err instanceof Error ? err.message : 'Ошибка добавления';
       resultEl.className = 'admin-verify-result admin-verify-result--fail';
     }
+  });
+
+  appEl.querySelectorAll<HTMLButtonElement>('.admin-fill-expand').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const editor = appEl.querySelector<HTMLElement>(`.admin-text-editor[data-editor-for="${id}"]`);
+      if (!editor) return;
+      const open = editor.classList.toggle('hidden') === false;
+      btn.textContent = open ? '▲' : '▼';
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.title = open ? 'Скрыть текст' : 'Показать весь текст';
+    });
+  });
+
+  appEl.querySelectorAll<HTMLButtonElement>('.admin-fill-save').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = Number(btn.dataset.id);
+      const item = btn.closest('.admin-text-item');
+      const textarea = item?.querySelector<HTMLTextAreaElement>('.admin-fill-edit');
+      const status = appEl.querySelector<HTMLElement>(`[data-status-for="${id}"]`);
+      const preview = item?.querySelector<HTMLElement>('.admin-text-preview');
+      if (!textarea) return;
+      void updateAdminFillBlankText(token, id, textarea.value.trim())
+        .then(updated => {
+          if (preview) preview.textContent = updated.preview;
+          if (textarea) textarea.value = updated.body ?? textarea.value;
+          if (status) {
+            status.textContent = 'Сохранено';
+            status.className = 'admin-fill-save-status admin-fill-save-status--ok';
+          }
+        })
+        .catch(err => {
+          if (status) {
+            status.textContent = err instanceof Error ? err.message : 'Ошибка сохранения';
+            status.className = 'admin-fill-save-status admin-fill-save-status--fail';
+          }
+        });
+    });
   });
 
   appEl.querySelectorAll<HTMLButtonElement>('.admin-fill-delete').forEach(btn => {

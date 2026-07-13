@@ -134,6 +134,14 @@ export function updateAdminFillBlankPercent(token: string, id: number, blankPerc
   });
 }
 
+export function updateAdminFillBlankText(token: string, id: number, text: string): Promise<FillBlankText> {
+  return request<FillBlankText>(`/api/admin/settings/fill-blanks/${id}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ text }),
+  });
+}
+
 export function adminLogin(
   login: string,
   password: string,

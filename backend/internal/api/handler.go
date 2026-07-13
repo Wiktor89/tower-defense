@@ -501,27 +501,51 @@ func (h *Handler) adminSetFillBlankPercent(w http.ResponseWriter, r *http.Reques
 	}
 
 	var req struct {
-		BlankPercent int `json:"blankPercent"`
+		BlankPercent *int    `json:"blankPercent"`
+		Text         *string `json:"text"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.BlankPercent == nil && req.Text == nil {
+		writeError(w, http.StatusBadRequest, "blankPercent or text is required")
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	text, err := h.db.SetFillBlankPercent(ctx, id, req.BlankPercent)
-	if err != nil {
-		switch {
-		case errors.Is(err, store.ErrInvalidBlankPercent):
-			writeError(w, http.StatusBadRequest, "blankPercent must be between 10 and 90")
-		case errors.Is(err, store.ErrFillTextNotFound):
-			writeError(w, http.StatusNotFound, "text not found")
-		default:
-			writeError(w, http.StatusInternalServerError, "failed to update")
+	var text store.FillBlankText
+	if req.Text != nil {
+		text, err = h.db.UpdateFillBlankText(ctx, id, *req.Text)
+		if err != nil {
+			switch {
+			case errors.Is(err, store.ErrFillTextEmpty):
+				writeError(w, http.StatusBadRequest, "text is empty")
+			case errors.Is(err, store.ErrFillTextTooShort):
+				writeError(w, http.StatusBadRequest, "text is too short")
+			case errors.Is(err, store.ErrFillTextNotFound):
+				writeError(w, http.StatusNotFound, "text not found")
+			default:
+				writeError(w, http.StatusBadRequest, err.Error())
+			}
+			return
 		}
-		return
+	}
+	if req.BlankPercent != nil {
+		text, err = h.db.SetFillBlankPercent(ctx, id, *req.BlankPercent)
+		if err != nil {
+			switch {
+			case errors.Is(err, store.ErrInvalidBlankPercent):
+				writeError(w, http.StatusBadRequest, "blankPercent must be between 10 and 90")
+			case errors.Is(err, store.ErrFillTextNotFound):
+				writeError(w, http.StatusNotFound, "text not found")
+			default:
+				writeError(w, http.StatusInternalServerError, "failed to update")
+			}
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, text)
 }

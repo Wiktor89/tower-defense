@@ -110,7 +110,7 @@ export interface FillBlankText {
   preview: string;
   blankPercent: number;
   createdAt: string;
-  body?: string;
+  body: string;
 }
 
 export type OpMode = 'add' | 'sub' | 'mixed';

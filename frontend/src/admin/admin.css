@@ -316,12 +316,74 @@ body {
   gap: 10px;
 }
 
+.admin-text-top {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
 .admin-text-preview {
+  flex: 1;
   margin: 0;
   line-height: 1.45;
   color: rgba(255, 255, 255, 0.9);
   font-size: 0.95rem;
   font-weight: 600;
+}
+
+.admin-text-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.admin-fill-expand {
+  min-width: 40px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+
+.admin-text-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-text-editor.hidden {
+  display: none;
+}
+
+.admin-fill-edit {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  color: #fff;
+  font-size: 0.9rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 100px;
+  line-height: 1.45;
+}
+
+.admin-text-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-fill-save-status {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.admin-fill-save-status--ok {
+  color: #86efac;
+}
+
+.admin-fill-save-status--fail {
+  color: #fca5a5;
 }
 
 .admin-percent-field {
