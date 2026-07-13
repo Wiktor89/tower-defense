@@ -88,6 +88,22 @@ export interface GameSettings {
   sessionSize: number;
 }
 
+export interface FillBlanksPuzzle {
+  id: string;
+  level: number;
+  total: number;
+  fragments: string[];
+  words: string[];
+  blankCount: number;
+}
+
+export interface FillBlanksCheckResult {
+  correct: boolean;
+  level: number;
+  total: number;
+  allComplete?: boolean;
+}
+
 export type OpMode = 'add' | 'sub' | 'mixed';
 export type PlantType = 'sunflower' | 'peashooter' | 'wallnut' | 'cherrybomb';
 export type ZombieType = 'normal' | 'cone' | 'bucket';

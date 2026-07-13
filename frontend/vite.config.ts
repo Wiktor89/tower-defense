@@ -9,6 +9,7 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         towerDefense: resolve(__dirname, 'games/tower-defense/index.html'),
         mathColumns: resolve(__dirname, 'games/math-columns/index.html'),
+        fillBlanks: resolve(__dirname, 'games/fill-blanks/index.html'),
         admin: resolve(__dirname, 'admin/index.html'),
       },
     },

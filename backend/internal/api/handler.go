@@ -11,6 +11,7 @@ import (
 
 	"games/internal/admin"
 	"games/internal/captcha"
+	"games/internal/fillblanks"
 	"games/internal/games"
 	mathpkg "games/internal/math"
 	"games/internal/store"
@@ -21,6 +22,7 @@ type Handler struct {
 	mathStore    *mathpkg.Store
 	mathSessions *mathpkg.SessionTracker
 	tdSessions   *td.Store
+	fillStore    *fillblanks.Store
 	db           *store.Store
 	adminAuth    *admin.Auth
 	captcha      *captcha.Store
@@ -30,6 +32,7 @@ func NewHandler(
 	mathStore *mathpkg.Store,
 	mathSessions *mathpkg.SessionTracker,
 	tdSessions *td.Store,
+	fillStore *fillblanks.Store,
 	db *store.Store,
 	adminAuth *admin.Auth,
 	captchaStore *captcha.Store,
@@ -38,6 +41,7 @@ func NewHandler(
 		mathStore:    mathStore,
 		mathSessions: mathSessions,
 		tdSessions:   tdSessions,
+		fillStore:    fillStore,
 		db:           db,
 		adminAuth:    adminAuth,
 		captcha:      captchaStore,
@@ -54,6 +58,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/users/password", h.setUserPassword)
 	mux.HandleFunc("POST /api/tower-defense/start", h.tdStart)
 	mux.HandleFunc("POST /api/tower-defense/finish", h.tdFinish)
+	mux.HandleFunc("GET /api/fill-blanks/puzzle", h.fillBlanksPuzzle)
+	mux.HandleFunc("POST /api/fill-blanks/check", h.fillBlanksCheck)
 	mux.HandleFunc("GET /api/settings/math-columns", h.mathColumnsSettings)
 	mux.HandleFunc("POST /api/admin/login", h.adminLogin)
 	mux.HandleFunc("GET /api/admin/stats", h.adminStats)
@@ -348,6 +354,90 @@ func (h *Handler) tdFinish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) fillBlanksPuzzle(w http.ResponseWriter, r *http.Request) {
+	level := 1
+	if v := r.URL.Query().Get("level"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 {
+			writeError(w, http.StatusBadRequest, "invalid level")
+			return
+		}
+		level = n
+	}
+	puzzle, ok := h.fillStore.Create(level)
+	if !ok {
+		writeError(w, http.StatusNotFound, "level not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, puzzle)
+}
+
+type fillBlanksCheckRequest struct {
+	ID      string   `json:"id"`
+	Answers []string `json:"answers"`
+	UserID  int      `json:"userId"`
+}
+
+type fillBlanksCheckResponse struct {
+	Correct         bool `json:"correct"`
+	Level           int  `json:"level"`
+	Total           int  `json:"total"`
+	AllComplete     bool `json:"allComplete,omitempty"`
+}
+
+func (h *Handler) fillBlanksCheck(w http.ResponseWriter, r *http.Request) {
+	var req fillBlanksCheckRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.ID == "" {
+		writeError(w, http.StatusBadRequest, "missing puzzle id")
+		return
+	}
+
+	correct, level, ok := h.fillStore.Check(req.ID, req.Answers)
+	if !ok {
+		writeError(w, http.StatusNotFound, "puzzle not found or expired")
+		return
+	}
+
+	resp := fillBlanksCheckResponse{
+		Correct: correct,
+		Level:   level,
+		Total:   fillblanks.LevelCount(),
+	}
+
+	if req.UserID > 0 {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		if _, err := h.db.GetUser(ctx, req.UserID); err != nil {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+
+		delta := store.StatsDelta{}
+		if correct {
+			delta.Correct = 1
+			if level >= fillblanks.LevelCount() {
+				delta.SessionsCompleted = 1
+				resp.AllComplete = true
+			}
+		} else {
+			delta.Wrong = 1
+		}
+		if err := h.db.AddStats(ctx, req.UserID, "fill-blanks", delta); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to save stats")
+			return
+		}
+	} else if correct && level >= fillblanks.LevelCount() {
+		resp.AllComplete = true
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 type adminLoginRequest struct {

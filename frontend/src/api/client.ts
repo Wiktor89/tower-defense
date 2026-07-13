@@ -1,4 +1,4 @@
-import type { CaptchaChallenge, CaptchaPayload, GameCatalogItem, GameSettings, MathCheckResult, MathProblem, OpMode, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
+import type { CaptchaChallenge, CaptchaPayload, FillBlanksCheckResult, FillBlanksPuzzle, GameCatalogItem, GameSettings, MathCheckResult, MathProblem, OpMode, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -92,6 +92,17 @@ export function finishTowerDefense(sessionId: string, result: 'won' | 'lost'): P
     method: 'POST',
     body: JSON.stringify({ sessionId, result }),
   }).then(() => undefined);
+}
+
+export function fetchFillBlanksPuzzle(level: number): Promise<FillBlanksPuzzle> {
+  return request<FillBlanksPuzzle>(`/api/fill-blanks/puzzle?level=${level}`);
+}
+
+export function checkFillBlanks(id: string, answers: string[], userId?: number): Promise<FillBlanksCheckResult> {
+  return request<FillBlanksCheckResult>('/api/fill-blanks/check', {
+    method: 'POST',
+    body: JSON.stringify({ id, answers, userId: userId ?? 0 }),
+  });
 }
 
 export function adminLogin(

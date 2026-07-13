@@ -44,6 +44,7 @@ make install
 - Статистика пишется **только после серверной проверки**:
   - **Столбик**: `correct`/`wrong` и завершение серии — из `POST /api/math/check` (ответ проверяется на сервере; этап/награда выдаётся только при завершении серии)
   - **Tower Defense**: победа/поражение — через одноразовую сессию `start` → `finish` с минимальной длительностью партии
+  - **Заполни пропуски**: проверка слов на сервере через `POST /api/fill-blanks/check`
 - Открытого `POST /api/stats` нет: клиент не может сам накрутить счётчики
 - Кнопка **Администратор** (справа вверху) → логин `admin` / пароль `admin`
 - Страница админа: [http://localhost:8089/admin/](http://localhost:8089/admin/)
@@ -61,6 +62,8 @@ make install
 | POST | `/api/math/check` | Проверить ответ; при `userId` пишет статы и может вернуть `stageCompletion` |
 | POST | `/api/tower-defense/start` | Начать партию `{ userId }` → `{ sessionId, minDurationMs }` |
 | POST | `/api/tower-defense/finish` | Завершить партию `{ sessionId, result: won\|lost }` |
+| GET | `/api/fill-blanks/puzzle` | Фрагмент скороговорки `?level=1` |
+| POST | `/api/fill-blanks/check` | Проверить слова в пропусках |
 | GET | `/api/settings/math-columns` | Размер серии |
 | POST | `/api/admin/login` | Вход админа |
 | GET | `/api/admin/stats` | Статистика игроков (Bearer) |
@@ -75,6 +78,7 @@ make install
 |------|------|--------|
 | Защита от зомби | `/games/tower-defense/` | Готова |
 | Столбик | `/games/math-columns/` | Готова |
+| Заполни пропуски | `/games/fill-blanks/` | Готова |
 
 ## Разработка
 

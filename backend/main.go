@@ -14,6 +14,7 @@ import (
 	"games/internal/admin"
 	"games/internal/api"
 	"games/internal/captcha"
+	"games/internal/fillblanks"
 	mathpkg "games/internal/math"
 	"games/internal/store"
 	"games/internal/td"
@@ -44,6 +45,7 @@ func main() {
 		mathpkg.NewStore(30*time.Minute),
 		mathpkg.NewSessionTracker(),
 		td.NewStore(),
+		fillblanks.NewStore(30*time.Minute),
 		db,
 		admin.NewAuth(),
 		captcha.NewStore(),
