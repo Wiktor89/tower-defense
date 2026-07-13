@@ -24,9 +24,9 @@ type issued struct {
 }
 
 type Store struct {
-	mu      sync.Mutex
-	issued  map[string]issued
-	ttl     time.Duration
+	mu     sync.Mutex
+	issued map[string]issued
+	ttl    time.Duration
 }
 
 func NewStore(ttl time.Duration) *Store {
@@ -41,11 +41,16 @@ type PublicToken struct {
 	Index int    `json:"index,omitempty"`
 }
 
-type PublicPuzzle struct {
-	ID         string        `json:"id"`
+type PublicParagraph struct {
 	Tokens     []PublicToken `json:"tokens"`
 	Words      []string      `json:"words"`
 	BlankCount int           `json:"blankCount"`
+}
+
+type PublicPuzzle struct {
+	ID         string            `json:"id"`
+	Paragraphs []PublicParagraph `json:"paragraphs"`
+	BlankCount int               `json:"blankCount"`
 }
 
 func (s *Store) CreateFromText(fullText string, blankPercent int) (PublicPuzzle, error) {
@@ -56,15 +61,55 @@ func (s *Store) CreateFromText(fullText string, blankPercent int) (PublicPuzzle,
 		blankPercent = 90
 	}
 
-	tokens := tokenize(fullText)
+	units := splitUnits(fullText)
+	if len(units) == 0 {
+		return PublicPuzzle{}, ErrTextTooShort
+	}
+
+	paragraphs := make([]PublicParagraph, 0, len(units))
+	allAnswers := make([]string, 0)
+	globalBlank := 0
+
+	for _, unit := range units {
+		para, answers, next, err := buildParagraph(unit, blankPercent, globalBlank)
+		if err != nil {
+			// keep as plain text paragraph without blanks
+			paragraphs = append(paragraphs, PublicParagraph{
+				Tokens: []PublicToken{{Type: "text", Value: unit}},
+			})
+			continue
+		}
+		globalBlank = next
+		allAnswers = append(allAnswers, answers...)
+		paragraphs = append(paragraphs, para)
+	}
+
+	if len(allAnswers) == 0 {
+		return PublicPuzzle{}, ErrTextTooShort
+	}
+
+	id := newID()
+	s.mu.Lock()
+	s.issued[id] = issued{answers: allAnswers, createdAt: time.Now()}
+	s.mu.Unlock()
+
+	return PublicPuzzle{
+		ID:         id,
+		Paragraphs: paragraphs,
+		BlankCount: len(allAnswers),
+	}, nil
+}
+
+func buildParagraph(text string, blankPercent, startIndex int) (PublicParagraph, []string, int, error) {
+	tokens := tokenize(text)
 	wordIdxs := make([]int, 0)
 	for i, t := range tokens {
 		if t.word && isBlankable(t.value) {
 			wordIdxs = append(wordIdxs, i)
 		}
 	}
-	if len(wordIdxs) < 3 {
-		return PublicPuzzle{}, ErrTextTooShort
+	if len(wordIdxs) == 0 {
+		return PublicParagraph{}, nil, startIndex, ErrTextTooShort
 	}
 
 	blankCount := (len(wordIdxs)*blankPercent + 99) / 100
@@ -79,7 +124,7 @@ func (s *Store) CreateFromText(fullText string, blankPercent int) (PublicPuzzle,
 	blankAt := make(map[int]int, len(chosen))
 	answers := make([]string, len(chosen))
 	for i, idx := range chosen {
-		blankAt[idx] = i
+		blankAt[idx] = startIndex + i
 		answers[i] = tokens[idx].value
 	}
 
@@ -92,7 +137,6 @@ func (s *Store) CreateFromText(fullText string, blankPercent int) (PublicPuzzle,
 		publicTokens = append(publicTokens, PublicToken{Type: "text", Value: t.value})
 	}
 
-	// Distractors: other blankable words not used as answers.
 	answerSet := make(map[string]bool, len(answers))
 	for _, a := range answers {
 		answerSet[normalize(a)] = true
@@ -116,17 +160,11 @@ func (s *Store) CreateFromText(fullText string, blankPercent int) (PublicPuzzle,
 	words = append(words, distractors...)
 	shuffle(words)
 
-	id := newID()
-	s.mu.Lock()
-	s.issued[id] = issued{answers: answers, createdAt: time.Now()}
-	s.mu.Unlock()
-
-	return PublicPuzzle{
-		ID:         id,
+	return PublicParagraph{
 		Tokens:     publicTokens,
 		Words:      words,
 		BlankCount: len(answers),
-	}, nil
+	}, answers, startIndex + len(answers), nil
 }
 
 func (s *Store) Check(id string, answers []string) (correct bool, ok bool) {
@@ -149,6 +187,68 @@ func (s *Store) Check(id string, answers []string) (correct bool, ok bool) {
 		}
 	}
 	return true, true
+}
+
+func splitUnits(text string) []string {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil
+	}
+
+	raw := strings.Split(text, "\n")
+	paras := make([]string, 0, len(raw))
+	for _, p := range raw {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			paras = append(paras, p)
+		}
+	}
+	if len(paras) == 0 {
+		return nil
+	}
+	if len(paras) > 1 {
+		return paras
+	}
+
+	sents := splitSentences(paras[0])
+	if len(sents) > 1 {
+		return sents
+	}
+	return paras
+}
+
+func splitSentences(text string) []string {
+	runes := []rune(text)
+	var out []string
+	start := 0
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		if r != '.' && r != '!' && r != '?' {
+			continue
+		}
+		end := i + 1
+		for end < len(runes) && (runes[end] == '"' || runes[end] == '»' || runes[end] == '\'') {
+			end++
+		}
+		if end < len(runes) && !unicode.IsSpace(runes[end]) {
+			continue
+		}
+		chunk := strings.TrimSpace(string(runes[start:end]))
+		if chunk != "" {
+			out = append(out, chunk)
+		}
+		for end < len(runes) && unicode.IsSpace(runes[end]) {
+			end++
+		}
+		start = end
+		i = end - 1
+	}
+	tail := strings.TrimSpace(string(runes[start:]))
+	if tail != "" {
+		out = append(out, tail)
+	}
+	return out
 }
 
 func tokenize(text string) []token {
@@ -196,7 +296,6 @@ func pickN(items []int, n int) []int {
 		n = len(cp)
 	}
 	chosen := cp[:n]
-	// keep blank indices stable by original text order for answer slots
 	for i := 0; i < len(chosen); i++ {
 		for j := i + 1; j < len(chosen); j++ {
 			if chosen[j] < chosen[i] {

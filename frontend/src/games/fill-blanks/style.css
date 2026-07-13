@@ -137,8 +137,29 @@ header {
   padding-right: 6px;
 }
 
+.paragraphs {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.para-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 14px;
+  align-items: start;
+  padding: 14px;
+  background: #f7fcfb;
+  border: 1px solid #c5dde0;
+  border-radius: 14px;
+}
+
+.para-text {
+  min-width: 0;
+}
+
 .sentence {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   line-height: 1.85;
   color: #1a2e35;
 }
@@ -274,15 +295,12 @@ header {
 }
 
 .bank-section {
-  padding: 14px;
-  background: #f3faf9;
-  border-radius: 14px;
+  padding: 12px;
+  background: #fff;
+  border-radius: 12px;
   border: 1px solid #b7d4d8;
-  max-height: inherit;
+  max-height: 320px;
   overflow-y: auto;
-  position: sticky;
-  top: 0;
-  align-self: stretch;
 }
 
 .bank-title {
@@ -334,19 +352,18 @@ header {
   cursor: default;
 }
 
-@media (max-width: 800px) {
-  .play-area {
-    grid-template-columns: 1fr;
-    max-height: none;
-  }
+.bank-empty {
+  font-size: 0.8rem;
+  color: #7a969c;
+}
 
-  .play-area__text {
-    max-height: 50vh;
+@media (max-width: 800px) {
+  .para-row {
+    grid-template-columns: 1fr;
   }
 
   .bank-section {
-    position: static;
-    max-height: 40vh;
+    max-height: 200px;
   }
 
   .word-bank {

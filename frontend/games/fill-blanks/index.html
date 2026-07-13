@@ -20,16 +20,8 @@
     </header>
 
     <main class="board">
-      <p class="hint">Перетащите слово справа в пропуск. Когда все пропуски заполнены — нажмите «Проверить».</p>
-      <div class="play-area">
-        <div class="play-area__text">
-          <div id="sentence" class="sentence" aria-live="polite"></div>
-        </div>
-        <aside class="bank-section">
-          <h2 class="bank-title">Слова</h2>
-          <div id="word-bank" class="word-bank"></div>
-        </aside>
-      </div>
+      <p class="hint">У каждого абзаца свои слова справа. Перетащите их в пропуски этого абзаца.</p>
+      <div id="paragraphs" class="paragraphs"></div>
       <div id="feedback" class="feedback hidden"></div>
       <div class="actions">
         <button id="check-btn" class="action-btn action-btn--primary hidden">Проверить</button>

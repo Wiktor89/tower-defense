@@ -94,10 +94,15 @@ export interface FillBlanksToken {
   index?: number;
 }
 
-export interface FillBlanksPuzzle {
-  id: string;
+export interface FillBlanksParagraph {
   tokens: FillBlanksToken[];
   words: string[];
+  blankCount: number;
+}
+
+export interface FillBlanksPuzzle {
+  id: string;
+  paragraphs: FillBlanksParagraph[];
   blankCount: number;
 }
 

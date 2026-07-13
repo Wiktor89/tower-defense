@@ -1,11 +1,10 @@
 import './style.css';
 import { checkFillBlanks, fetchFillBlanksPuzzle } from '../../api/client';
-import type { FillBlanksPuzzle } from '../../types';
+import type { FillBlanksParagraph, FillBlanksPuzzle, FillBlanksToken } from '../../types';
 import { ensureUserLogin } from '../../shared/login';
 import { getUser } from '../../shared/user';
 
-const sentenceEl = document.getElementById('sentence');
-const bankEl = document.getElementById('word-bank');
+const paragraphsEl = document.getElementById('paragraphs');
 const feedbackEl = document.getElementById('feedback');
 const checkBtn = document.getElementById('check-btn') as HTMLButtonElement | null;
 const clearBtn = document.getElementById('clear-btn') as HTMLButtonElement | null;
@@ -13,16 +12,12 @@ const nextBtn = document.getElementById('next-btn') as HTMLButtonElement | null;
 const scoreCorrectEl = document.getElementById('score-correct');
 const scoreWrongEl = document.getElementById('score-wrong');
 
-if (
-  !sentenceEl || !bankEl || !feedbackEl || !checkBtn || !clearBtn || !nextBtn ||
-  !scoreCorrectEl || !scoreWrongEl
-) {
+if (!paragraphsEl || !feedbackEl || !checkBtn || !clearBtn || !nextBtn || !scoreCorrectEl || !scoreWrongEl) {
   throw new Error('Missing required DOM elements');
 }
 
 const ui = {
-  sentenceEl,
-  bankEl,
+  paragraphsEl,
   feedbackEl,
   checkBtn,
   clearBtn,
@@ -38,6 +33,7 @@ let correctCount = 0;
 let wrongCount = 0;
 let dragWord: string | null = null;
 let dragFromBlank: number | null = null;
+let dragPara: number | null = null;
 
 function showFeedback(text: string, type: 'correct' | 'wrong' | 'hint'): void {
   ui.feedbackEl.textContent = text;
@@ -58,40 +54,47 @@ function allFilled(): boolean {
 }
 
 function updateCheckVisibility(): void {
-  const show = !locked && allFilled();
-  ui.checkBtn.classList.toggle('hidden', !show);
+  ui.checkBtn.classList.toggle('hidden', !(!locked && allFilled()));
 }
 
-function usedWords(): Map<string, number> {
+function blankIndexes(para: FillBlanksParagraph): number[] {
+  return para.tokens.filter(t => t.type === 'blank').map(t => t.index ?? 0);
+}
+
+function usedInParagraph(para: FillBlanksParagraph): Map<string, number> {
   const counts = new Map<string, number>();
-  for (const w of fills) {
+  for (const idx of blankIndexes(para)) {
+    const w = fills[idx];
     if (!w) continue;
     counts.set(w, (counts.get(w) ?? 0) + 1);
   }
   return counts;
 }
 
-function bankAvailability(): Map<string, number> {
+function bankAvailability(para: FillBlanksParagraph): Map<string, number> {
   const available = new Map<string, number>();
-  if (!puzzle) return available;
-  for (const w of puzzle.words) {
+  for (const w of para.words) {
     available.set(w, (available.get(w) ?? 0) + 1);
   }
-  const used = usedWords();
-  for (const [w, n] of used) {
+  for (const [w, n] of usedInParagraph(para)) {
     available.set(w, (available.get(w) ?? 0) - n);
   }
   return available;
 }
 
-function placeWord(blankIndex: number, word: string): void {
+function placeWord(blankIndex: number, word: string, paraIndex: number): void {
   if (!puzzle || locked) return;
+  const para = puzzle.paragraphs[paraIndex];
+  if (!para) return;
+  if (!blankIndexes(para).includes(blankIndex)) return;
+
   if (dragFromBlank !== null && dragFromBlank !== blankIndex) {
     fills[dragFromBlank] = null;
   }
   fills[blankIndex] = word;
   dragWord = null;
   dragFromBlank = null;
+  dragPara = null;
   hideFeedback();
   render();
 }
@@ -100,120 +103,6 @@ function clearBlank(blankIndex: number): void {
   if (locked) return;
   fills[blankIndex] = null;
   render();
-}
-
-function renderSentence(): void {
-  if (!puzzle) {
-    ui.sentenceEl.innerHTML = '';
-    return;
-  }
-
-  ui.sentenceEl.innerHTML = puzzle.tokens.map(token => {
-    if (token.type === 'text') {
-      return `<span class="text-chunk">${escapeHtml(token.value ?? '')}</span>`;
-    }
-    const idx = token.index ?? 0;
-    const value = fills[idx];
-    const classes = ['blank'];
-    if (value) classes.push('filled');
-    const label = value ? escapeHtml(value) : '····';
-    return `<span class="${classes.join(' ')}" data-blank="${idx}" ${locked ? '' : 'tabindex="0"'}>${label}</span>`;
-  }).join('');
-
-  ui.sentenceEl.querySelectorAll<HTMLElement>('.blank').forEach(el => {
-    const idx = Number(el.dataset.blank);
-
-    el.addEventListener('dragover', (e) => {
-      if (locked) return;
-      e.preventDefault();
-      el.classList.add('drag-over');
-    });
-    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
-    el.addEventListener('drop', (e) => {
-      e.preventDefault();
-      el.classList.remove('drag-over');
-      if (locked) return;
-      const word = e.dataTransfer?.getData('text/plain') || dragWord;
-      if (!word) return;
-      placeWord(idx, word);
-    });
-
-    if (fills[idx] && !locked) {
-      el.draggable = true;
-      el.addEventListener('dragstart', (e) => {
-        const word = fills[idx];
-        if (!word) return;
-        dragWord = word;
-        dragFromBlank = idx;
-        e.dataTransfer?.setData('text/plain', word);
-        e.dataTransfer!.effectAllowed = 'move';
-        el.classList.add('dragging');
-      });
-      el.addEventListener('dragend', () => {
-        el.classList.remove('dragging');
-        dragWord = null;
-        dragFromBlank = null;
-      });
-      el.addEventListener('dblclick', () => clearBlank(idx));
-    }
-  });
-}
-
-function renderBank(): void {
-  if (!puzzle) {
-    ui.bankEl.innerHTML = '';
-    return;
-  }
-
-  const available = bankAvailability();
-  const rendered = new Set<string>();
-  const chips: string[] = [];
-
-  for (const word of puzzle.words) {
-    if (rendered.has(word)) continue;
-    rendered.add(word);
-    const left = available.get(word) ?? 0;
-    const classes = ['word-chip'];
-    if (left <= 0) classes.push('used');
-    chips.push(
-      `<button type="button" class="${classes.join(' ')}" data-word="${escapeAttr(word)}"
-        draggable="${!locked && left > 0}" ${locked || left <= 0 ? 'disabled' : ''}>${escapeHtml(word)}</button>`,
-    );
-  }
-  ui.bankEl.innerHTML = chips.join('');
-
-  ui.bankEl.querySelectorAll<HTMLButtonElement>('.word-chip:not(.used)').forEach(btn => {
-    const word = btn.dataset.word!;
-    btn.addEventListener('dragstart', (e) => {
-      dragWord = word;
-      dragFromBlank = null;
-      e.dataTransfer?.setData('text/plain', word);
-      e.dataTransfer!.effectAllowed = 'move';
-      btn.classList.add('dragging');
-    });
-    btn.addEventListener('dragend', () => {
-      btn.classList.remove('dragging');
-      dragWord = null;
-      dragFromBlank = null;
-    });
-  });
-
-  ui.bankEl.addEventListener('dragover', onBankDragOver);
-  ui.bankEl.addEventListener('drop', onBankDrop);
-}
-
-function onBankDragOver(e: DragEvent): void {
-  if (locked) return;
-  e.preventDefault();
-}
-
-function onBankDrop(e: DragEvent): void {
-  e.preventDefault();
-  if (locked || !puzzle) return;
-  const word = e.dataTransfer?.getData('text/plain') || dragWord;
-  if (!word) return;
-  const idx = fills.findIndex(v => v === word);
-  if (idx >= 0) clearBlank(idx);
 }
 
 function escapeHtml(s: string): string {
@@ -228,21 +117,159 @@ function escapeAttr(s: string): string {
   return escapeHtml(s);
 }
 
-function render(): void {
-  // clone bank listeners carefully — remove old by replacing innerHTML only in renderBank
-  const bank = ui.bankEl;
-  const newBank = bank.cloneNode(false) as HTMLElement;
-  bank.parentNode?.replaceChild(newBank, bank);
-  ui.bankEl = newBank;
+function renderTokens(tokens: FillBlanksToken[], paraIndex: number): string {
+  return tokens.map(token => {
+    if (token.type === 'text') {
+      return `<span class="text-chunk">${escapeHtml(token.value ?? '')}</span>`;
+    }
+    const idx = token.index ?? 0;
+    const value = fills[idx];
+    const classes = ['blank'];
+    if (value) classes.push('filled');
+    const label = value ? escapeHtml(value) : '····';
+    return `<span class="${classes.join(' ')}" data-blank="${idx}" data-para="${paraIndex}" ${locked ? '' : 'tabindex="0"'}>${label}</span>`;
+  }).join('');
+}
 
-  renderSentence();
-  renderBank();
+function renderBank(para: FillBlanksParagraph, paraIndex: number): string {
+  if (para.blankCount === 0 || para.words.length === 0) {
+    return '<p class="bank-empty">Нет пропусков</p>';
+  }
+  const available = bankAvailability(para);
+  const rendered = new Set<string>();
+  const chips: string[] = [];
+  for (const word of para.words) {
+    if (rendered.has(word)) continue;
+    rendered.add(word);
+    const left = available.get(word) ?? 0;
+    const classes = ['word-chip'];
+    if (left <= 0) classes.push('used');
+    chips.push(
+      `<button type="button" class="${classes.join(' ')}" data-word="${escapeAttr(word)}" data-para="${paraIndex}"
+        draggable="${!locked && left > 0}" ${locked || left <= 0 ? 'disabled' : ''}>${escapeHtml(word)}</button>`,
+    );
+  }
+  return chips.join('');
+}
+
+function bindParagraphEvents(row: HTMLElement, paraIndex: number): void {
+  row.querySelectorAll<HTMLElement>('.blank').forEach(el => {
+    const idx = Number(el.dataset.blank);
+
+    el.addEventListener('dragover', (e) => {
+      if (locked) return;
+      if (dragPara !== null && dragPara !== paraIndex) return;
+      e.preventDefault();
+      el.classList.add('drag-over');
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', (e) => {
+      e.preventDefault();
+      el.classList.remove('drag-over');
+      if (locked) return;
+      const fromPara = Number((e.dataTransfer?.getData('application/x-para') || String(dragPara ?? -1)));
+      if (fromPara !== paraIndex) return;
+      const word = e.dataTransfer?.getData('text/plain') || dragWord;
+      if (!word) return;
+      placeWord(idx, word, paraIndex);
+    });
+
+    if (fills[idx] && !locked) {
+      el.draggable = true;
+      el.addEventListener('dragstart', (e) => {
+        const word = fills[idx];
+        if (!word) return;
+        dragWord = word;
+        dragFromBlank = idx;
+        dragPara = paraIndex;
+        e.dataTransfer?.setData('text/plain', word);
+        e.dataTransfer?.setData('application/x-para', String(paraIndex));
+        e.dataTransfer!.effectAllowed = 'move';
+        el.classList.add('dragging');
+      });
+      el.addEventListener('dragend', () => {
+        el.classList.remove('dragging');
+        dragWord = null;
+        dragFromBlank = null;
+        dragPara = null;
+      });
+      el.addEventListener('dblclick', () => clearBlank(idx));
+    }
+  });
+
+  const bank = row.querySelector<HTMLElement>('.word-bank');
+  if (!bank) return;
+
+  bank.querySelectorAll<HTMLButtonElement>('.word-chip:not(.used)').forEach(btn => {
+    const word = btn.dataset.word!;
+    btn.addEventListener('dragstart', (e) => {
+      dragWord = word;
+      dragFromBlank = null;
+      dragPara = paraIndex;
+      e.dataTransfer?.setData('text/plain', word);
+      e.dataTransfer?.setData('application/x-para', String(paraIndex));
+      e.dataTransfer!.effectAllowed = 'move';
+      btn.classList.add('dragging');
+    });
+    btn.addEventListener('dragend', () => {
+      btn.classList.remove('dragging');
+      dragWord = null;
+      dragFromBlank = null;
+      dragPara = null;
+    });
+  });
+
+  bank.addEventListener('dragover', (e) => {
+    if (locked || dragPara !== paraIndex) return;
+    e.preventDefault();
+  });
+  bank.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (locked || !puzzle || dragPara !== paraIndex) return;
+    const word = e.dataTransfer?.getData('text/plain') || dragWord;
+    if (!word) return;
+    const idx = blankIndexes(puzzle.paragraphs[paraIndex]!).find(i => fills[i] === word);
+    if (idx !== undefined) clearBlank(idx);
+  });
+}
+
+function render(): void {
+  if (!puzzle) {
+    ui.paragraphsEl.innerHTML = '';
+    updateCheckVisibility();
+    return;
+  }
+
+  ui.paragraphsEl.innerHTML = puzzle.paragraphs.map((para, i) => `
+    <section class="para-row" data-para="${i}">
+      <div class="para-text sentence">${renderTokens(para.tokens, i)}</div>
+      <aside class="bank-section">
+        <h2 class="bank-title">Слова</h2>
+        <div class="word-bank">${renderBank(para, i)}</div>
+      </aside>
+    </section>
+  `).join('');
+
+  ui.paragraphsEl.querySelectorAll<HTMLElement>('.para-row').forEach(row => {
+    bindParagraphEvents(row, Number(row.dataset.para));
+  });
+
+  if (locked) {
+    ui.paragraphsEl.querySelectorAll<HTMLElement>('.blank').forEach(el => {
+      const idx = Number(el.dataset.blank);
+      // styling applied after check separately
+      void idx;
+    });
+  }
+
   updateCheckVisibility();
 }
 
 async function loadPuzzle(): Promise<void> {
   locked = false;
   dragWord = null;
+  dragFromBlank = null;
+  dragPara = null;
   hideFeedback();
   ui.nextBtn.classList.add('hidden');
   ui.clearBtn.classList.remove('hidden');
@@ -256,8 +283,7 @@ async function loadPuzzle(): Promise<void> {
   } catch (err) {
     puzzle = null;
     fills = [];
-    ui.sentenceEl.textContent = '';
-    ui.bankEl.innerHTML = '';
+    ui.paragraphsEl.innerHTML = '';
     const msg = err instanceof Error ? err.message : 'Ошибка загрузки';
     showFeedback(
       msg.toLowerCase().includes('no texts') || msg.toLowerCase().includes('not found')
@@ -278,11 +304,11 @@ async function onCheck(): Promise<void> {
 
   try {
     const result = await checkFillBlanks(puzzle.id, answers, user?.id);
-    ui.sentenceEl.querySelectorAll<HTMLElement>('.blank').forEach(el => {
+    ui.paragraphsEl.querySelectorAll<HTMLElement>('.blank').forEach(el => {
       el.classList.add(result.correct ? 'correct' : 'wrong');
       el.draggable = false;
     });
-    ui.bankEl.querySelectorAll<HTMLButtonElement>('.word-chip').forEach(btn => {
+    ui.paragraphsEl.querySelectorAll<HTMLButtonElement>('.word-chip').forEach(btn => {
       btn.disabled = true;
       btn.draggable = false;
     });
@@ -297,7 +323,7 @@ async function onCheck(): Promise<void> {
     } else {
       wrongCount++;
       updateScore();
-      showFeedback('Неверно. Попробуйте другой текст или очистите и заполните заново.', 'wrong');
+      showFeedback('Неверно. Попробуйте снова.', 'wrong');
       ui.clearBtn.textContent = 'Ещё раз';
       ui.clearBtn.classList.remove('hidden');
       ui.nextBtn.classList.remove('hidden');

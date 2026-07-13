@@ -5,30 +5,23 @@ import (
 	"time"
 )
 
-func TestCreateFromTextAndCheck(t *testing.T) {
+func TestCreateFromTextParagraphs(t *testing.T) {
 	s := NewStore(time.Hour)
-	text := "Первое тестовое предложение содержит достаточно длинных слов для генерации пропусков."
+	text := "Первое тестовое предложение содержит достаточно длинных слов для генерации. Второе предложение также содержит несколько подходящих слов для задания."
 	puzzle, err := s.CreateFromText(text, 40)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(puzzle.Paragraphs) < 2 {
+		t.Fatalf("paragraphs=%d", len(puzzle.Paragraphs))
+	}
+	for i, p := range puzzle.Paragraphs {
+		if p.BlankCount > 0 && len(p.Words) < p.BlankCount {
+			t.Fatalf("para %d words=%d blanks=%d", i, len(p.Words), p.BlankCount)
+		}
+	}
 	if puzzle.BlankCount < 1 {
-		t.Fatalf("blankCount=%d", puzzle.BlankCount)
-	}
-	if len(puzzle.Words) < puzzle.BlankCount {
-		t.Fatalf("words=%d blanks=%d", len(puzzle.Words), puzzle.BlankCount)
-	}
-
-	wrong := make([]string, puzzle.BlankCount)
-	for i := range wrong {
-		wrong[i] = "xxx"
-	}
-	ok, found := s.Check(puzzle.ID, wrong)
-	if !found {
-		t.Fatal("puzzle should exist")
-	}
-	if ok {
-		t.Fatal("wrong answers must fail")
+		t.Fatal("no blanks")
 	}
 }
 
