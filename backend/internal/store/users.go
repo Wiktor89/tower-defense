@@ -157,3 +157,14 @@ func (s *Store) SetUserPassword(ctx context.Context, userID int, newPassword, cu
 	user.HasPassword = true
 	return user, nil
 }
+
+func (s *Store) DeleteUser(ctx context.Context, userID int) error {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM users WHERE id = $1`, userID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrUserNotFound
+	}
+	return nil
+}

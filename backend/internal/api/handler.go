@@ -41,6 +41,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/admin/verify", h.adminVerify)
 	mux.HandleFunc("GET /api/admin/settings/math-columns", h.adminGetMathColumnsSettings)
 	mux.HandleFunc("PUT /api/admin/settings/math-columns", h.adminSetMathColumnsSettings)
+	mux.HandleFunc("DELETE /api/admin/users/{id}", h.adminDeleteUser)
 }
 
 func (h *Handler) health(w http.ResponseWriter, _ *http.Request) {
@@ -413,6 +414,33 @@ func (h *Handler) adminSetMathColumnsSettings(w http.ResponseWriter, r *http.Req
 		return
 	}
 	writeJSON(w, http.StatusOK, gs)
+}
+
+func (h *Handler) adminDeleteUser(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	userID, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || userID <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := h.db.DeleteUser(ctx, userID); err != nil {
+		if errors.Is(err, store.ErrUserNotFound) {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to delete user")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func bearerToken(r *http.Request) string {

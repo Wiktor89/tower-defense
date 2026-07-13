@@ -56,6 +56,17 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.admin-btn--danger {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  font-size: 0.8rem;
+  padding: 6px 12px;
+}
+
+.admin-actions-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+
 .admin-error {
   color: #fca5a5;
   margin-top: 12px;

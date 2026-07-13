@@ -1,6 +1,6 @@
 import './admin.css';
 import '../shared/modal.css';
-import { adminLogin, adminVerify, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateMathColumnsSettings } from '../api/client';
+import { adminDeleteUser, adminLogin, adminVerify, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateMathColumnsSettings } from '../api/client';
 import type { GameSettings, StageCompletion, UserStatsRow } from '../types';
 import { PLANETS } from '../games/math-columns/planets';
 import { getAdminToken, setAdminToken, clearAdminToken } from '../shared/user';
@@ -67,25 +67,37 @@ function renderLogin(): void {
   });
 }
 
+function renderDeleteButton(userId: number, login: string, rowspan: number): string {
+  return `
+    <td rowspan="${rowspan}" class="admin-actions-cell">
+      <button type="button" class="admin-btn admin-btn--danger admin-delete-btn"
+        data-user-id="${userId}" data-user-login="${login}">Удалить</button>
+    </td>
+  `;
+}
+
 function renderStatsTable(rows: UserStatsRow[]): string {
   const tableRows = rows.map(user => {
+    const rowSpan = Math.max(user.games.length, 1);
     if (user.games.length === 0) {
       return `
         <tr>
           <td>${user.login}</td>
           <td colspan="6" class="admin-empty">Ещё не играл</td>
+          ${renderDeleteButton(user.userId, user.login, 1)}
         </tr>
       `;
     }
     return user.games.map((g, i) => `
       <tr>
-        ${i === 0 ? `<td rowspan="${user.games.length}">${user.login}</td>` : ''}
+        ${i === 0 ? `<td rowspan="${rowSpan}">${user.login}</td>` : ''}
         <td>${GAME_NAMES[g.gameId] ?? g.gameId}</td>
         <td>${g.correct}</td>
         <td>${g.wrong}</td>
         <td>${g.sessionsCompleted}</td>
         <td>${g.gamesWon}</td>
         <td>${g.gamesLost}</td>
+        ${i === 0 ? renderDeleteButton(user.userId, user.login, rowSpan) : ''}
       </tr>
     `).join('');
   }).join('');
@@ -102,14 +114,38 @@ function renderStatsTable(rows: UserStatsRow[]): string {
             <th>Серии</th>
             <th>Победы</th>
             <th>Поражения</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
-          ${tableRows || '<tr><td colspan="7" class="admin-empty">Нет данных</td></tr>'}
+          ${tableRows || '<tr><td colspan="8" class="admin-empty">Нет данных</td></tr>'}
         </tbody>
       </table>
     </div>
   `;
+}
+
+function showDeleteConfirm(login: string, onConfirm: () => void): void {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h2>Удалить пользователя?</h2>
+      <p>Будут удалены все данные игрока <strong>${login}</strong>: статистика, этапы и настройки.</p>
+      <div class="modal-actions">
+        <button type="button" class="modal-btn modal-btn--ghost" id="delete-cancel">Отмена</button>
+        <button type="button" class="modal-btn admin-btn--danger" id="delete-confirm">Удалить</button>
+      </div>
+      <p class="modal-error hidden" id="delete-error"></p>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#delete-cancel')?.addEventListener('click', () => overlay.remove());
+  overlay.querySelector('#delete-confirm')?.addEventListener('click', () => {
+    overlay.remove();
+    onConfirm();
+  });
 }
 
 function renderStagesTable(stages: StageCompletion[]): string {
@@ -305,6 +341,23 @@ function renderDashboard(
       resultEl.textContent = err instanceof Error ? err.message : 'Ошибка сохранения';
       resultEl.className = 'admin-verify-result admin-verify-result--fail';
     }
+  });
+
+  appEl.querySelectorAll<HTMLButtonElement>('.admin-delete-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const userId = Number(btn.dataset.userId);
+      const login = btn.dataset.userLogin ?? '';
+      showDeleteConfirm(login, () => {
+        void adminDeleteUser(token, userId)
+          .then(() => {
+            setActiveTab('stats');
+            void loadDashboard(token);
+          })
+          .catch(err => {
+            alert(err instanceof Error ? err.message : 'Не удалось удалить пользователя');
+          });
+      });
+    });
   });
 }
 

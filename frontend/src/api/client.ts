@@ -134,3 +134,10 @@ export function updateMathColumnsSettings(token: string, sessionSize: number): P
     body: JSON.stringify({ sessionSize }),
   });
 }
+
+export function adminDeleteUser(token: string, userId: number): Promise<void> {
+  return request<{ status: string }>(`/api/admin/users/${userId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  }).then(() => undefined);
+}

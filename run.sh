@@ -92,7 +92,13 @@ ensure_postgres() {
 }
 
 run_server() {
-  echo "→ Запуск сервера на порту ${PORT}"
+  local log_file="$ROOT/server.log"
+
+  echo "→ Остановка предыдущего сервера (если запущен)..."
+  pkill -f "bin/server" 2>/dev/null || true
+  sleep 1
+
+  echo "→ Запуск сервера на порту ${PORT} (фоновый режим)"
   echo "   Локально:  http://localhost:${PORT}"
   if command -v hostname >/dev/null 2>&1; then
     local ip
@@ -101,8 +107,13 @@ run_server() {
       echo "   По сети:   http://${ip}:${PORT}"
     fi
   fi
+
   cd "$ROOT/backend"
-  exec "$BINARY" -port "$PORT" -static "$DIST_DIR"
+  nohup "$BINARY" -port "$PORT" -static "$DIST_DIR" > "$log_file" 2>&1 &
+  local pid=$!
+  echo "   PID:       ${pid}"
+  echo "   Лог:       ${log_file}"
+  echo "   Остановка: pkill -f \"bin/server\""
 }
 
 # --- фронтенд ---
