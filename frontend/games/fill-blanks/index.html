@@ -11,7 +11,7 @@
       <a href="/" class="back-btn" title="Вернуться в меню">← Меню</a>
       <div class="header-title">
         <h1>📝 Заполни пропуски</h1>
-        <p class="subtitle">Скороговорка «Лигурия»</p>
+        <p class="subtitle">Перетащите слова в пропуски</p>
       </div>
       <div class="stats">
         <span id="score-correct">✓ 0</span>
@@ -19,21 +19,14 @@
       </div>
     </header>
 
-    <div class="level-bar">
-      <span id="level-label">Фрагмент 1 / 5</span>
-      <div class="level-track">
-        <div class="level-fill" id="level-fill"></div>
-      </div>
-    </div>
-
     <main class="board">
-      <p class="hint">Выберите слово внизу, затем нажмите на пропуск — или наоборот.</p>
+      <p class="hint">Перетащите слово из списка в пропуск. Когда все пропуски заполнены — нажмите «Проверить».</p>
       <div id="sentence" class="sentence" aria-live="polite"></div>
       <div id="feedback" class="feedback hidden"></div>
       <div class="actions">
-        <button id="check-btn" class="action-btn action-btn--primary" disabled>Проверить</button>
+        <button id="check-btn" class="action-btn action-btn--primary hidden">Проверить</button>
         <button id="clear-btn" class="action-btn action-btn--ghost">Очистить</button>
-        <button id="next-btn" class="action-btn hidden">Далее</button>
+        <button id="next-btn" class="action-btn hidden">Ещё текст</button>
       </div>
     </main>
 

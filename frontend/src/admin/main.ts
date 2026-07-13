@@ -1,7 +1,7 @@
 import './admin.css';
 import '../shared/modal.css';
-import { adminDeleteUser, adminLogin, adminVerify, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateMathColumnsSettings } from '../api/client';
-import type { GameSettings, StageCompletion, UserStatsRow } from '../types';
+import { adminDeleteUser, adminLogin, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminFillBlankTexts, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateMathColumnsSettings } from '../api/client';
+import type { FillBlankText, GameSettings, StageCompletion, UserStatsRow } from '../types';
 import { PLANETS } from '../games/math-columns/planets';
 import { captchaFieldHtml, setupCaptcha } from '../shared/captcha';
 import { getAdminToken, setAdminToken, clearAdminToken } from '../shared/user';
@@ -12,6 +12,7 @@ if (!app) throw new Error('admin-app not found');
 const GAME_NAMES: Record<string, string> = {
   'tower-defense': '🌻 Защита от зомби',
   'math-columns': '📐 Столбик',
+  'fill-blanks': '📝 Заполни пропуски',
 };
 
 type AdminTab = 'settings' | 'verify' | 'stats';
@@ -195,7 +196,32 @@ function renderStagesTable(stages: StageCompletion[]): string {
   `;
 }
 
-function renderSettingsTab(mathSettings: GameSettings | null): string {
+function renderFillTextsList(texts: FillBlankText[]): string {
+  if (texts.length === 0) {
+    return '<p class="admin-empty">Текстов пока нет — добавьте первый</p>';
+  }
+  return `
+    <ul class="admin-text-list">
+      ${texts.map(t => `
+        <li class="admin-text-item">
+          <p class="admin-text-body">${escapeHtml(t.body)}</p>
+          <button type="button" class="admin-btn admin-btn--danger admin-fill-delete"
+            data-id="${t.id}">Удалить</button>
+        </li>
+      `).join('')}
+    </ul>
+  `;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function renderSettingsTab(mathSettings: GameSettings | null, fillTexts: FillBlankText[]): string {
   return `
     <section class="admin-section">
       <h2>📐 Столбик</h2>
@@ -209,6 +235,18 @@ function renderSettingsTab(mathSettings: GameSettings | null): string {
         <button type="submit" class="admin-btn">Сохранить</button>
       </form>
       <p class="admin-verify-result hidden" id="settings-result"></p>
+    </section>
+
+    <section class="admin-section">
+      <h2>📝 Заполни пропуски</h2>
+      <p class="admin-section__hint">Добавьте полный текст. Игра сама случайно уберёт слова и предложит варианты внизу.</p>
+      <form id="fill-text-form" class="admin-fill-form">
+        <textarea id="fill-text-input" rows="5" placeholder="Вставьте текст скороговорки или предложения…" required></textarea>
+        <button type="submit" class="admin-btn">Добавить текст</button>
+      </form>
+      <p class="admin-verify-result hidden" id="fill-text-result"></p>
+      <h3 class="admin-subtitle">Тексты в игре</h3>
+      ${renderFillTextsList(fillTexts)}
     </section>
   `;
 }
@@ -254,6 +292,7 @@ function renderDashboard(
   rows: UserStatsRow[],
   stages: StageCompletion[],
   mathSettings: GameSettings | null,
+  fillTexts: FillBlankText[],
   loadError?: string,
   loading = false,
 ): void {
@@ -279,7 +318,7 @@ function renderDashboard(
     <nav class="admin-tabs">${tabButtons}</nav>
 
     <div class="admin-tab-panel${activeTab === 'settings' ? ' admin-tab-panel--active' : ''}" data-panel="settings">
-      ${renderSettingsTab(mathSettings)}
+      ${renderSettingsTab(mathSettings, fillTexts)}
     </div>
 
     <div class="admin-tab-panel${activeTab === 'verify' ? ' admin-tab-panel--active' : ''}" data-panel="verify">
@@ -353,6 +392,39 @@ function renderDashboard(
     }
   });
 
+  appEl.querySelector<HTMLFormElement>('#fill-text-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const resultEl = appEl.querySelector<HTMLParagraphElement>('#fill-text-result')!;
+    const input = appEl.querySelector<HTMLTextAreaElement>('#fill-text-input')!;
+    const text = input.value.trim();
+    try {
+      await addAdminFillBlankText(token, text);
+      input.value = '';
+      resultEl.textContent = 'Текст добавлен';
+      resultEl.className = 'admin-verify-result admin-verify-result--ok';
+      setActiveTab('settings');
+      void loadDashboard(token);
+    } catch (err) {
+      resultEl.textContent = err instanceof Error ? err.message : 'Ошибка добавления';
+      resultEl.className = 'admin-verify-result admin-verify-result--fail';
+    }
+  });
+
+  appEl.querySelectorAll<HTMLButtonElement>('.admin-fill-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = Number(btn.dataset.id);
+      if (!confirm('Удалить этот текст?')) return;
+      void deleteAdminFillBlankText(token, id)
+        .then(() => {
+          setActiveTab('settings');
+          void loadDashboard(token);
+        })
+        .catch(err => {
+          alert(err instanceof Error ? err.message : 'Не удалось удалить');
+        });
+    });
+  });
+
   appEl.querySelectorAll<HTMLButtonElement>('.admin-delete-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const userId = Number(btn.dataset.userId);
@@ -373,16 +445,17 @@ function renderDashboard(
 
 async function loadDashboard(token: string): Promise<void> {
   const activeTab = getActiveTab();
-  renderDashboard(token, [], [], null, undefined, true);
+  renderDashboard(token, [], [], null, [], undefined, true);
   setActiveTab(activeTab);
 
-  const [statsResult, stagesResult, settingsResult] = await Promise.allSettled([
+  const [statsResult, stagesResult, settingsResult, fillTextsResult] = await Promise.allSettled([
     fetchAdminStats(token),
     fetchAdminStages(token),
     fetchAdminMathColumnsSettings(token),
+    fetchAdminFillBlankTexts(token),
   ]);
 
-  const unauthorized = [statsResult, stagesResult, settingsResult].some(
+  const unauthorized = [statsResult, stagesResult, settingsResult, fillTextsResult].some(
     r => r.status === 'rejected' && r.reason instanceof Error && r.reason.message.toLowerCase().includes('unauthorized'),
   );
   if (unauthorized) {
@@ -394,6 +467,7 @@ async function loadDashboard(token: string): Promise<void> {
   const rows = statsResult.status === 'fulfilled' ? statsResult.value : [];
   const stages = stagesResult.status === 'fulfilled' ? stagesResult.value : [];
   const mathSettings = settingsResult.status === 'fulfilled' ? settingsResult.value : null;
+  const fillTexts = fillTextsResult.status === 'fulfilled' ? fillTextsResult.value : [];
 
   const errors: string[] = [];
   if (statsResult.status === 'rejected') {
@@ -408,8 +482,12 @@ async function loadDashboard(token: string): Promise<void> {
     const msg = settingsResult.reason instanceof Error ? settingsResult.reason.message : 'не удалось загрузить настройки';
     errors.push(msg);
   }
+  if (fillTextsResult.status === 'rejected') {
+    const msg = fillTextsResult.reason instanceof Error ? fillTextsResult.reason.message : 'не удалось загрузить тексты';
+    errors.push(msg);
+  }
 
-  renderDashboard(token, rows, stages, mathSettings, errors.length ? `⚠️ ${errors.join('; ')}` : undefined);
+  renderDashboard(token, rows, stages, mathSettings, fillTexts, errors.length ? `⚠️ ${errors.join('; ')}` : undefined);
 }
 
 async function init(): Promise<void> {

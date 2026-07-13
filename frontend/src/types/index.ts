@@ -88,20 +88,27 @@ export interface GameSettings {
   sessionSize: number;
 }
 
+export interface FillBlanksToken {
+  type: 'text' | 'blank';
+  value?: string;
+  index?: number;
+}
+
 export interface FillBlanksPuzzle {
   id: string;
-  level: number;
-  total: number;
-  fragments: string[];
+  tokens: FillBlanksToken[];
   words: string[];
   blankCount: number;
 }
 
 export interface FillBlanksCheckResult {
   correct: boolean;
-  level: number;
-  total: number;
-  allComplete?: boolean;
+}
+
+export interface FillBlankText {
+  id: number;
+  body: string;
+  createdAt: string;
 }
 
 export type OpMode = 'add' | 'sub' | 'mixed';

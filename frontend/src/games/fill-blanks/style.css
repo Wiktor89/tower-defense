@@ -127,6 +127,10 @@ header {
   color: #1a2e35;
 }
 
+.text-chunk {
+  white-space: pre-wrap;
+}
+
 .blank {
   display: inline-flex;
   align-items: center;
@@ -143,38 +147,43 @@ header {
   cursor: pointer;
   vertical-align: baseline;
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  user-select: none;
 }
 
 .blank:hover {
   background: #d4f0ec;
 }
 
-.blank.selected {
+.blank.drag-over {
   border-style: solid;
   border-color: #1d7a8c;
   background: #c8ebe6;
-  transform: translateY(-1px);
+  transform: scale(1.03);
 }
 
 .blank.filled {
   border-style: solid;
   background: #fff;
   color: #123940;
+  cursor: grab;
+}
+
+.blank.dragging,
+.word-chip.dragging {
+  opacity: 0.45;
 }
 
 .blank.correct {
   border-color: #2a9d8f;
   background: #dff7f1;
   color: #146357;
+  cursor: default;
 }
 
 .blank.wrong {
   border-color: #c45c5c;
   background: #fde8e8;
   color: #8b2e2e;
-}
-
-.blank:disabled {
   cursor: default;
 }
 
@@ -276,8 +285,9 @@ header {
   background: #fff;
   border: 2px solid #7eb8bc;
   border-radius: 999px;
-  cursor: pointer;
+  cursor: grab;
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  user-select: none;
 }
 
 .word-chip:hover:not(:disabled) {

@@ -33,7 +33,7 @@ func Catalog() []Game {
 		{
 			ID:          "fill-blanks",
 			Title:       "Заполни пропуски",
-			Description: "Соберите скороговорку «Лигурия»: вставьте слова в пропуски.",
+			Description: "Перетащите слова в пропуски — тексты задаёт администратор.",
 			Icon:        "📝",
 			URL:         "/games/fill-blanks/",
 			Available:   true,

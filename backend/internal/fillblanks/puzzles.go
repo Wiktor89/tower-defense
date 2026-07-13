@@ -3,74 +3,23 @@ package fillblanks
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"math/big"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
-type PuzzleDef struct {
-	Fragments  []string // text around blanks: len = len(Answers)+1
-	Answers    []string
-	Distractors []string
-}
+var ErrTextTooShort = errors.New("not enough words to create blanks")
 
-// Liguria tongue-twister split into fill-in levels.
-var catalog = []PuzzleDef{
-	{
-		Fragments: []string{
-			"В четверг ",
-			" числа в четыре с четвертью ",
-			" лигурийский ",
-			"",
-		},
-		Answers:     []string{"четвертого", "часа", "регулировщик"},
-		Distractors: []string{"лавировали", "тридцать", "корабля"},
-	},
-	{
-		Fragments: []string{
-			"",
-			" в Лигурии. Но тридцать три ",
-			" лавировали, лавировали, да так и не ",
-			"",
-		},
-		Answers:     []string{"регулировал", "корабля", "вылавировали"},
-		Distractors: []string{"часа", "четвертого", "протокол"},
-	},
-	{
-		Fragments: []string{
-			"А потом ",
-			" про протокол протоколом ",
-			". Как интервьюером интервьюируемый лигурийский регулировщик речисто, да не чисто ",
-			"",
-		},
-		Answers:     []string{"протокол", "запротоколировал", "рапортовал"},
-		Distractors: []string{"лавировали", "корабля", "часа"},
-	},
-	{
-		Fragments: []string{
-			"Да не дорапортовал, ",
-			", да так зарапортовался про ",
-			" погоду, что дабы ",
-			" не стал претендентом на судебный прецедент,",
-		},
-		Answers:     []string{"дорапортовывал", "размокропогодившуюся", "инцидент"},
-		Distractors: []string{"регулировщик", "протокол", "лигурийский"},
-	},
-	{
-		Fragments: []string{
-			"лигурийский регулировщик ",
-			" в неконституционном ",
-			". Где хохлатые хохотушки хохотом ",
-			" и кричали турке.",
-		},
-		Answers:     []string{"акклиматизировался", "Константинополе", "хохотали"},
-		Distractors: []string{"лавировали", "рапортовал", "вылавировали"},
-	},
+type token struct {
+	word  bool
+	value string
 }
 
 type issued struct {
-	level     int
+	answers   []string
 	createdAt time.Time
 }
 
@@ -86,45 +35,97 @@ func NewStore(ttl time.Duration) *Store {
 	return s
 }
 
-func LevelCount() int {
-	return len(catalog)
+type PublicToken struct {
+	Type  string `json:"type"` // "text" | "blank"
+	Value string `json:"value,omitempty"`
+	Index int    `json:"index,omitempty"`
 }
 
 type PublicPuzzle struct {
-	ID        string   `json:"id"`
-	Level     int      `json:"level"`
-	Total     int      `json:"total"`
-	Fragments []string `json:"fragments"`
-	Words     []string `json:"words"`
-	BlankCount int     `json:"blankCount"`
+	ID         string        `json:"id"`
+	Tokens     []PublicToken `json:"tokens"`
+	Words      []string      `json:"words"`
+	BlankCount int           `json:"blankCount"`
 }
 
-func (s *Store) Create(level int) (PublicPuzzle, bool) {
-	if level < 1 || level > len(catalog) {
-		return PublicPuzzle{}, false
+func (s *Store) CreateFromText(fullText string) (PublicPuzzle, error) {
+	tokens := tokenize(fullText)
+	wordIdxs := make([]int, 0)
+	for i, t := range tokens {
+		if t.word && isBlankable(t.value) {
+			wordIdxs = append(wordIdxs, i)
+		}
 	}
-	def := catalog[level-1]
-	id := newID()
+	if len(wordIdxs) < 3 {
+		return PublicPuzzle{}, ErrTextTooShort
+	}
 
-	s.mu.Lock()
-	s.issued[id] = issued{level: level, createdAt: time.Now()}
-	s.mu.Unlock()
+	blankCount := len(wordIdxs) / 3
+	if blankCount < 3 {
+		blankCount = 3
+	}
+	if blankCount > 10 {
+		blankCount = 10
+	}
+	if blankCount > len(wordIdxs) {
+		blankCount = len(wordIdxs)
+	}
 
-	words := append([]string{}, def.Answers...)
-	words = append(words, def.Distractors...)
+	chosen := pickN(wordIdxs, blankCount)
+	blankAt := make(map[int]int, len(chosen))
+	answers := make([]string, len(chosen))
+	for i, idx := range chosen {
+		blankAt[idx] = i
+		answers[i] = tokens[idx].value
+	}
+
+	publicTokens := make([]PublicToken, 0, len(tokens))
+	for i, t := range tokens {
+		if blankIdx, ok := blankAt[i]; ok {
+			publicTokens = append(publicTokens, PublicToken{Type: "blank", Index: blankIdx})
+			continue
+		}
+		publicTokens = append(publicTokens, PublicToken{Type: "text", Value: t.value})
+	}
+
+	// Distractors: other blankable words not used as answers.
+	answerSet := make(map[string]bool, len(answers))
+	for _, a := range answers {
+		answerSet[normalize(a)] = true
+	}
+	distractors := make([]string, 0)
+	for _, idx := range wordIdxs {
+		if _, isBlank := blankAt[idx]; isBlank {
+			continue
+		}
+		w := tokens[idx].value
+		if answerSet[normalize(w)] {
+			continue
+		}
+		distractors = append(distractors, w)
+		if len(distractors) >= blankCount {
+			break
+		}
+	}
+
+	words := append([]string{}, answers...)
+	words = append(words, distractors...)
 	shuffle(words)
+
+	id := newID()
+	s.mu.Lock()
+	s.issued[id] = issued{answers: answers, createdAt: time.Now()}
+	s.mu.Unlock()
 
 	return PublicPuzzle{
 		ID:         id,
-		Level:      level,
-		Total:      len(catalog),
-		Fragments:  append([]string{}, def.Fragments...),
+		Tokens:     publicTokens,
 		Words:      words,
-		BlankCount: len(def.Answers),
-	}, true
+		BlankCount: len(answers),
+	}, nil
 }
 
-func (s *Store) Check(id string, answers []string) (correct bool, level int, ok bool) {
+func (s *Store) Check(id string, answers []string) (correct bool, ok bool) {
 	s.mu.Lock()
 	entry, found := s.issued[id]
 	if found {
@@ -133,19 +134,84 @@ func (s *Store) Check(id string, answers []string) (correct bool, level int, ok 
 	s.mu.Unlock()
 
 	if !found || time.Since(entry.createdAt) > s.ttl {
-		return false, 0, false
+		return false, false
 	}
-
-	def := catalog[entry.level-1]
-	if len(answers) != len(def.Answers) {
-		return false, entry.level, true
+	if len(answers) != len(entry.answers) {
+		return false, true
 	}
-	for i, want := range def.Answers {
+	for i, want := range entry.answers {
 		if normalize(answers[i]) != normalize(want) {
-			return false, entry.level, true
+			return false, true
 		}
 	}
-	return true, entry.level, true
+	return true, true
+}
+
+func tokenize(text string) []token {
+	runes := []rune(strings.TrimSpace(text))
+	out := make([]token, 0)
+	i := 0
+	for i < len(runes) {
+		if isWordRune(runes[i]) {
+			j := i + 1
+			for j < len(runes) && isWordRune(runes[j]) {
+				j++
+			}
+			out = append(out, token{word: true, value: string(runes[i:j])})
+			i = j
+			continue
+		}
+		j := i + 1
+		for j < len(runes) && !isWordRune(runes[j]) {
+			j++
+		}
+		out = append(out, token{word: false, value: string(runes[i:j])})
+		i = j
+	}
+	return out
+}
+
+func isWordRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' || r == '\''
+}
+
+func isBlankable(word string) bool {
+	letters := 0
+	for _, r := range word {
+		if unicode.IsLetter(r) {
+			letters++
+		}
+	}
+	return letters >= 4
+}
+
+func pickN(items []int, n int) []int {
+	cp := append([]int{}, items...)
+	shuffleInts(cp)
+	if n > len(cp) {
+		n = len(cp)
+	}
+	chosen := cp[:n]
+	// keep blank indices stable by original text order for answer slots
+	for i := 0; i < len(chosen); i++ {
+		for j := i + 1; j < len(chosen); j++ {
+			if chosen[j] < chosen[i] {
+				chosen[i], chosen[j] = chosen[j], chosen[i]
+			}
+		}
+	}
+	return chosen
+}
+
+func shuffleInts(items []int) {
+	for i := len(items) - 1; i > 0; i-- {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(i+1)))
+		j := 0
+		if err == nil {
+			j = int(n.Int64())
+		}
+		items[i], items[j] = items[j], items[i]
+	}
 }
 
 func normalize(s string) string {

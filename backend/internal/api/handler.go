@@ -67,6 +67,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/admin/verify", h.adminVerify)
 	mux.HandleFunc("GET /api/admin/settings/math-columns", h.adminGetMathColumnsSettings)
 	mux.HandleFunc("PUT /api/admin/settings/math-columns", h.adminSetMathColumnsSettings)
+	mux.HandleFunc("GET /api/admin/settings/fill-blanks", h.adminListFillTexts)
+	mux.HandleFunc("POST /api/admin/settings/fill-blanks", h.adminAddFillText)
+	mux.HandleFunc("DELETE /api/admin/settings/fill-blanks/{id}", h.adminDeleteFillText)
 	mux.HandleFunc("DELETE /api/admin/users/{id}", h.adminDeleteUser)
 }
 
@@ -357,18 +360,17 @@ func (h *Handler) tdFinish(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) fillBlanksPuzzle(w http.ResponseWriter, r *http.Request) {
-	level := 1
-	if v := r.URL.Query().Get("level"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 1 {
-			writeError(w, http.StatusBadRequest, "invalid level")
-			return
-		}
-		level = n
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	text, err := h.db.RandomFillBlankText(ctx)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "no texts configured")
+		return
 	}
-	puzzle, ok := h.fillStore.Create(level)
-	if !ok {
-		writeError(w, http.StatusNotFound, "level not found")
+	puzzle, err := h.fillStore.CreateFromText(text.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "text is too short for this game")
 		return
 	}
 	writeJSON(w, http.StatusOK, puzzle)
@@ -381,10 +383,7 @@ type fillBlanksCheckRequest struct {
 }
 
 type fillBlanksCheckResponse struct {
-	Correct         bool `json:"correct"`
-	Level           int  `json:"level"`
-	Total           int  `json:"total"`
-	AllComplete     bool `json:"allComplete,omitempty"`
+	Correct bool `json:"correct"`
 }
 
 func (h *Handler) fillBlanksCheck(w http.ResponseWriter, r *http.Request) {
@@ -398,17 +397,13 @@ func (h *Handler) fillBlanksCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	correct, level, ok := h.fillStore.Check(req.ID, req.Answers)
+	correct, ok := h.fillStore.Check(req.ID, req.Answers)
 	if !ok {
 		writeError(w, http.StatusNotFound, "puzzle not found or expired")
 		return
 	}
 
-	resp := fillBlanksCheckResponse{
-		Correct: correct,
-		Level:   level,
-		Total:   fillblanks.LevelCount(),
-	}
+	resp := fillBlanksCheckResponse{Correct: correct}
 
 	if req.UserID > 0 {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
@@ -422,10 +417,7 @@ func (h *Handler) fillBlanksCheck(w http.ResponseWriter, r *http.Request) {
 		delta := store.StatsDelta{}
 		if correct {
 			delta.Correct = 1
-			if level >= fillblanks.LevelCount() {
-				delta.SessionsCompleted = 1
-				resp.AllComplete = true
-			}
+			delta.SessionsCompleted = 1
 		} else {
 			delta.Wrong = 1
 		}
@@ -433,11 +425,92 @@ func (h *Handler) fillBlanksCheck(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to save stats")
 			return
 		}
-	} else if correct && level >= fillblanks.LevelCount() {
-		resp.AllComplete = true
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *Handler) adminListFillTexts(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	texts, err := h.db.ListFillBlankTexts(ctx)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load texts")
+		return
+	}
+	if texts == nil {
+		texts = []store.FillBlankText{}
+	}
+	writeJSON(w, http.StatusOK, texts)
+}
+
+type addFillTextRequest struct {
+	Text string `json:"text"`
+}
+
+func (h *Handler) adminAddFillText(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req addFillTextRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	text, err := h.db.AddFillBlankText(ctx, req.Text)
+	if err != nil {
+		switch {
+		case errors.Is(err, store.ErrFillTextEmpty):
+			writeError(w, http.StatusBadRequest, "text is empty")
+		case errors.Is(err, store.ErrFillTextTooShort):
+			writeError(w, http.StatusBadRequest, "text is too short")
+		default:
+			writeError(w, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, text)
+}
+
+func (h *Handler) adminDeleteFillText(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := h.db.DeleteFillBlankText(ctx, id); err != nil {
+		if errors.Is(err, store.ErrFillTextNotFound) {
+			writeError(w, http.StatusNotFound, "text not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to delete text")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 type adminLoginRequest struct {

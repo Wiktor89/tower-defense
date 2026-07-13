@@ -95,6 +95,28 @@ func (s *Store) migrate(ctx context.Context) error {
 		INSERT INTO game_settings (game_id, session_size)
 		VALUES ('math-columns', 50)
 		ON CONFLICT (game_id) DO NOTHING;
+
+		CREATE TABLE IF NOT EXISTS fill_blank_texts (
+			id SERIAL PRIMARY KEY,
+			body TEXT NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
 	`)
-	return err
+	if err != nil {
+		return err
+	}
+
+	var count int
+	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM fill_blank_texts`).Scan(&count); err != nil {
+		return err
+	}
+	if count == 0 {
+		_, err = s.pool.Exec(ctx, `
+			INSERT INTO fill_blank_texts (body) VALUES ($1)
+		`, `В четверг четвертого числа в четыре с четвертью часа лигурийский регулировщик регулировал в Лигурии. Но тридцать три корабля лавировали, лавировали, да так и не вылавировали.`)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

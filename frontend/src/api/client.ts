@@ -1,4 +1,4 @@
-import type { CaptchaChallenge, CaptchaPayload, FillBlanksCheckResult, FillBlanksPuzzle, GameCatalogItem, GameSettings, MathCheckResult, MathProblem, OpMode, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
+import type { CaptchaChallenge, CaptchaPayload, FillBlankText, FillBlanksCheckResult, FillBlanksPuzzle, GameCatalogItem, GameSettings, MathCheckResult, MathProblem, OpMode, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -94,8 +94,8 @@ export function finishTowerDefense(sessionId: string, result: 'won' | 'lost'): P
   }).then(() => undefined);
 }
 
-export function fetchFillBlanksPuzzle(level: number): Promise<FillBlanksPuzzle> {
-  return request<FillBlanksPuzzle>(`/api/fill-blanks/puzzle?level=${level}`);
+export function fetchFillBlanksPuzzle(): Promise<FillBlanksPuzzle> {
+  return request<FillBlanksPuzzle>('/api/fill-blanks/puzzle');
 }
 
 export function checkFillBlanks(id: string, answers: string[], userId?: number): Promise<FillBlanksCheckResult> {
@@ -103,6 +103,27 @@ export function checkFillBlanks(id: string, answers: string[], userId?: number):
     method: 'POST',
     body: JSON.stringify({ id, answers, userId: userId ?? 0 }),
   });
+}
+
+export function fetchAdminFillBlankTexts(token: string): Promise<FillBlankText[]> {
+  return request<FillBlankText[]>('/api/admin/settings/fill-blanks', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function addAdminFillBlankText(token: string, text: string): Promise<FillBlankText> {
+  return request<FillBlankText>('/api/admin/settings/fill-blanks', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ text }),
+  });
+}
+
+export function deleteAdminFillBlankText(token: string, id: number): Promise<void> {
+  return request<{ status: string }>(`/api/admin/settings/fill-blanks/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  }).then(() => undefined);
 }
 
 export function adminLogin(
