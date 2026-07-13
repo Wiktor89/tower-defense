@@ -2,8 +2,8 @@ package captcha
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
-	"net/url"
 )
 
 const (
@@ -16,23 +16,27 @@ const (
 
 func colorAt(seed, x, y int) string {
 	h := (seed*131 + x*17 + y*23) % 360
-	return fmt.Sprintf("hsl(%d 65%% 55%%)", h)
+	return fmt.Sprintf("hsl(%d, 65%%, 55%%)", h)
 }
 
-func puzzlePath(x, y, w, h int) string {
-	tab := 8
-	r := 6
+func holeMarkup(x, y int) string {
+	tabR := 7
 	return fmt.Sprintf(
-		`M %d %d h %d a %d %d 0 0 1 %d %d v %d a %d %d 0 0 0 %d %d h %d a %d %d 0 0 1 %d %d v %d a %d %d 0 0 0 -%d %d h -%d a %d %d 0 0 1 -%d -%d v -%d a %d %d 0 0 0 -%d -%d Z`,
-		x+r, y,
-		w/2-tab-r, r, r, r, r,
-		h/2-tab, tab, tab, tab, tab,
-		w/2-tab, tab, tab, tab, tab,
-		h/2-tab, tab, tab, tab, tab,
-		w/2-tab, tab, tab, tab, tab,
-		h/2-tab-r, r, r, r, r,
-		w, r, r, r, r,
-		h-2*r,
+		`<rect x="%d" y="%d" width="%d" height="%d" rx="6" fill="rgba(0,0,0,0.55)" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/>`+
+			`<circle cx="%d" cy="%d" r="%d" fill="rgba(0,0,0,0.55)" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/>`,
+		x, y, PieceWidth, PieceHeight,
+		x+PieceWidth, y+PieceHeight/2, tabR,
+	)
+}
+
+func clipMarkup() string {
+	tabR := 7
+	w := PieceWidth
+	h := PieceHeight
+	return fmt.Sprintf(
+		`<rect x="0" y="0" width="%d" height="%d" rx="6"/>`+
+			`<circle cx="%d" cy="%d" r="%d"/>`,
+		w, h, w, h/2, tabR,
 	)
 }
 
@@ -58,26 +62,30 @@ func generatePatternRects(seed, ox, oy, w, h int) string {
 }
 
 func generateBackground(seed, targetX, targetY int) string {
-	path := puzzlePath(targetX, targetY, PieceWidth, PieceHeight)
 	pattern := generatePatternRects(seed, 0, 0, ImageWidth, ImageHeight)
-
-	return fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d">
-%s
-<path d="%s" fill="rgba(0,0,0,0.55)" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
-</svg>`, ImageWidth, ImageHeight, ImageWidth, ImageHeight, pattern, path)
+	hole := holeMarkup(targetX, targetY)
+	return fmt.Sprintf(
+		`<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d">%s%s</svg>`,
+		ImageWidth, ImageHeight, ImageWidth, ImageHeight, pattern, hole,
+	)
 }
 
 func generatePiece(seed, targetX, targetY int) string {
-	path := puzzlePath(0, 0, PieceWidth, PieceHeight)
 	pattern := generatePatternRects(seed, -targetX, -targetY, PieceWidth, PieceHeight)
-
-	return fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d">
-<defs><clipPath id="p"><path d="%s"/></clipPath></defs>
-<g clip-path="url(#p)">%s</g>
-<path d="%s" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.5"/>
-</svg>`, PieceWidth, PieceHeight, PieceWidth, PieceHeight, path, pattern, path)
+	clip := clipMarkup()
+	border := fmt.Sprintf(
+		`<rect x="0" y="0" width="%d" height="%d" rx="6" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.5"/>`+
+			`<circle cx="%d" cy="%d" r="7" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.5"/>`,
+		PieceWidth, PieceHeight, PieceWidth, PieceHeight/2,
+	)
+	return fmt.Sprintf(
+		`<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d">`+
+			`<defs><clipPath id="p">%s</clipPath></defs>`+
+			`<g clip-path="url(#p)">%s</g>%s</svg>`,
+		PieceWidth, PieceHeight, PieceWidth, PieceHeight, clip, pattern, border,
+	)
 }
 
 func toDataURL(svg string) string {
-	return "data:image/svg+xml;charset=utf-8," + url.QueryEscape(svg)
+	return "data:image/svg+xml;base64," + base64.StdEncoding.EncodeToString([]byte(svg))
 }
