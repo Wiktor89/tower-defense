@@ -525,21 +525,39 @@ export function createPartMesh(def: PartDef): THREE.Group {
   return group;
 }
 
+/** Keep parts inside the camera-visible play area. */
+export const PLAY_BOUNDS = {
+  minX: -3.2,
+  maxX: 3.2,
+  minY: 0.2,
+  maxY: 1.6,
+  minZ: -1.1,
+  maxZ: 1.1,
+} as const;
+
+export function clampToPlayArea(v: THREE.Vector3): THREE.Vector3 {
+  v.x = Math.min(PLAY_BOUNDS.maxX, Math.max(PLAY_BOUNDS.minX, v.x));
+  v.y = Math.min(PLAY_BOUNDS.maxY, Math.max(PLAY_BOUNDS.minY, v.y));
+  v.z = Math.min(PLAY_BOUNDS.maxZ, Math.max(PLAY_BOUNDS.minZ, v.z));
+  return v;
+}
+
+/** Fan parts out in a short arc — always on screen. */
 export function explodeTarget(index: number, total: number, seed: number): {
   pos: THREE.Vector3;
   rot: THREE.Euler;
 } {
-  const angle = (index / total) * Math.PI * 2 + seed * 0.7;
-  const radius = 2.6 + (seed % 1) * 1.4 + index * 0.15;
-  const x = Math.cos(angle) * radius;
-  const z = Math.sin(angle) * radius * 0.55;
-  const y = 0.4 + ((seed * 3 + index) % 1) * 0.9;
+  const t = total <= 1 ? 0.5 : index / (total - 1);
+  const spread = 2.6;
+  const x = (t - 0.5) * spread * 2;
+  const y = 0.55 + Math.sin(t * Math.PI) * 0.35 + ((seed * 5 + index) % 1) * 0.15;
+  const z = Math.sin((t - 0.5) * Math.PI) * 0.45 + Math.sin(seed + index) * 0.15;
   return {
-    pos: new THREE.Vector3(x, y, z),
+    pos: clampToPlayArea(new THREE.Vector3(x, y, z)),
     rot: new THREE.Euler(
-      (seed + index) * 1.7,
-      (seed * 2 + index) * 2.1,
-      (seed * 0.5 + index) * 0.9,
+      (seed + index) * 0.9,
+      (seed * 2 + index) * 1.1,
+      (seed * 0.5 + index) * 0.5,
     ),
   };
 }

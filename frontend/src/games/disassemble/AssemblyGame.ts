@@ -4,6 +4,7 @@ import {
   PARTS,
   PartId,
   canConnect,
+  clampToPlayArea,
   createPartMesh,
   explodeTarget,
 } from './parts';
@@ -174,6 +175,9 @@ export class AssemblyGame {
     this.animating = true;
     this.selected = null;
     this.explodeSeed = Math.random();
+    // Reset view so scattered parts stay in front of the camera.
+    this.rotY = 0.35;
+    this.rotX = -0.22;
 
     const starts = new Map<PartId, { pos: THREE.Vector3; rot: THREE.Euler }>();
     for (const def of PARTS) {
@@ -201,7 +205,7 @@ export class AssemblyGame {
     this.clusters = PARTS.map(def => {
       const mesh = this.partMeshes.get(def.id)!;
       const root = new THREE.Group();
-      root.position.copy(mesh.position);
+      root.position.copy(clampToPlayArea(mesh.position.clone()));
       root.rotation.copy(mesh.rotation);
       mesh.position.set(0, 0, 0);
       mesh.rotation.set(0, 0, 0);
@@ -236,6 +240,8 @@ export class AssemblyGame {
     }
     this.selected = id;
     this.setHighlight(this.partMeshes.get(id)!, true);
+    const cluster = this.findCluster(id);
+    if (cluster) clampToPlayArea(cluster.root.position);
     this.onSelect?.(id);
     this.notify();
   }
@@ -292,6 +298,7 @@ export class AssemblyGame {
       }
     }
 
+    clampToPlayArea(keep.root.position);
     this.onJoined?.(left, right);
     this.updateJoinMarkers();
 
@@ -381,8 +388,8 @@ export class AssemblyGame {
       for (const { id, pos } of targets) {
         const start = from.get(id)!.pos;
         const mid = start.clone().lerp(pos, 0.45);
-        mid.y += 1.6 + Math.random() * 0.8;
-        midBoost.set(id, mid);
+        mid.y += 0.55;
+        midBoost.set(id, clampToPlayArea(mid));
       }
 
       const step = (now: number) => {
@@ -399,6 +406,7 @@ export class AssemblyGame {
             const u = (t - 0.55) / 0.45;
             mesh.position.lerpVectors(mid, pos, u * u * (3 - 2 * u));
           }
+          clampToPlayArea(mesh.position);
           mesh.rotation.x = start.rot.x + (rot.x - start.rot.x) * e;
           mesh.rotation.y = start.rot.y + (rot.y - start.rot.y) * e;
           mesh.rotation.z = start.rot.z + (rot.z - start.rot.z) * e;
@@ -452,8 +460,9 @@ export class AssemblyGame {
         e.preventDefault();
         if (this.animating) return;
         this.rotY += e.deltaY * 0.0025;
+        this.rotY = Math.max(-1.1, Math.min(1.1, this.rotY));
         this.rotX += e.deltaX * 0.002;
-        this.rotX = Math.max(-0.9, Math.min(0.9, this.rotX));
+        this.rotX = Math.max(-0.55, Math.min(0.35, this.rotX));
       },
       { passive: false },
     );
@@ -495,7 +504,7 @@ export class AssemblyGame {
         const hit = this.projectOnDragPlane(e);
         if (hit) {
           this.dragCluster.root.position.copy(hit).add(this.dragOffset);
-          this.dragCluster.root.position.y = Math.max(0.15, this.dragCluster.root.position.y);
+          clampToPlayArea(this.dragCluster.root.position);
         }
         return;
       }
@@ -506,8 +515,9 @@ export class AssemblyGame {
         this.prevX = e.clientX;
         this.prevY = e.clientY;
         this.rotY += dx * 0.008;
+        this.rotY = Math.max(-1.1, Math.min(1.1, this.rotY));
         this.rotX += dy * 0.006;
-        this.rotX = Math.max(-0.9, Math.min(0.9, this.rotX));
+        this.rotX = Math.max(-0.55, Math.min(0.35, this.rotX));
       }
     });
 
