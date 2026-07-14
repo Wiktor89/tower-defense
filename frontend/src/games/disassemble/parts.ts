@@ -31,6 +31,101 @@ export function canConnect(a: PartId, b: PartId): boolean {
   );
 }
 
+/** Where this part joins a neighbour (local X, arrow toward mate). */
+export interface JoinHint {
+  mateId: PartId;
+  localX: number;
+  dir: 1 | -1;
+}
+
+export const JOIN_HINTS: Record<PartId, JoinHint[]> = {
+  tip: [{ mateId: 'cartridge', localX: 0.58, dir: 1 }],
+  cartridge: [
+    { mateId: 'tip', localX: -1.18, dir: -1 },
+    { mateId: 'barrel', localX: 1.22, dir: 1 },
+  ],
+  barrel: [
+    { mateId: 'cartridge', localX: -1.28, dir: -1 },
+    { mateId: 'spring', localX: 1.42, dir: 1 },
+  ],
+  spring: [
+    { mateId: 'barrel', localX: -0.38, dir: -1 },
+    { mateId: 'button', localX: 0.38, dir: 1 },
+  ],
+  button: [{ mateId: 'spring', localX: -0.38, dir: -1 }],
+};
+
+function mateLabel(mateId: PartId): string {
+  return PARTS.find(p => p.id === mateId)?.name ?? mateId;
+}
+
+function mateColor(mateId: PartId): number {
+  return PARTS.find(p => p.id === mateId)?.color ?? 0xffffff;
+}
+
+function makeLabelSprite(text: string, color: number): THREE.Sprite {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d')!;
+  ctx.clearRect(0, 0, 256, 64);
+  ctx.fillStyle = 'rgba(10, 14, 20, 0.72)';
+  ctx.beginPath();
+  ctx.roundRect(8, 10, 240, 44, 12);
+  ctx.fill();
+  ctx.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.fillStyle = '#f4f7fb';
+  ctx.font = 'bold 26px Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 128, 33);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }),
+  );
+  sprite.scale.set(0.95, 0.24, 1);
+  sprite.renderOrder = 10;
+  return sprite;
+}
+
+export function createJoinMarker(hint: JoinHint): THREE.Group {
+  const color = mateColor(hint.mateId);
+  const g = new THREE.Group();
+  g.name = '__joinMarker';
+  g.userData.isJoinMarker = true;
+  g.userData.socketMate = hint.mateId;
+  g.position.x = hint.localX;
+
+  const mat = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.95,
+    depthTest: false,
+  });
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.028, 10, 28), mat);
+  ring.rotation.y = Math.PI / 2;
+  ring.renderOrder = 9;
+
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.22, 10), mat);
+  shaft.rotation.z = Math.PI / 2;
+  shaft.position.x = hint.dir * 0.2;
+  shaft.renderOrder = 9;
+
+  const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.26, 14), mat);
+  arrow.rotation.z = hint.dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+  arrow.position.x = hint.dir * 0.4;
+  arrow.renderOrder = 9;
+
+  const label = makeLabelSprite(`→ ${mateLabel(hint.mateId)}`, color);
+  label.position.set(hint.dir * 0.15, 0.42, 0);
+
+  g.add(ring, shaft, arrow, label);
+  return g;
+}
+
 function chrome(): THREE.MeshPhysicalMaterial {
   return new THREE.MeshPhysicalMaterial({
     color: 0xe8ecef,
@@ -397,11 +492,19 @@ export function createPartMesh(def: PartDef): THREE.Group {
     }
   }
 
+  for (const hint of JOIN_HINTS[def.id]) {
+    group.add(createJoinMarker(hint));
+  }
+
   group.traverse((obj: THREE.Object3D) => {
-    if (obj instanceof THREE.Mesh) {
-      obj.castShadow = true;
-      obj.receiveShadow = true;
+    if (!(obj instanceof THREE.Mesh)) return;
+    let p: THREE.Object3D | null = obj;
+    while (p) {
+      if (p.userData.isJoinMarker) return;
+      p = p.parent;
     }
+    obj.castShadow = true;
+    obj.receiveShadow = true;
   });
   return group;
 }

@@ -127,13 +127,20 @@ export class AssemblyGame {
   }
 
   start(): void {
-    const tick = () => {
+    const tick = (now: number) => {
       requestAnimationFrame(tick);
       this.world.rotation.y = this.rotY;
       this.world.rotation.x = this.rotX;
+      const pulse = 0.85 + Math.sin(now * 0.006) * 0.15;
+      for (const mesh of this.partMeshes.values()) {
+        mesh.traverse((obj: THREE.Object3D) => {
+          if (!obj.userData.isJoinMarker || !obj.visible) return;
+          obj.scale.setScalar(pulse);
+        });
+      }
       this.renderer.render(this.scene, this.camera);
     };
-    tick();
+    requestAnimationFrame(tick);
   }
 
   resetAssembled(): void {
@@ -157,6 +164,7 @@ export class AssemblyGame {
     }
     this.world.add(root);
     this.clusters = [{ root, memberIds: ids }];
+    this.updateJoinMarkers();
     this.notify();
   }
 
@@ -203,6 +211,7 @@ export class AssemblyGame {
 
     this.mode = 'exploded';
     this.animating = false;
+    this.updateJoinMarkers();
     this.notify();
   }
 
@@ -283,6 +292,7 @@ export class AssemblyGame {
     }
 
     this.onJoined?.(left, right);
+    this.updateJoinMarkers();
 
     if (keep.memberIds.size === PARTS.length) {
       void this.finishAssemble(keep);
@@ -303,7 +313,24 @@ export class AssemblyGame {
     this.selected = null;
     this.mode = 'won';
     this.animating = false;
+    this.updateJoinMarkers();
     this.notify();
+  }
+
+  private updateJoinMarkers(): void {
+    const show = this.mode === 'exploded';
+    for (const def of PARTS) {
+      const mesh = this.partMeshes.get(def.id)!;
+      const cluster = this.findCluster(def.id);
+      mesh.traverse((obj: THREE.Object3D) => {
+        if (!obj.userData.isJoinMarker) return;
+        const mate = obj.userData.socketMate as PartId;
+        const mateCluster = this.findCluster(mate);
+        obj.visible = Boolean(
+          show && cluster && mateCluster && cluster !== mateCluster,
+        );
+      });
+    }
   }
 
   private nearestOtherCluster(cluster: Cluster): Cluster | null {
@@ -399,7 +426,41 @@ export class AssemblyGame {
     return this.hitPoint.clone();
   }
 
+  private rotateCluster(cluster: Cluster, deltaY: number, deltaX: number, shift: boolean): void {
+    if (shift) {
+      cluster.root.rotation.x += deltaY * 0.004;
+      cluster.root.rotation.z += deltaX * 0.004;
+    } else {
+      cluster.root.rotation.y += deltaY * 0.005;
+      cluster.root.rotation.x += deltaX * 0.004;
+    }
+  }
+
   private bindPointer(canvas: HTMLCanvasElement): void {
+    canvas.addEventListener(
+      'wheel',
+      e => {
+        e.preventDefault();
+        if (this.animating) return;
+
+        const hovered = this.pickPartAt(e.clientX, e.clientY);
+        const targetId = hovered ?? this.selected;
+        if (this.mode === 'exploded' && (this.dragCluster || targetId)) {
+          const cluster =
+            this.dragCluster ?? (targetId ? this.findCluster(targetId) : undefined);
+          if (cluster) {
+            this.rotateCluster(cluster, e.deltaY, e.deltaX, e.shiftKey);
+            return;
+          }
+        }
+
+        this.rotY += e.deltaY * 0.0025;
+        this.rotX += e.deltaX * 0.002;
+        this.rotX = Math.max(-0.9, Math.min(0.9, this.rotX));
+      },
+      { passive: false },
+    );
+
     canvas.addEventListener('pointerdown', e => {
       if (e.button !== 0 || this.animating) return;
       this.prevX = e.clientX;
@@ -480,13 +541,20 @@ export class AssemblyGame {
   }
 
   private pickPart(e: PointerEvent): PartId | null {
-    this.setPointerFromEvent(e);
+    return this.pickPartAt(e.clientX, e.clientY);
+  }
+
+  private pickPartAt(clientX: number, clientY: number): PartId | null {
+    const canvas = this.renderer.domElement;
+    const rect = canvas.getBoundingClientRect();
+    this.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     this.raycaster.setFromCamera(this.pointer, this.camera);
 
     const meshes: THREE.Object3D[] = [];
     for (const mesh of this.partMeshes.values()) {
       mesh.traverse((o: THREE.Object3D) => {
-        if (o instanceof THREE.Mesh) meshes.push(o);
+        if (o instanceof THREE.Mesh || o instanceof THREE.Sprite) meshes.push(o);
       });
     }
     const hits = this.raycaster.intersectObjects(meshes, false);

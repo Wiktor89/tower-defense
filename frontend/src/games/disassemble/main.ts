@@ -68,17 +68,17 @@ function syncUi(mode: GameMode, selected: PartId | null): void {
 
   if (mode === 'assembled') {
     ui.statusText.textContent = 'Покрутите ручку, затем нажмите «Разобрать»';
-    ui.hintText.textContent = 'Зажмите мышь на фоне и крутите, чтобы осмотреть предмет';
+    ui.hintText.textContent = 'ЛКМ по фону или колёсико — осмотреть предмет';
     ui.disassembleBtn.disabled = false;
     ui.disassembleBtn.textContent = 'Разобрать';
     ui.clearBtn.classList.add('hidden');
     ui.winBanner.classList.add('hidden');
   } else if (mode === 'exploded') {
     ui.statusText.textContent = selected
-      ? `Взято: ${PARTS.find(p => p.id === selected)?.name}. Перетащите к подходящей детали`
-      : 'Удерживайте ЛКМ и перетащите деталь к другой';
+      ? `Взято: ${PARTS.find(p => p.id === selected)?.name}. Перетащите стрелкой к нужной детали`
+      : 'Перетащите деталь к той, на которую указывает стрелка';
     ui.hintText.textContent =
-      'Поднесите детали близко: подходящие соединятся. Неподходящие — «Недопустимо».';
+      'Колёсико над деталью — повернуть. Стрелки показывают, куда вставлять.';
     ui.disassembleBtn.disabled = true;
     ui.clearBtn.classList.toggle('hidden', !selected);
     ui.winBanner.classList.add('hidden');
