@@ -65,29 +65,33 @@ function mateColor(mateId: PartId): number {
 
 function makeLabelSprite(text: string, color: number): THREE.Sprite {
   const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 64;
+  canvas.width = 288;
+  canvas.height = 72;
   const ctx = canvas.getContext('2d')!;
-  ctx.clearRect(0, 0, 256, 64);
-  ctx.fillStyle = 'rgba(10, 14, 20, 0.72)';
-  ctx.beginPath();
-  ctx.roundRect(8, 10, 240, 44, 12);
-  ctx.fill();
+  ctx.clearRect(0, 0, 288, 72);
+  ctx.fillStyle = 'rgba(8, 12, 18, 0.85)';
+  ctx.fillRect(6, 10, 276, 52);
   ctx.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
-  ctx.lineWidth = 3;
-  ctx.stroke();
-  ctx.fillStyle = '#f4f7fb';
-  ctx.font = 'bold 26px Segoe UI, sans-serif';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(8, 12, 272, 48);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 28px Segoe UI, Tahoma, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(text, 128, 33);
+  ctx.fillText(text, 144, 36);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   const sprite = new THREE.Sprite(
-    new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }),
+    new THREE.SpriteMaterial({
+      map: tex,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+      fog: false,
+    }),
   );
-  sprite.scale.set(0.95, 0.24, 1);
-  sprite.renderOrder = 10;
+  sprite.scale.set(1.15, 0.3, 1);
+  sprite.renderOrder = 20;
   return sprite;
 }
 
@@ -97,30 +101,42 @@ export function createJoinMarker(hint: JoinHint): THREE.Group {
   g.name = '__joinMarker';
   g.userData.isJoinMarker = true;
   g.userData.socketMate = hint.mateId;
-  g.position.x = hint.localX;
+  // Sit on the join face, slightly outside the part.
+  g.position.set(hint.localX, 0, 0);
 
   const mat = new THREE.MeshBasicMaterial({
+    color: 0xffc107,
+    transparent: true,
+    opacity: 1,
+    depthTest: false,
+    depthWrite: false,
+    fog: false,
+  });
+  const matMate = new THREE.MeshBasicMaterial({
     color,
     transparent: true,
-    opacity: 0.95,
+    opacity: 1,
     depthTest: false,
+    depthWrite: false,
+    fog: false,
   });
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.028, 10, 28), mat);
+
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.045, 12, 36), matMate);
   ring.rotation.y = Math.PI / 2;
-  ring.renderOrder = 9;
+  ring.renderOrder = 19;
 
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.22, 10), mat);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.42, 12), mat);
   shaft.rotation.z = Math.PI / 2;
-  shaft.position.x = hint.dir * 0.2;
-  shaft.renderOrder = 9;
+  shaft.position.x = hint.dir * 0.32;
+  shaft.renderOrder = 19;
 
-  const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.26, 14), mat);
+  const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.4, 18), mat);
   arrow.rotation.z = hint.dir > 0 ? -Math.PI / 2 : Math.PI / 2;
-  arrow.position.x = hint.dir * 0.4;
-  arrow.renderOrder = 9;
+  arrow.position.x = hint.dir * 0.68;
+  arrow.renderOrder = 19;
 
   const label = makeLabelSprite(`→ ${mateLabel(hint.mateId)}`, color);
-  label.position.set(hint.dir * 0.15, 0.42, 0);
+  label.position.set(hint.dir * 0.2, 0.55, 0);
 
   g.add(ring, shaft, arrow, label);
   return g;

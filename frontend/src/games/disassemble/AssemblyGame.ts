@@ -131,12 +131,13 @@ export class AssemblyGame {
       requestAnimationFrame(tick);
       this.world.rotation.y = this.rotY;
       this.world.rotation.x = this.rotX;
-      const pulse = 0.85 + Math.sin(now * 0.006) * 0.15;
+      const pulse = 0.9 + Math.sin(now * 0.007) * 0.12;
       for (const mesh of this.partMeshes.values()) {
-        mesh.traverse((obj: THREE.Object3D) => {
-          if (!obj.userData.isJoinMarker || !obj.visible) return;
-          obj.scale.setScalar(pulse);
-        });
+        for (const child of mesh.children) {
+          if (child.name === '__joinMarker' && child.visible) {
+            child.scale.setScalar(pulse);
+          }
+        }
       }
       this.renderer.render(this.scene, this.camera);
     };
@@ -322,14 +323,16 @@ export class AssemblyGame {
     for (const def of PARTS) {
       const mesh = this.partMeshes.get(def.id)!;
       const cluster = this.findCluster(def.id);
-      mesh.traverse((obj: THREE.Object3D) => {
-        if (!obj.userData.isJoinMarker) return;
-        const mate = obj.userData.socketMate as PartId;
+      for (const child of mesh.children) {
+        if (child.name !== '__joinMarker') continue;
+        const mate = child.userData.socketMate as PartId | undefined;
+        if (!mate) {
+          child.visible = false;
+          continue;
+        }
         const mateCluster = this.findCluster(mate);
-        obj.visible = Boolean(
-          show && cluster && mateCluster && cluster !== mateCluster,
-        );
-      });
+        child.visible = Boolean(show && cluster && mateCluster && cluster !== mateCluster);
+      }
     }
   }
 
@@ -426,29 +429,28 @@ export class AssemblyGame {
     return this.hitPoint.clone();
   }
 
-  private rotateCluster(cluster: Cluster, deltaY: number, deltaX: number, shift: boolean): void {
-    if (shift) {
-      cluster.root.rotation.x += deltaY * 0.004;
-      cluster.root.rotation.z += deltaX * 0.004;
-    } else {
-      cluster.root.rotation.y += deltaY * 0.005;
-      cluster.root.rotation.x += deltaX * 0.004;
-    }
+  private rotateCluster(cluster: Cluster, deltaY: number, deltaX: number): void {
+    const ky = Math.abs(deltaY) > 0 ? deltaY : 0;
+    const kx = Math.abs(deltaX) > 0 ? deltaX : 0;
+    // Spin around pen axis (X) and tumble around Y — clearly visible while held.
+    cluster.root.rotation.x += ky * 0.014;
+    cluster.root.rotation.y += (ky * 0.004) + (kx * 0.01);
   }
+
+  private readonly onWindowWheel = (e: WheelEvent): void => {
+    if (!this.dragCluster || this.mode !== 'exploded' || this.animating) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.rotateCluster(this.dragCluster, e.deltaY, e.deltaX);
+  };
 
   private bindPointer(canvas: HTMLCanvasElement): void {
     canvas.addEventListener(
       'wheel',
       e => {
+        if (this.dragCluster) return;
         e.preventDefault();
         if (this.animating) return;
-
-        // Rotate only while LMB is held on a part.
-        if (this.mode === 'exploded' && this.dragCluster) {
-          this.rotateCluster(this.dragCluster, e.deltaY, e.deltaX, e.shiftKey);
-          return;
-        }
-
         this.rotY += e.deltaY * 0.0025;
         this.rotX += e.deltaX * 0.002;
         this.rotX = Math.max(-0.9, Math.min(0.9, this.rotX));
@@ -470,6 +472,7 @@ export class AssemblyGame {
             this.dragging = true;
             this.dragCluster = cluster;
             this.selectPart(id);
+            window.addEventListener('wheel', this.onWindowWheel, { passive: false, capture: true });
             const hit = this.projectOnDragPlane(e);
             if (hit) {
               this.dragOffset.copy(cluster.root.position).sub(hit);
@@ -509,6 +512,8 @@ export class AssemblyGame {
     });
 
     const end = (e: PointerEvent) => {
+      window.removeEventListener('wheel', this.onWindowWheel, true);
+
       if (this.dragCluster && this.mode === 'exploded' && !this.animating) {
         const other = this.nearestOtherCluster(this.dragCluster);
         if (other) {
