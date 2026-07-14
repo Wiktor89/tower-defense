@@ -78,7 +78,7 @@ function syncUi(mode: GameMode, selected: PartId | null): void {
       ? `Взято: ${PARTS.find(p => p.id === selected)?.name}. Перетащите стрелкой к нужной детали`
       : 'Перетащите деталь к той, на которую указывает стрелка';
     ui.hintText.textContent =
-      'Колёсико над деталью — повернуть. Стрелки показывают, куда вставлять.';
+      'Зажмите деталь ЛКМ и крутите колёсиком. Стрелки показывают, куда вставлять.';
     ui.disassembleBtn.disabled = true;
     ui.clearBtn.classList.toggle('hidden', !selected);
     ui.winBanner.classList.add('hidden');

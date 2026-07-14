@@ -443,15 +443,10 @@ export class AssemblyGame {
         e.preventDefault();
         if (this.animating) return;
 
-        const hovered = this.pickPartAt(e.clientX, e.clientY);
-        const targetId = hovered ?? this.selected;
-        if (this.mode === 'exploded' && (this.dragCluster || targetId)) {
-          const cluster =
-            this.dragCluster ?? (targetId ? this.findCluster(targetId) : undefined);
-          if (cluster) {
-            this.rotateCluster(cluster, e.deltaY, e.deltaX, e.shiftKey);
-            return;
-          }
+        // Rotate only while LMB is held on a part.
+        if (this.mode === 'exploded' && this.dragCluster) {
+          this.rotateCluster(this.dragCluster, e.deltaY, e.deltaX, e.shiftKey);
+          return;
         }
 
         this.rotY += e.deltaY * 0.0025;
