@@ -9,12 +9,17 @@ function rand(min: number, max: number): number {
 }
 
 function pickType(): 'coin' | 'bill' {
-  return Math.random() < 0.55 ? 'coin' : 'bill';
+  return Math.random() < 0.5 ? 'coin' : 'bill';
 }
 
-function createParticle(layer: HTMLElement, originX: number, originY: number, side: -1 | 1): void {
+function createParticle(
+  layer: HTMLElement,
+  originX: number,
+  originY: number,
+  side: -1 | 1,
+  kind: 'coin' | 'bill',
+): void {
   const el = document.createElement('span');
-  const kind = pickType();
   el.className = kind === 'coin' ? 'money-rain__coin' : 'money-rain__bill';
   el.setAttribute('aria-hidden', 'true');
 
@@ -48,8 +53,9 @@ function burst(layer: HTMLElement, logo: HTMLElement, side: -1 | 1): void {
   const layerRect = layer.getBoundingClientRect();
   const originX = logoRect.left + logoRect.width / 2 - layerRect.left + side * (logoRect.width * 0.35);
   const originY = logoRect.top + logoRect.height * 0.45 - layerRect.top;
+  const kind = pickType();
   for (let i = 0; i < BURST_COUNT; i++) {
-    createParticle(layer, originX, originY, side);
+    createParticle(layer, originX, originY, side, kind);
   }
 }
 
