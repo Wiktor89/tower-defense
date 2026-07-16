@@ -93,11 +93,15 @@ func rangeForDigits(digits int) (min, max int) {
 }
 
 // Generate builds a column problem with the given operand digit count.
+// Grades 1–4 always use numbers from 1 to 20 (admin digit count is ignored).
 func Generate(grade, digits int, opMode string) Problem {
 	if grade < 1 || grade > 11 {
 		grade = 1
 	}
 	min, max := rangeForDigits(digits)
+	if grade <= 4 {
+		min, max = 1, 20
+	}
 	op := pickOp(opMode)
 	var a, b, answer int
 

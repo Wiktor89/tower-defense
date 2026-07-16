@@ -8,7 +8,8 @@ export function showAvatarPicker(onSaved?: (user: User) => void): void {
   const current = getUser();
   if (!current) return;
 
-  const selectedId = getAvatar(current.avatar).id;
+  const hasAvatar = Boolean(current.avatar);
+  const selectedId = hasAvatar ? getAvatar(current.avatar).id : '';
   const options = AVATARS.map(a => `
     <button type="button" class="avatar-option${a.id === selectedId ? ' avatar-option--active' : ''}"
       data-avatar="${a.id}" title="${a.name}">
@@ -21,20 +22,24 @@ export function showAvatarPicker(onSaved?: (user: User) => void): void {
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal modal--avatars">
-      <h2>Выберите аватар</h2>
-      <p>Милые зверюшки для вашего профиля</p>
+      <h2>${hasAvatar ? 'Сменить аватар' : 'Выберите аватар'}</h2>
+      <p>${hasAvatar ? 'Милые зверюшки для вашего профиля' : 'Выберите зверюшку — без аватара дальше нельзя'}</p>
       <div class="avatar-grid">${options}</div>
       <p class="modal-error hidden" id="avatar-error"></p>
-      <button type="button" class="modal-btn modal-btn--ghost" id="avatar-cancel">Закрыть</button>
+      ${hasAvatar
+        ? '<button type="button" class="modal-btn modal-btn--ghost" id="avatar-cancel">Закрыть</button>'
+        : ''}
     </div>
   `;
   document.body.appendChild(overlay);
 
   const errorEl = overlay.querySelector<HTMLParagraphElement>('#avatar-error')!;
   overlay.querySelector('#avatar-cancel')?.addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.remove();
-  });
+  if (hasAvatar) {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+  }
 
   overlay.querySelectorAll<HTMLButtonElement>('.avatar-option').forEach(btn => {
     btn.addEventListener('click', () => {
