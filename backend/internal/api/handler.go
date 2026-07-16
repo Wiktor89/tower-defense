@@ -143,8 +143,7 @@ func (h *Handler) listGames(w http.ResponseWriter, r *http.Request) {
 }
 
 type mathProblemRequest struct {
-	Level int    `json:"level"`
-	Op    string `json:"op"`
+	UserID int `json:"userId"`
 }
 
 func (h *Handler) createMathProblem(w http.ResponseWriter, r *http.Request) {
@@ -153,14 +152,29 @@ func (h *Handler) createMathProblem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if req.Level < 1 || req.Level > 3 {
-		req.Level = 1
-	}
-	if req.Op == "" {
-		req.Op = "add"
+	if req.UserID <= 0 {
+		writeError(w, http.StatusBadRequest, "userId is required")
+		return
 	}
 
-	problem := mathpkg.Generate(req.Level, req.Op)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	user, err := h.db.GetUser(ctx, req.UserID)
+	if err != nil {
+		if errors.Is(err, store.ErrUserNotFound) {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to load user")
+		return
+	}
+	if user.Grade == nil {
+		writeError(w, http.StatusBadRequest, "user grade is not set")
+		return
+	}
+
+	problem := mathpkg.Generate(*user.Grade, "mixed")
 	h.mathStore.Save(problem)
 	writeJSON(w, http.StatusOK, mathpkg.PublicView(problem))
 }

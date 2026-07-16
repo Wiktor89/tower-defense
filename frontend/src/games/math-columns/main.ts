@@ -1,6 +1,6 @@
 import './style.css';
 import { checkMathAnswer, fetchMathColumnsSettings, fetchMathProblem } from '../../api/client';
-import type { MathProblem, OpMode } from '../../types';
+import type { MathProblem } from '../../types';
 import { ensureUserLogin } from '../../shared/login';
 import { showChallengeReward } from '../../shared/solar-reward';
 import { getUser } from '../../shared/user';
@@ -38,8 +38,6 @@ const ui = {
   progressTextEl,
 };
 
-let level = 1;
-let opMode: OpMode = 'add';
 let problem: MathProblem | null = null;
 let answered = false;
 let correct = 0;
@@ -47,6 +45,7 @@ let wrong = 0;
 let sessionSolved = 0;
 let sessionComplete = false;
 let sessionSize = DEFAULT_SESSION_SIZE;
+let userId = 0;
 
 ui.progressBrainEl.innerHTML = createBrainSvg();
 
@@ -73,11 +72,21 @@ function resetSession(): void {
 
 async function renderColumn(): Promise<void> {
   if (sessionComplete) return;
+  if (!userId) {
+    showFeedback('Войдите в аккаунт, чтобы получать примеры.', 'wrong');
+    return;
+  }
 
   try {
-    problem = await fetchMathProblem(level, opMode);
-  } catch {
-    showFeedback('Не удалось загрузить пример. Проверьте backend.', 'wrong');
+    problem = await fetchMathProblem(userId);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '';
+    showFeedback(
+      msg.toLowerCase().includes('grade')
+        ? 'Администратор ещё не назначил ваш класс.'
+        : 'Не удалось загрузить пример. Проверьте backend.',
+      'wrong',
+    );
     return;
   }
 
@@ -247,39 +256,6 @@ function updateScore(): void {
   ui.scoreWrongEl.textContent = `✗ ${wrong}`;
 }
 
-function onSettingsChange(): void {
-  resetSession();
-  void renderColumn();
-}
-
-function applyUserGrade(userGrade: number | null | undefined): void {
-  if (userGrade == null || userGrade < 1 || userGrade > 11) return;
-  level = Math.min(3, Math.max(1, userGrade));
-  const levelControl = document.getElementById('level-control');
-  if (levelControl) levelControl.hidden = true;
-  document.querySelectorAll<HTMLButtonElement>('#level-btns .ctrl-btn').forEach(btn => {
-    btn.classList.toggle('active', Number(btn.dataset.level) === level);
-  });
-}
-
-document.querySelectorAll<HTMLButtonElement>('#level-btns .ctrl-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#level-btns .ctrl-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    level = Number(btn.dataset.level);
-    onSettingsChange();
-  });
-});
-
-document.querySelectorAll<HTMLButtonElement>('#op-btns .ctrl-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#op-btns .ctrl-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    opMode = btn.dataset.op as OpMode;
-    onSettingsChange();
-  });
-});
-
 ui.checkBtn.addEventListener('click', () => void checkAnswer());
 ui.nextBtn.addEventListener('click', () => {
   if (sessionComplete) {
@@ -294,7 +270,7 @@ ui.hintBtn.addEventListener('click', showHint);
 updateProgress();
 void ensureUserLogin()
   .then(user => {
-    applyUserGrade(user.grade);
+    userId = user.id;
     return fetchMathColumnsSettings();
   })
   .then(settings => {

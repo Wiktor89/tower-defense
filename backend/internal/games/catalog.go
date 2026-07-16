@@ -34,7 +34,7 @@ func Catalog() []Game {
 			Available:   true,
 			Tags:        []string{"математика", "обучение"},
 			MinGrade:    1,
-			MaxGrade:    4,
+			MaxGrade:    11,
 		},
 		{
 			ID:          "fill-blanks",

@@ -1,4 +1,4 @@
-import type { CaptchaChallenge, CaptchaPayload, ChallengeStatus, DailyChallengeAdmin, FillBlankText, FillBlanksCheckResult, FillBlanksPuzzle, GameCatalogItem, GameSettings, MathCheckResult, MathProblem, OpMode, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
+import type { CaptchaChallenge, CaptchaPayload, ChallengeStatus, DailyChallengeAdmin, FillBlankText, FillBlanksCheckResult, FillBlanksPuzzle, GameCatalogItem, GameSettings, MathCheckResult, MathProblem, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -63,10 +63,10 @@ export function fetchCaptcha(): Promise<CaptchaChallenge> {
   return request<CaptchaChallenge>('/api/captcha');
 }
 
-export function fetchMathProblem(level: number, op: OpMode): Promise<MathProblem> {
+export function fetchMathProblem(userId: number): Promise<MathProblem> {
   return request<MathProblem>('/api/math/problem', {
     method: 'POST',
-    body: JSON.stringify({ level, op }),
+    body: JSON.stringify({ userId }),
   });
 }
 
