@@ -9,7 +9,6 @@ import { splitDigits } from './utils';
 
 const columnEl = document.getElementById('column');
 const feedbackEl = document.getElementById('feedback');
-const checkBtn = document.getElementById('check-btn') as HTMLButtonElement | null;
 const nextBtn = document.getElementById('next-btn') as HTMLButtonElement | null;
 const hintBtn = document.getElementById('hint-btn') as HTMLButtonElement | null;
 const scoreCorrectEl = document.getElementById('score-correct');
@@ -19,7 +18,7 @@ const progressBrainEl = document.getElementById('progress-brain');
 const progressTextEl = document.getElementById('progress-text');
 
 if (
-  !columnEl || !feedbackEl || !checkBtn || !nextBtn || !hintBtn ||
+  !columnEl || !feedbackEl || !nextBtn || !hintBtn ||
   !scoreCorrectEl || !scoreWrongEl || !progressFillEl || !progressBrainEl || !progressTextEl
 ) {
   throw new Error('Missing required DOM elements');
@@ -28,7 +27,6 @@ if (
 const ui = {
   columnEl,
   feedbackEl,
-  checkBtn,
   nextBtn,
   hintBtn,
   scoreCorrectEl,
@@ -91,9 +89,10 @@ async function renderColumn(): Promise<void> {
   }
 
   answered = false;
-  const { a, b, op, width } = problem;
+  const { a, b, op, width, options } = problem;
   const aDigits = splitDigits(a, width);
   const bDigits = splitDigits(b, width);
+  const choices = options?.length === 4 ? options : [0, 1, 2, 3];
 
   ui.columnEl.innerHTML = `
     <div class="column-row">
@@ -105,98 +104,56 @@ async function renderColumn(): Promise<void> {
       ${bDigits.map(d => `<span class="column-digit">${d === ' ' ? '' : d}</span>`).join('')}
     </div>
     <div class="column-line"></div>
-    <div class="answer-row" id="answer-row">
-      <span class="column-sign"></span>
-      ${Array.from({ length: width }, (_, i) =>
-        `<input class="digit-input" type="text" inputmode="numeric" maxlength="1"
-          data-index="${i}" aria-label="Цифра ${i + 1}">`
-      ).join('')}
+    <div class="choices" id="choices" role="group" aria-label="Варианты ответа">
+      ${choices.map(v => `
+        <button type="button" class="choice-btn" data-value="${v}">${v}</button>
+      `).join('')}
     </div>
   `;
 
-  const inputs = ui.columnEl.querySelectorAll<HTMLInputElement>('.digit-input');
-  inputs.forEach((input, i) => {
-    input.addEventListener('input', () => onDigitInput(input, i, inputs));
-    input.addEventListener('keydown', (e) => onDigitKeydown(e, i, inputs));
+  ui.columnEl.querySelectorAll<HTMLButtonElement>('.choice-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (answered || sessionComplete) return;
+      void checkAnswer(Number(btn.dataset.value));
+    });
   });
 
   hideFeedback();
-  ui.checkBtn.classList.remove('hidden');
   ui.nextBtn.classList.add('hidden');
   ui.hintBtn.disabled = false;
-  inputs[0]?.focus();
-}
-
-function onDigitInput(input: HTMLInputElement, index: number, inputs: NodeListOf<HTMLInputElement>): void {
-  input.value = input.value.replace(/\D/g, '').slice(-1);
-  if (input.value && index < inputs.length - 1) {
-    inputs[index + 1]?.focus();
-  }
-}
-
-function onDigitKeydown(
-  e: KeyboardEvent,
-  index: number,
-  inputs: NodeListOf<HTMLInputElement>,
-): void {
-  const target = e.target as HTMLInputElement;
-  if (e.key === 'Backspace' && !target.value && index > 0) {
-    const prev = inputs[index - 1];
-    if (prev) {
-      prev.focus();
-      prev.value = '';
-    }
-  }
-  if (e.key === 'Enter') {
-    if (sessionComplete) {
-      resetSession();
-      void renderColumn();
-      return;
-    }
-    if (!answered) void checkAnswer();
-    else void renderColumn();
-  }
-  if (e.key === 'ArrowLeft' && index > 0) inputs[index - 1]?.focus();
-  if (e.key === 'ArrowRight' && index < inputs.length - 1) inputs[index + 1]?.focus();
-}
-
-function getUserAnswer(): number | null {
-  const inputs = ui.columnEl.querySelectorAll<HTMLInputElement>('.digit-input');
-  const raw = Array.from(inputs).map(i => i.value).join('');
-  if (!raw || raw.length < inputs.length) return null;
-  return parseInt(raw, 10);
 }
 
 function finishSessionUI(): void {
   sessionComplete = true;
-  ui.checkBtn.classList.add('hidden');
   ui.nextBtn.textContent = 'Новая серия';
   ui.nextBtn.classList.remove('hidden');
   ui.hintBtn.disabled = true;
   updateProgress();
 }
 
-async function checkAnswer(): Promise<void> {
-  if (sessionComplete || !problem) return;
+function lockChoices(selected: number, isCorrect: boolean, correctAnswer?: number): void {
+  ui.columnEl.querySelectorAll<HTMLButtonElement>('.choice-btn').forEach(btn => {
+    const value = Number(btn.dataset.value);
+    btn.disabled = true;
+    if (value === selected) {
+      btn.classList.add(isCorrect ? 'correct' : 'wrong');
+    }
+    if (!isCorrect && correctAnswer !== undefined && value === correctAnswer) {
+      btn.classList.add('correct');
+    }
+  });
+}
 
-  const userAnswer = getUserAnswer();
-  if (userAnswer === null) {
-    showFeedback('Введите все цифры ответа', 'hint');
-    return;
-  }
+async function checkAnswer(userAnswer: number): Promise<void> {
+  if (sessionComplete || !problem || answered) return;
 
   answered = true;
-  const inputs = ui.columnEl.querySelectorAll<HTMLInputElement>('.digit-input');
   const user = getUser();
 
   try {
     const result = await checkMathAnswer(problem.id, userAnswer, user?.id);
     const isCorrect = result.correct;
-
-    inputs.forEach(input => {
-      input.disabled = true;
-      input.classList.add(isCorrect ? 'correct' : 'wrong');
-    });
+    lockChoices(userAnswer, isCorrect, result.correctAnswer);
 
     if (isCorrect) {
       correct++;
@@ -213,7 +170,6 @@ async function checkAnswer(): Promise<void> {
         sessionSolved = sessionSize;
         finishSessionUI();
         showFeedback(`Серия из ${sessionSize} примеров завершена! Мозг вырос! 🧠`, 'correct');
-        // Награда с планетой — только если закрыт весь «Вызов дня».
         if (result.stageCompletion) showChallengeReward(result.stageCompletion);
         updateScore();
         return;
@@ -225,11 +181,13 @@ async function checkAnswer(): Promise<void> {
   } catch {
     showFeedback('Ошибка проверки ответа', 'wrong');
     answered = false;
+    ui.columnEl.querySelectorAll<HTMLButtonElement>('.choice-btn').forEach(btn => {
+      btn.disabled = false;
+    });
     return;
   }
 
   updateScore();
-  ui.checkBtn.classList.add('hidden');
   ui.nextBtn.classList.remove('hidden');
 }
 
@@ -256,7 +214,6 @@ function updateScore(): void {
   ui.scoreWrongEl.textContent = `✗ ${wrong}`;
 }
 
-ui.checkBtn.addEventListener('click', () => void checkAnswer());
 ui.nextBtn.addEventListener('click', () => {
   if (sessionComplete) {
     resetSession();

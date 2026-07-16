@@ -16,6 +16,7 @@ export interface MathProblem {
   b: number;
   op: string;
   width: number;
+  options: number[];
 }
 
 export type UserRole = 'user' | 'admin';

@@ -191,48 +191,49 @@ header {
   width: 100%;
 }
 
-.answer-row {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 0;
+.choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(88px, 1fr));
+  gap: 10px;
+  width: 100%;
+  margin-top: 4px;
 }
 
-.digit-input {
-  width: 40px;
-  height: 48px;
+.choice-btn {
+  min-height: 52px;
   font-family: 'Courier New', Courier, monospace;
-  font-size: 2rem;
+  font-size: 1.6rem;
   font-weight: 700;
   text-align: center;
   border: 2px solid #cbd5e1;
-  border-radius: 8px;
+  border-radius: 12px;
   background: #fff;
   color: #1e293b;
-  outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
 }
 
-.digit-input:focus {
+.choice-btn:hover:not(:disabled) {
   border-color: #f59e0b;
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+  transform: translateY(-1px);
 }
 
-.digit-input.correct {
+.choice-btn.correct {
   border-color: #16a34a;
   background: #f0fdf4;
   color: #16a34a;
 }
 
-.digit-input.wrong {
+.choice-btn.wrong {
   border-color: #dc2626;
   background: #fef2f2;
   color: #dc2626;
 }
 
-.digit-input:disabled {
-  opacity: 0.7;
+.choice-btn:disabled {
   cursor: default;
+  opacity: 0.9;
 }
 
 .feedback {
@@ -426,13 +427,12 @@ header {
     font-size: 1.8rem;
   }
 
-  .column-digit,
-  .digit-input {
+  .column-digit {
     width: 32px;
   }
 
-  .digit-input {
-    font-size: 1.6rem;
-    height: 40px;
+  .choice-btn {
+    font-size: 1.35rem;
+    min-height: 46px;
   }
 }

@@ -8,13 +8,14 @@ import (
 )
 
 type Problem struct {
-	ID     string `json:"id"`
-	A      int    `json:"a"`
-	B      int    `json:"b"`
-	Op     string `json:"op"`
-	Level  int    `json:"-"` // school grade (session key)
-	Answer int    `json:"-"`
-	Width  int    `json:"width"`
+	ID      string `json:"id"`
+	A       int    `json:"a"`
+	B       int    `json:"b"`
+	Op      string `json:"op"`
+	Level   int    `json:"-"` // school grade (session key)
+	Answer  int    `json:"-"`
+	Width   int    `json:"width"`
+	Options []int  `json:"options,omitempty"`
 }
 
 func randInt(min, max int) int {
@@ -116,22 +117,56 @@ func Generate(grade, digits int, opMode string) Problem {
 	}
 
 	return Problem{
-		ID:     newID(),
-		A:      a,
-		B:      b,
-		Op:     op,
-		Level:  grade,
-		Answer: answer,
-		Width:  digitWidth(a, b, answer),
+		ID:      newID(),
+		A:       a,
+		B:       b,
+		Op:      op,
+		Level:   grade,
+		Answer:  answer,
+		Width:   digitWidth(a, b, answer),
+		Options: generateOptions(answer),
 	}
+}
+
+func generateOptions(answer int) []int {
+	seen := map[int]bool{answer: true}
+	opts := []int{answer}
+	for attempts := 0; len(opts) < 4 && attempts < 40; attempts++ {
+		delta := randInt(2, 5)
+		if randInt(0, 1) == 0 {
+			delta = -delta
+		}
+		v := answer + delta
+		if v < 0 {
+			v = answer + randInt(2, 5)
+		}
+		if seen[v] {
+			continue
+		}
+		seen[v] = true
+		opts = append(opts, v)
+	}
+	for n := 6; len(opts) < 4; n++ {
+		v := answer + n
+		if !seen[v] {
+			seen[v] = true
+			opts = append(opts, v)
+		}
+	}
+	for i := len(opts) - 1; i > 0; i-- {
+		j := randInt(0, i)
+		opts[i], opts[j] = opts[j], opts[i]
+	}
+	return opts
 }
 
 func PublicView(p Problem) Problem {
 	return Problem{
-		ID:    p.ID,
-		A:     p.A,
-		B:     p.B,
-		Op:    p.Op,
-		Width: p.Width,
+		ID:      p.ID,
+		A:       p.A,
+		B:       p.B,
+		Op:      p.Op,
+		Width:   p.Width,
+		Options: p.Options,
 	}
 }

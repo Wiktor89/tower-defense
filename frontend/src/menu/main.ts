@@ -7,6 +7,7 @@ import { getAvatar } from '../shared/avatars';
 import { ensureUserLogin, promptUserLogin } from '../shared/login';
 import { showChallengeReward } from '../shared/solar-reward';
 import { clearUser, getUser, isAdminUser } from '../shared/user';
+import { startMoneyRain } from './money-rain';
 
 const grid = document.getElementById('games-grid');
 const userLabel = document.getElementById('user-label');
@@ -209,6 +210,10 @@ adminBtnEl.addEventListener('click', () => {
 });
 
 async function init() {
+  const logo = document.getElementById('menu-logo');
+  const rain = document.getElementById('money-rain');
+  if (logo && rain) startMoneyRain(logo, rain);
+
   await ensureUserLogin();
   await afterLogin();
 }

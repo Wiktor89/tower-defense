@@ -19,24 +19,27 @@
 
   <main id="menu">
     <header class="menu-header">
-      <div class="menu-header__logo" aria-hidden="true">
-        <svg class="gamepad" viewBox="0 0 120 72" width="72" height="44" role="img">
-          <defs>
-            <linearGradient id="gp-body" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#5b6472"/>
-              <stop offset="100%" stop-color="#2f3640"/>
-            </linearGradient>
-          </defs>
-          <path class="gamepad__body" fill="url(#gp-body)" d="M28 18c8-10 56-10 64 0 10 12 18 28 14 38-3 8-12 10-20 6-4-2-8-6-12-6H46c-4 0-8 4-12 6-8 4-17 2-20-6C10 46 18 30 28 18z"/>
-          <circle cx="34" cy="34" r="9" fill="#1f2933"/>
-          <path fill="#9aa3af" d="M31 28h6v12h-6zM28 31h12v6H28z"/>
-          <circle cx="52" cy="42" r="4.5" fill="#1f2933"/>
-          <circle cx="68" cy="42" r="4.5" fill="#1f2933"/>
-          <circle class="gamepad__btn gamepad__btn--y" cx="86" cy="26" r="4.2" fill="#f5c518"/>
-          <circle class="gamepad__btn gamepad__btn--b" cx="96" cy="36" r="4.2" fill="#e74c3c"/>
-          <circle class="gamepad__btn gamepad__btn--a" cx="86" cy="46" r="4.2" fill="#2ecc71"/>
-          <circle class="gamepad__btn gamepad__btn--x" cx="76" cy="36" r="4.2" fill="#3498db"/>
-        </svg>
+      <div class="menu-header__stage">
+        <div class="money-rain" id="money-rain" aria-hidden="true"></div>
+        <div class="menu-header__logo" id="menu-logo" aria-hidden="true">
+          <svg class="gamepad" viewBox="0 0 120 72" width="72" height="44" role="img">
+            <defs>
+              <linearGradient id="gp-body" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#5b6472"/>
+                <stop offset="100%" stop-color="#2f3640"/>
+              </linearGradient>
+            </defs>
+            <path class="gamepad__body" fill="url(#gp-body)" d="M28 18c8-10 56-10 64 0 10 12 18 28 14 38-3 8-12 10-20 6-4-2-8-6-12-6H46c-4 0-8 4-12 6-8 4-17 2-20-6C10 46 18 30 28 18z"/>
+            <circle cx="34" cy="34" r="9" fill="#1f2933"/>
+            <path fill="#9aa3af" d="M31 28h6v12h-6zM28 31h12v6H28z"/>
+            <circle cx="52" cy="42" r="4.5" fill="#1f2933"/>
+            <circle cx="68" cy="42" r="4.5" fill="#1f2933"/>
+            <circle class="gamepad__btn gamepad__btn--y" cx="86" cy="26" r="4.2" fill="#f5c518"/>
+            <circle class="gamepad__btn gamepad__btn--b" cx="96" cy="36" r="4.2" fill="#e74c3c"/>
+            <circle class="gamepad__btn gamepad__btn--a" cx="86" cy="46" r="4.2" fill="#2ecc71"/>
+            <circle class="gamepad__btn gamepad__btn--x" cx="76" cy="36" r="4.2" fill="#3498db"/>
+          </svg>
+        </div>
       </div>
       <h1>Выберите игру</h1>
       <p>Коллекция браузерных мини-игр</p>
