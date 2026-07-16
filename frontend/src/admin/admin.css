@@ -138,18 +138,41 @@ body {
   color: rgba(255, 255, 255, 0.6);
 }
 
-.admin-header {
+.admin-breadcrumbs {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
   flex-wrap: wrap;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  font-size: 0.95rem;
+  line-height: 1.4;
 }
 
-.admin-header__actions {
-  display: flex;
-  gap: 8px;
+.admin-crumb {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #a5b4fc;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+a.admin-crumb:hover,
+button.admin-crumb:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.admin-crumb--current {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+  cursor: default;
+}
+
+.admin-crumb-sep {
+  color: rgba(255, 255, 255, 0.35);
+  user-select: none;
 }
 
 .admin-table-wrap {
@@ -200,6 +223,57 @@ body {
   font-size: 0.85rem;
   color: rgba(255, 255, 255, 0.5);
   margin-bottom: 12px;
+}
+
+.admin-game-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-game-link {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  column-gap: 12px;
+  row-gap: 4px;
+  width: 100%;
+  padding: 16px 18px;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+
+.admin-game-link:hover {
+  border-color: rgba(99, 102, 241, 0.55);
+  background: rgba(99, 102, 241, 0.12);
+  transform: translateY(-1px);
+}
+
+.admin-game-link__title {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.admin-game-link__hint {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.admin-game-link__arrow {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .admin-verify-form {

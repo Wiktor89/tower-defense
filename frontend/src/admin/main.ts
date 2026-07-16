@@ -261,6 +261,23 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+type SettingsGameId =
+  | 'daily-challenge'
+  | 'math-columns'
+  | 'fill-blanks'
+  | 'tower-defense'
+  | 'disassemble';
+
+const SETTINGS_GAME_KEY = 'admin_settings_game';
+
+const SETTINGS_GAMES: { id: SettingsGameId; label: string; hint: string }[] = [
+  { id: 'daily-challenge', label: '🎯 Вызов дня', hint: 'Список игр для ежедневного задания' },
+  { id: 'math-columns', label: '📐 Столбик', hint: 'Знаки чисел и длина серии' },
+  { id: 'fill-blanks', label: '📝 Заполни пропуски', hint: 'Тексты и процент пропусков' },
+  { id: 'tower-defense', label: '🌻 Защита от зомби', hint: 'Настройки волны и сложности' },
+  { id: 'disassemble', label: '🔧 Разбери и собери', hint: 'Настройки сборки' },
+];
+
 const CHALLENGE_GAME_OPTIONS: { id: string; label: string }[] = [
   { id: 'math-columns', label: '📐 Столбик' },
   { id: 'fill-blanks', label: '📝 Заполни пропуски' },
@@ -268,11 +285,35 @@ const CHALLENGE_GAME_OPTIONS: { id: string; label: string }[] = [
   { id: 'disassemble', label: '🔧 Разбери и собери' },
 ];
 
-function renderSettingsTab(
-  mathSettings: GameSettings | null,
-  fillTexts: FillBlankText[],
-  challenge: DailyChallengeAdmin | null,
-): string {
+function getSettingsGame(): SettingsGameId | null {
+  const saved = sessionStorage.getItem(SETTINGS_GAME_KEY);
+  if (SETTINGS_GAMES.some(g => g.id === saved)) return saved as SettingsGameId;
+  return null;
+}
+
+function setSettingsGame(id: SettingsGameId | null): void {
+  if (id) sessionStorage.setItem(SETTINGS_GAME_KEY, id);
+  else sessionStorage.removeItem(SETTINGS_GAME_KEY);
+}
+
+function renderSettingsList(): string {
+  const items = SETTINGS_GAMES.map(g => `
+    <button type="button" class="admin-game-link" data-settings-game="${g.id}">
+      <span class="admin-game-link__title">${g.label}</span>
+      <span class="admin-game-link__hint">${g.hint}</span>
+      <span class="admin-game-link__arrow" aria-hidden="true">→</span>
+    </button>
+  `).join('');
+
+  return `
+    <section class="admin-section">
+      <p class="admin-section__hint">Выберите игру, чтобы изменить её параметры</p>
+      <div class="admin-game-list">${items}</div>
+    </section>
+  `;
+}
+
+function renderChallengeSettings(challenge: DailyChallengeAdmin | null): string {
   const selected = new Set((challenge?.games ?? []).map(g => g.gameId));
   const checks = CHALLENGE_GAME_OPTIONS.map(g => `
     <label class="admin-check">
@@ -283,7 +324,6 @@ function renderSettingsTab(
 
   return `
     <section class="admin-section">
-      <h2>🎯 Вызов дня</h2>
       <p class="admin-section__hint">Отметьте игры, которые ученик должен пройти. После всех — код с планетой.</p>
       <form id="challenge-form" class="admin-challenge-form">
         <div class="admin-check-list">${checks}</div>
@@ -291,9 +331,12 @@ function renderSettingsTab(
       </form>
       <p class="admin-verify-result hidden" id="challenge-result"></p>
     </section>
+  `;
+}
 
+function renderMathSettings(mathSettings: GameSettings | null): string {
+  return `
     <section class="admin-section">
-      <h2>📐 Столбик</h2>
       <p class="admin-section__hint">Длина чисел в примерах и сколько правильных ответов нужно для серии</p>
       <form id="settings-form" class="admin-verify-form">
         <label class="admin-field">
@@ -310,9 +353,12 @@ function renderSettingsTab(
       </form>
       <p class="admin-verify-result hidden" id="settings-result"></p>
     </section>
+  `;
+}
 
+function renderFillBlanksSettings(fillTexts: FillBlankText[]): string {
+  return `
     <section class="admin-section">
-      <h2>📝 Заполни пропуски</h2>
       <p class="admin-section__hint">Добавьте полный текст. Если больше 30 слов — разобьётся на абзацы/предложения; у каждого — свой список слов справа.</p>
       <form id="fill-text-form" class="admin-fill-form">
         <textarea id="fill-text-input" rows="5" placeholder="Вставьте текст скороговорки или предложения…" required></textarea>
@@ -323,6 +369,68 @@ function renderSettingsTab(
       ${renderFillTextsList(fillTexts)}
     </section>
   `;
+}
+
+function renderEmptyGameSettings(): string {
+  return `
+    <section class="admin-section">
+      <p class="admin-section__hint">Для этой игры пока нет дополнительных настроек.</p>
+    </section>
+  `;
+}
+
+function renderBreadcrumbs(activeTab: AdminTab): string {
+  const tabLabel = TABS.find(t => t.id === activeTab)?.label ?? '';
+  const settingsGame = activeTab === 'settings' ? getSettingsGame() : null;
+  const gameLabel = settingsGame
+    ? SETTINGS_GAMES.find(g => g.id === settingsGame)?.label ?? ''
+    : '';
+  const atSettingsRoot = activeTab === 'settings' && !settingsGame;
+
+  const crumbs: string[] = [
+    `<a href="/" class="admin-crumb">Меню</a>`,
+    atSettingsRoot
+      ? `<span class="admin-crumb admin-crumb--current">Администратор</span>`
+      : `<button type="button" class="admin-crumb" data-crumb="admin">Администратор</button>`,
+  ];
+
+  if (activeTab === 'settings') {
+    crumbs.push(
+      settingsGame
+        ? `<button type="button" class="admin-crumb" data-crumb="settings">Настройки игр</button>`
+        : `<span class="admin-crumb admin-crumb--current">Настройки игр</span>`,
+    );
+    if (gameLabel) {
+      crumbs.push(`<span class="admin-crumb admin-crumb--current">${gameLabel}</span>`);
+    }
+  } else {
+    crumbs.push(`<span class="admin-crumb admin-crumb--current">${tabLabel}</span>`);
+  }
+
+  return `<nav class="admin-breadcrumbs" aria-label="Навигация">${crumbs.join('<span class="admin-crumb-sep">›</span>')}</nav>`;
+}
+
+function renderSettingsTab(
+  mathSettings: GameSettings | null,
+  fillTexts: FillBlankText[],
+  challenge: DailyChallengeAdmin | null,
+): string {
+  const gameId = getSettingsGame();
+  if (!gameId) return renderSettingsList();
+
+  switch (gameId) {
+    case 'daily-challenge':
+      return renderChallengeSettings(challenge);
+    case 'math-columns':
+      return renderMathSettings(mathSettings);
+    case 'fill-blanks':
+      return renderFillBlanksSettings(fillTexts);
+    case 'tower-defense':
+    case 'disassemble':
+      return renderEmptyGameSettings();
+    default:
+      return renderSettingsList();
+  }
 }
 
 function renderVerifyTab(stages: StageCompletion[]): string {
@@ -373,14 +481,7 @@ function renderDashboard(
   `).join('');
 
   appEl.innerHTML = `
-    <header class="admin-header">
-      <h1>📊 Администратор</h1>
-      <div class="admin-header__actions">
-        <button id="refresh-btn" class="admin-btn admin-btn--ghost">Обновить</button>
-        <button id="logout-btn" class="admin-btn admin-btn--ghost">Выйти</button>
-        <a href="/" class="admin-btn admin-btn--ghost">← Меню</a>
-      </div>
-    </header>
+    ${renderBreadcrumbs(activeTab)}
     ${loadError ? `<p class="admin-load-error">${loadError}</p>` : ''}
     ${loading ? '<p class="admin-loading-inline">Загрузка данных…</p>' : ''}
 
@@ -405,22 +506,37 @@ function renderDashboard(
   appEl.querySelectorAll<HTMLButtonElement>('.admin-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       const tab = btn.dataset.tab as AdminTab;
+      if (tab === 'settings') {
+        setSettingsGame(null);
+        setActiveTab('settings');
+        void loadDashboard(token);
+        return;
+      }
+      setSettingsGame(null);
       setActiveTab(tab);
-      appEl.querySelectorAll('.admin-tab').forEach(b => b.classList.remove('admin-tab--active'));
-      btn.classList.add('admin-tab--active');
-      appEl.querySelectorAll('.admin-tab-panel').forEach(panel => {
-        panel.classList.toggle('admin-tab-panel--active', panel.getAttribute('data-panel') === tab);
-      });
+      void loadDashboard(token);
     });
   });
 
-  appEl.querySelector('#logout-btn')?.addEventListener('click', () => {
-    clearAdminToken();
-    renderLogin();
+  appEl.querySelectorAll<HTMLButtonElement>('[data-settings-game]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.settingsGame as SettingsGameId | undefined;
+      if (!id) return;
+      setSettingsGame(id);
+      setActiveTab('settings');
+      void loadDashboard(token);
+    });
   });
 
-  appEl.querySelector('#refresh-btn')?.addEventListener('click', () => {
-    void loadDashboard(token);
+  appEl.querySelectorAll<HTMLButtonElement>('[data-crumb]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const crumb = btn.dataset.crumb;
+      if (crumb === 'admin' || crumb === 'settings') {
+        setSettingsGame(null);
+        setActiveTab('settings');
+        void loadDashboard(token);
+      }
+    });
   });
 
   appEl.querySelector<HTMLFormElement>('#verify-form')?.addEventListener('submit', async (e) => {
