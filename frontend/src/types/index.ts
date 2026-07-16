@@ -164,6 +164,7 @@ export interface ChallengeDayProgress {
   date: string;
   label: string;
   done: boolean;
+  isReward?: boolean;
 }
 
 export interface ChallengeWeekProgress {

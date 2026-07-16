@@ -345,105 +345,111 @@ body {
 
 .challenge-week {
   margin: 0 0 16px;
-  padding: 14px 14px 12px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 16px 14px 14px;
+  border-radius: 14px;
+  background: linear-gradient(165deg, #14532d 0%, #166534 45%, #052e16 100%);
+  border: 1px solid rgba(134, 239, 172, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .challenge-week__head {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 12px;
-  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.challenge-week__rule {
+  flex: 1 1 auto;
+  max-width: 48px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #fbbf24, transparent);
+  position: relative;
+}
+
+.challenge-week__rule::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  background: #fbbf24;
 }
 
 .challenge-week__title {
-  font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.6);
-  font-weight: 600;
-}
-
-.challenge-week__wins {
-  font-size: 1.15rem;
+  flex: 0 0 auto;
+  font-size: 0.95rem;
+  color: #fbbf24;
   font-weight: 800;
-  color: #fde68a;
   letter-spacing: 0.02em;
+  text-transform: none;
 }
 
 .challenge-week__track {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 0;
-  margin-bottom: 10px;
+  gap: 4px;
+  margin-bottom: 12px;
 }
 
 .challenge-week__day {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  flex: 0 0 auto;
+  gap: 8px;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .challenge-week__dot {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 0.85rem;
-  color: #422006;
-  background: rgba(255, 255, 255, 0.08);
-  border: 2px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.28);
+  border: 2px solid rgba(134, 239, 172, 0.25);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
 }
 
-.challenge-week__day--done .challenge-week__dot {
-  background: linear-gradient(145deg, #fbbf24, #f59e0b);
-  border-color: #fcd34d;
-  box-shadow: 0 0 12px rgba(251, 191, 36, 0.35);
+.challenge-week__dot--check {
+  background: linear-gradient(145deg, #fde047, #f59e0b);
+  border-color: #fef08a;
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.45);
 }
 
-.challenge-week__day--today .challenge-week__dot {
-  border-color: #a5b4fc;
+.challenge-week__dot--gift {
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(74, 222, 128, 0.45);
 }
 
-.challenge-week__day--today.challenge-week__day--done .challenge-week__dot {
-  border-color: #fef3c7;
+.challenge-week__day--done.challenge-week__day--reward .challenge-week__dot--check {
+  background: linear-gradient(145deg, #fde047, #f59e0b);
 }
 
 .challenge-week__label {
   font-size: 0.72rem;
-  text-transform: lowercase;
-  color: rgba(255, 255, 255, 0.5);
+  text-transform: capitalize;
+  color: rgba(220, 252, 231, 0.55);
+  order: -1;
 }
 
 .challenge-week__day--done .challenge-week__label,
 .challenge-week__day--today .challenge-week__label {
-  color: rgba(255, 255, 255, 0.85);
-  font-weight: 600;
-}
-
-.challenge-week__line {
-  flex: 1 1 auto;
-  height: 3px;
-  margin: 0 4px 18px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  align-self: center;
-}
-
-.challenge-week__day--done + .challenge-week__line {
-  background: linear-gradient(90deg, #f59e0b, rgba(251, 191, 36, 0.45));
+  color: #ecfdf5;
+  font-weight: 700;
 }
 
 .challenge-week__praise {
   font-size: 0.9rem;
   font-weight: 600;
-  color: #e9d5ff;
+  color: #d9f99d;
   margin: 0;
+  text-align: center;
 }
 
 .challenge-list {

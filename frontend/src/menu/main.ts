@@ -61,22 +61,42 @@ function createGameCard(game: GameCatalogItem): HTMLElement {
   return card;
 }
 
+function weekDayIcon(done: boolean, isReward: boolean): string {
+  if (done) {
+    return `<span class="challenge-week__dot challenge-week__dot--check" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="16" height="16"><path fill="#7a4e00" d="M9.2 16.6L4.8 12.2l1.4-1.4 3 3 8-8 1.4 1.4z"/></svg>
+    </span>`;
+  }
+  if (isReward) {
+    return `<span class="challenge-week__dot challenge-week__dot--gift" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="16" height="16">
+        <rect x="4" y="10" width="16" height="10" rx="1.5" fill="#86efac"/>
+        <rect x="3" y="7" width="18" height="4" rx="1" fill="#4ade80"/>
+        <rect x="11" y="7" width="2" height="13" fill="#166534"/>
+        <path d="M12 7c-2-3-5-3-5 0 2 0 5 2 5 2s3-2 5-2c0-3-3-3-5 0z" fill="#fbbf24"/>
+      </svg>
+    </span>`;
+  }
+  return `<span class="challenge-week__dot" aria-hidden="true"></span>`;
+}
+
 function renderWeekProgress(week: ChallengeStatus['week']): string {
   if (!week?.days?.length) return '';
   const nodes = week.days.map((d, i) => `
-    <div class="challenge-week__day${d.done ? ' challenge-week__day--done' : ''}${i === week.days.length - 1 ? ' challenge-week__day--today' : ''}">
-      <span class="challenge-week__dot" aria-hidden="true">${d.done ? '★' : ''}</span>
+    <div class="challenge-week__day${d.done ? ' challenge-week__day--done' : ''}${d.isReward ? ' challenge-week__day--reward' : ''}${i === 0 ? ' challenge-week__day--today' : ''}">
       <span class="challenge-week__label">${d.label}</span>
+      ${weekDayIcon(!!d.done, !!d.isReward)}
     </div>
-  `).join('<span class="challenge-week__line" aria-hidden="true"></span>');
+  `).join('');
 
   return `
     <div class="challenge-week">
       <div class="challenge-week__head">
-        <span class="challenge-week__title">За 7 дней</span>
-        <span class="challenge-week__wins">${week.wins} из 7</span>
+        <span class="challenge-week__rule" aria-hidden="true"></span>
+        <span class="challenge-week__title">Ежедневные победы</span>
+        <span class="challenge-week__rule" aria-hidden="true"></span>
       </div>
-      <div class="challenge-week__track" role="img" aria-label="Победы за неделю: ${week.wins} из 7">
+      <div class="challenge-week__track" role="img" aria-label="Серия побед: ${week.wins} из 7">
         ${nodes}
       </div>
       <p class="challenge-week__praise">${week.praise}</p>

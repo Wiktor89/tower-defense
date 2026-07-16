@@ -27,9 +27,10 @@ type DailyChallenge struct {
 }
 
 type ChallengeDayProgress struct {
-	Date  string `json:"date"`
-	Label string `json:"label"`
-	Done  bool   `json:"done"`
+	Date     string `json:"date"`
+	Label    string `json:"label"`
+	Done     bool   `json:"done"`
+	IsReward bool   `json:"isReward,omitempty"`
 }
 
 type ChallengeWeekProgress struct {
@@ -53,9 +54,9 @@ var challengeWeekdayLabels = [...]string{"вс", "пн", "вт", "ср", "чт",
 func praiseForChallengeWins(wins int) string {
 	switch {
 	case wins <= 0:
-		return "Новая неделя — самое время блеснуть!"
+		return "Вы готовы к прекрасной неделе"
 	case wins == 1:
-		return "Первая победа! Так держать 🌟"
+		return "Первая победа! Так держать"
 	case wins == 2:
 		return "Две победы — ты в ритме!"
 	case wins == 3:
@@ -63,11 +64,11 @@ func praiseForChallengeWins(wins int) string {
 	case wins == 4:
 		return "Уже 4 из 7 — ты почти чемпион!"
 	case wins == 5:
-		return "Пять побед! Неделя горит огнём 🔥"
+		return "Пять побед! Неделя горит"
 	case wins == 6:
-		return "Шесть дней! Ещё один — и идеал!"
+		return "Шесть дней! Ещё один — и подарок!"
 	default:
-		return "Семь из семи! Ты легенда недели! 🏆"
+		return "Семь из семи! Неделя твоя!"
 	}
 }
 
@@ -78,7 +79,7 @@ func (s *Store) GetChallengeWeekProgress(ctx context.Context, userID int) (*Chal
 	}
 	now := time.Now().In(loc)
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
-	start := today.AddDate(0, 0, -6)
+	lookback := today.AddDate(0, 0, -14)
 
 	doneDays := make(map[string]bool)
 	rows, err := s.pool.Query(ctx, `
@@ -87,7 +88,7 @@ func (s *Store) GetChallengeWeekProgress(ctx context.Context, userID int) (*Chal
 		WHERE user_id = $1
 		  AND game_id = $2
 		  AND completed_at >= $3
-	`, userID, ChallengeGameID, start)
+	`, userID, ChallengeGameID, lookback)
 	if err != nil {
 		return nil, err
 	}
@@ -104,26 +105,40 @@ func (s *Store) GetChallengeWeekProgress(ctx context.Context, userID int) (*Chal
 		return nil, err
 	}
 
+	// Серия подряд, заканчивающаяся сегодня (если сегодня ещё не пройден — 0).
+	streak := 0
+	if doneDays[today.Format("2006-01-02")] {
+		for d := today; ; d = d.AddDate(0, 0, -1) {
+			if !doneDays[d.Format("2006-01-02")] {
+				break
+			}
+			streak++
+			if streak >= 7 {
+				break
+			}
+		}
+	}
+
+	// 7 слотов: слева реальная серия побед, справа пустые дни, последний — подарок.
+	start := today
+	if streak > 0 {
+		start = today.AddDate(0, 0, -(streak - 1))
+	}
 	days := make([]ChallengeDayProgress, 0, 7)
-	wins := 0
 	for i := 0; i < 7; i++ {
 		day := start.AddDate(0, 0, i)
-		key := day.Format("2006-01-02")
-		done := doneDays[key]
-		if done {
-			wins++
-		}
 		days = append(days, ChallengeDayProgress{
-			Date:  key,
-			Label: challengeWeekdayLabels[day.Weekday()],
-			Done:  done,
+			Date:     day.Format("2006-01-02"),
+			Label:    challengeWeekdayLabels[day.Weekday()],
+			Done:     i < streak,
+			IsReward: i == 6,
 		})
 	}
 
 	return &ChallengeWeekProgress{
 		Days:   days,
-		Wins:   wins,
-		Praise: praiseForChallengeWins(wins),
+		Wins:   streak,
+		Praise: praiseForChallengeWins(streak),
 	}, nil
 }
 
