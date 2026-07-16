@@ -2,24 +2,26 @@ import './menu.css';
 import '../shared/modal.css';
 import { fetchChallenge, fetchGames } from '../api/client';
 import type { ChallengeStatus, GameCatalogItem } from '../types';
+import { showAvatarPicker } from '../shared/avatar-picker';
+import { getAvatar } from '../shared/avatars';
 import { ensureUserLogin, promptUserLogin } from '../shared/login';
 import { showChallengeReward } from '../shared/solar-reward';
 import { clearUser, getUser, isAdminUser } from '../shared/user';
 
 const grid = document.getElementById('games-grid');
 const userLabel = document.getElementById('user-label');
-const switchUserBtn = document.getElementById('switch-user-btn');
+const avatarBtn = document.getElementById('avatar-btn');
 const adminBtn = document.getElementById('admin-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const challengePanel = document.getElementById('challenge-panel');
 
-if (!grid || !userLabel || !switchUserBtn || !adminBtn || !logoutBtn || !challengePanel) {
+if (!grid || !userLabel || !avatarBtn || !adminBtn || !logoutBtn || !challengePanel) {
   throw new Error('Missing DOM elements');
 }
 
 const gamesGrid = grid;
 const userLabelEl = userLabel;
-const switchUserBtnEl = switchUserBtn;
+const avatarBtnEl = avatarBtn as HTMLButtonElement;
 const adminBtnEl = adminBtn;
 const logoutBtnEl = logoutBtn;
 const challengePanelEl = challengePanel;
@@ -55,6 +57,29 @@ function createGameCard(game: GameCatalogItem): HTMLElement {
   return card;
 }
 
+function renderWeekProgress(week: ChallengeStatus['week']): string {
+  if (!week?.days?.length) return '';
+  const nodes = week.days.map((d, i) => `
+    <div class="challenge-week__day${d.done ? ' challenge-week__day--done' : ''}${i === week.days.length - 1 ? ' challenge-week__day--today' : ''}">
+      <span class="challenge-week__dot" aria-hidden="true">${d.done ? '★' : ''}</span>
+      <span class="challenge-week__label">${d.label}</span>
+    </div>
+  `).join('<span class="challenge-week__line" aria-hidden="true"></span>');
+
+  return `
+    <div class="challenge-week">
+      <div class="challenge-week__head">
+        <span class="challenge-week__title">За 7 дней</span>
+        <span class="challenge-week__wins">${week.wins} из 7</span>
+      </div>
+      <div class="challenge-week__track" role="img" aria-label="Победы за неделю: ${week.wins} из 7">
+        ${nodes}
+      </div>
+      <p class="challenge-week__praise">${week.praise}</p>
+    </div>
+  `;
+}
+
 function renderChallenge(status: ChallengeStatus): void {
   if (!status.total) {
     challengePanelEl.classList.add('hidden');
@@ -78,6 +103,7 @@ function renderChallenge(status: ChallengeStatus): void {
     <div class="challenge-card">
       <h2 class="challenge-title">🎯 Вызов дня</h2>
       <p class="challenge-progress">Пройдено ${status.completed} из ${status.total}</p>
+      ${renderWeekProgress(status.week)}
       <ol class="challenge-list">${items}</ol>
       ${status.allDone
         ? `<p class="challenge-done">Все задания выполнены!${rewardBtn ? '' : ''}</p>${rewardBtn}`
@@ -100,12 +126,16 @@ function updateUserLabel(): void {
   const user = getUser();
   if (user) {
     const gradeLabel = user.grade ? ` · ${user.grade} кл.` : '';
-    userLabelEl.textContent = `👤 ${user.login}${gradeLabel}`;
-    switchUserBtnEl.classList.remove('hidden');
+    const avatar = getAvatar(user.avatar);
+    avatarBtnEl.textContent = avatar.emoji;
+    avatarBtnEl.title = `Аватар: ${avatar.name}`;
+    avatarBtnEl.classList.remove('hidden');
+    userLabelEl.textContent = `${user.login}${gradeLabel}`;
     logoutBtnEl.classList.remove('hidden');
   } else {
+    avatarBtnEl.classList.add('hidden');
+    avatarBtnEl.textContent = '';
     userLabelEl.textContent = '';
-    switchUserBtnEl.classList.add('hidden');
     logoutBtnEl.classList.add('hidden');
   }
 
@@ -117,10 +147,8 @@ function updateUserLabel(): void {
   }
 }
 
-switchUserBtnEl.addEventListener('click', () => {
-  clearUser();
-  updateUserLabel();
-  void promptUserLogin().then(() => updateUserLabel());
+avatarBtnEl.addEventListener('click', () => {
+  showAvatarPicker(() => updateUserLabel());
 });
 
 logoutBtnEl.addEventListener('click', () => {
@@ -136,6 +164,9 @@ adminBtnEl.addEventListener('click', () => {
 async function init() {
   const user = await ensureUserLogin();
   updateUserLabel();
+  if (!user.avatar) {
+    showAvatarPicker(() => updateUserLabel());
+  }
 
   try {
     const [games, challenge] = await Promise.all([

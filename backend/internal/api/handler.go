@@ -57,6 +57,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/math/check", h.checkMathAnswer)
 	mux.HandleFunc("POST /api/users/login", h.userLogin)
 	mux.HandleFunc("PUT /api/users/password", h.setUserPassword)
+	mux.HandleFunc("PUT /api/users/avatar", h.setUserAvatar)
 	mux.HandleFunc("POST /api/tower-defense/start", h.tdStart)
 	mux.HandleFunc("POST /api/tower-defense/finish", h.tdFinish)
 	mux.HandleFunc("GET /api/fill-blanks/puzzle", h.fillBlanksPuzzle)
@@ -308,6 +309,7 @@ func (h *Handler) userLogin(w http.ResponseWriter, r *http.Request) {
 		"login":       user.Login,
 		"role":        user.Role,
 		"grade":       user.Grade,
+		"avatar":      user.Avatar,
 		"hasPassword": user.HasPassword,
 		"createdAt":   user.CreatedAt,
 	}
@@ -315,6 +317,37 @@ func (h *Handler) userLogin(w http.ResponseWriter, r *http.Request) {
 		resp["adminToken"] = h.adminAuth.IssueToken()
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+type setUserAvatarRequest struct {
+	UserID int    `json:"userId"`
+	Avatar string `json:"avatar"`
+}
+
+func (h *Handler) setUserAvatar(w http.ResponseWriter, r *http.Request) {
+	var req setUserAvatarRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.UserID <= 0 || req.Avatar == "" {
+		writeError(w, http.StatusBadRequest, "userId and avatar are required")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	user, err := h.db.SetUserAvatar(ctx, req.UserID, req.Avatar)
+	if err != nil {
+		if errors.Is(err, store.ErrUserNotFound) {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, user)
 }
 
 type setUserPasswordRequest struct {

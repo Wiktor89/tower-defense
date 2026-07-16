@@ -68,6 +68,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(16) NOT NULL DEFAULT 'user';
 		ALTER TABLE users ADD COLUMN IF NOT EXISTS grade INTEGER
 			CHECK (grade IS NULL OR (grade >= 1 AND grade <= 11));
+		ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar VARCHAR(32) NOT NULL DEFAULT '';
 		UPDATE users SET role = 'user' WHERE role IS NULL OR role = '';
 
 		CREATE TABLE IF NOT EXISTS user_game_stats (

@@ -25,6 +25,7 @@ export interface User {
   login: string;
   role?: UserRole;
   grade?: number | null;
+  avatar?: string | null;
   hasPassword?: boolean;
   createdAt: string;
   adminToken?: string;
@@ -128,6 +129,18 @@ export interface ChallengeGameItem {
   done: boolean;
 }
 
+export interface ChallengeDayProgress {
+  date: string;
+  label: string;
+  done: boolean;
+}
+
+export interface ChallengeWeekProgress {
+  days: ChallengeDayProgress[];
+  wins: number;
+  praise: string;
+}
+
 export interface ChallengeStatus {
   challenge?: { id: number; createdAt: string } | null;
   games: ChallengeGameItem[];
@@ -135,6 +148,7 @@ export interface ChallengeStatus {
   total: number;
   allDone: boolean;
   reward?: StageCompletion;
+  week?: ChallengeWeekProgress;
 }
 
 export interface DailyChallengeAdmin {

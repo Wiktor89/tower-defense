@@ -30,8 +30,16 @@ type User struct {
 	Login       string    `json:"login"`
 	Role        string    `json:"role"`
 	Grade       *int      `json:"grade"`
+	Avatar      string    `json:"avatar"`
 	HasPassword bool      `json:"hasPassword"`
 	CreatedAt   time.Time `json:"createdAt"`
+}
+
+func finalizeUser(user *User, passwordHash *string) {
+	if user.Role == "" {
+		user.Role = RoleUser
+	}
+	user.HasPassword = passwordHash != nil && *passwordHash != ""
 }
 
 func normalizeLogin(login string) (string, error) {
@@ -98,26 +106,22 @@ func (s *Store) LoginUser(ctx context.Context, login, password string) (User, er
 	var user User
 	var passwordHash *string
 	err = s.pool.QueryRow(ctx, `
-		SELECT id, login, role, grade, password_hash, created_at FROM users WHERE login = $1
-	`, login).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &passwordHash, &user.CreatedAt)
+		SELECT id, login, role, grade, avatar, password_hash, created_at FROM users WHERE login = $1
+	`, login).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &user.Avatar, &passwordHash, &user.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return s.createUser(ctx, login, password, RoleUser)
 	}
 	if err != nil {
 		return User{}, err
 	}
-	if user.Role == "" {
-		user.Role = RoleUser
-	}
+	finalizeUser(&user, passwordHash)
 
-	hasPassword := passwordHash != nil && *passwordHash != ""
-	if !hasPassword {
+	if !user.HasPassword {
 		return s.SetUserPassword(ctx, user.ID, password, "")
 	}
 	if !checkPassword(password, *passwordHash) {
 		return User{}, ErrInvalidPassword
 	}
-	user.HasPassword = true
 	return user, nil
 }
 
@@ -133,8 +137,8 @@ func (s *Store) AuthenticateAdmin(ctx context.Context, login, password string) (
 	var user User
 	var passwordHash *string
 	err = s.pool.QueryRow(ctx, `
-		SELECT id, login, role, grade, password_hash, created_at FROM users WHERE login = $1
-	`, login).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &passwordHash, &user.CreatedAt)
+		SELECT id, login, role, grade, avatar, password_hash, created_at FROM users WHERE login = $1
+	`, login).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &user.Avatar, &passwordHash, &user.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrInvalidPassword
 	}
@@ -147,7 +151,7 @@ func (s *Store) AuthenticateAdmin(ctx context.Context, login, password string) (
 	if passwordHash == nil || *passwordHash == "" || !checkPassword(password, *passwordHash) {
 		return User{}, ErrInvalidPassword
 	}
-	user.HasPassword = true
+	finalizeUser(&user, passwordHash)
 	return user, nil
 }
 
@@ -163,8 +167,8 @@ func (s *Store) createUser(ctx context.Context, login, password, role string) (U
 	var user User
 	err = s.pool.QueryRow(ctx, `
 		INSERT INTO users (login, password_hash, role) VALUES ($1, $2, $3)
-		RETURNING id, login, role, grade, created_at
-	`, login, hash, role).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &user.CreatedAt)
+		RETURNING id, login, role, grade, avatar, created_at
+	`, login, hash, role).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &user.Avatar, &user.CreatedAt)
 	if err != nil {
 		return User{}, err
 	}
@@ -176,18 +180,15 @@ func (s *Store) GetUser(ctx context.Context, id int) (User, error) {
 	var user User
 	var passwordHash *string
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, login, role, grade, password_hash, created_at FROM users WHERE id = $1
-	`, id).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &passwordHash, &user.CreatedAt)
+		SELECT id, login, role, grade, avatar, password_hash, created_at FROM users WHERE id = $1
+	`, id).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &user.Avatar, &passwordHash, &user.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrUserNotFound
 	}
 	if err != nil {
 		return User{}, err
 	}
-	if user.Role == "" {
-		user.Role = RoleUser
-	}
-	user.HasPassword = passwordHash != nil && *passwordHash != ""
+	finalizeUser(&user, passwordHash)
 	return user, err
 }
 
@@ -199,18 +200,40 @@ func (s *Store) SetUserGrade(ctx context.Context, userID int, grade int) (User, 
 	var passwordHash *string
 	err := s.pool.QueryRow(ctx, `
 		UPDATE users SET grade = $2 WHERE id = $1
-		RETURNING id, login, role, grade, password_hash, created_at
-	`, userID, grade).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &passwordHash, &user.CreatedAt)
+		RETURNING id, login, role, grade, avatar, password_hash, created_at
+	`, userID, grade).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &user.Avatar, &passwordHash, &user.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrUserNotFound
 	}
 	if err != nil {
 		return User{}, err
 	}
-	if user.Role == "" {
-		user.Role = RoleUser
+	finalizeUser(&user, passwordHash)
+	return user, nil
+}
+
+func (s *Store) SetUserAvatar(ctx context.Context, userID int, avatar string) (User, error) {
+	avatar, err := NormalizeAvatar(avatar)
+	if err != nil {
+		return User{}, err
 	}
-	user.HasPassword = passwordHash != nil && *passwordHash != ""
+	if avatar == "" {
+		return User{}, errors.New("avatar is required")
+	}
+
+	var user User
+	var passwordHash *string
+	err = s.pool.QueryRow(ctx, `
+		UPDATE users SET avatar = $2 WHERE id = $1
+		RETURNING id, login, role, grade, avatar, password_hash, created_at
+	`, userID, avatar).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &user.Avatar, &passwordHash, &user.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return User{}, ErrUserNotFound
+	}
+	if err != nil {
+		return User{}, err
+	}
+	finalizeUser(&user, passwordHash)
 	return user, nil
 }
 
@@ -222,20 +245,17 @@ func (s *Store) SetUserPassword(ctx context.Context, userID int, newPassword, cu
 	var passwordHash *string
 	var user User
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, login, role, grade, password_hash, created_at FROM users WHERE id = $1
-	`, userID).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &passwordHash, &user.CreatedAt)
+		SELECT id, login, role, grade, avatar, password_hash, created_at FROM users WHERE id = $1
+	`, userID).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &user.Avatar, &passwordHash, &user.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrUserNotFound
 	}
 	if err != nil {
 		return User{}, err
 	}
-	if user.Role == "" {
-		user.Role = RoleUser
-	}
+	finalizeUser(&user, passwordHash)
 
-	hasPassword := passwordHash != nil && *passwordHash != ""
-	if hasPassword {
+	if user.HasPassword {
 		if currentPassword == "" {
 			return User{}, ErrPasswordRequired
 		}
@@ -251,8 +271,8 @@ func (s *Store) SetUserPassword(ctx context.Context, userID int, newPassword, cu
 
 	err = s.pool.QueryRow(ctx, `
 		UPDATE users SET password_hash = $2 WHERE id = $1
-		RETURNING id, login, role, grade, created_at
-	`, userID, hash).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &user.CreatedAt)
+		RETURNING id, login, role, grade, avatar, created_at
+	`, userID, hash).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &user.Avatar, &user.CreatedAt)
 	if err != nil {
 		return User{}, err
 	}

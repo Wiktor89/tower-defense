@@ -246,6 +246,109 @@ body {
   margin-bottom: 14px;
 }
 
+.challenge-week {
+  margin: 0 0 16px;
+  padding: 14px 14px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.challenge-week__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.challenge-week__title {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 600;
+}
+
+.challenge-week__wins {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #fde68a;
+  letter-spacing: 0.02em;
+}
+
+.challenge-week__track {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0;
+  margin-bottom: 10px;
+}
+
+.challenge-week__day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.challenge-week__dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.85rem;
+  color: #422006;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+}
+
+.challenge-week__day--done .challenge-week__dot {
+  background: linear-gradient(145deg, #fbbf24, #f59e0b);
+  border-color: #fcd34d;
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.35);
+}
+
+.challenge-week__day--today .challenge-week__dot {
+  border-color: #a5b4fc;
+}
+
+.challenge-week__day--today.challenge-week__day--done .challenge-week__dot {
+  border-color: #fef3c7;
+}
+
+.challenge-week__label {
+  font-size: 0.72rem;
+  text-transform: lowercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.challenge-week__day--done .challenge-week__label,
+.challenge-week__day--today .challenge-week__label {
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 600;
+}
+
+.challenge-week__line {
+  flex: 1 1 auto;
+  height: 3px;
+  margin: 0 4px 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  align-self: center;
+}
+
+.challenge-week__day--done + .challenge-week__line {
+  background: linear-gradient(90deg, #f59e0b, rgba(251, 191, 36, 0.45));
+}
+
+.challenge-week__praise {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e9d5ff;
+  margin: 0;
+}
+
 .challenge-list {
   list-style: none;
   display: flex;

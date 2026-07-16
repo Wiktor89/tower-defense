@@ -23,13 +23,105 @@ type DailyChallenge struct {
 	CreatedAt time.Time       `json:"createdAt"`
 }
 
+type ChallengeDayProgress struct {
+	Date  string `json:"date"`
+	Label string `json:"label"`
+	Done  bool   `json:"done"`
+}
+
+type ChallengeWeekProgress struct {
+	Days   []ChallengeDayProgress `json:"days"`
+	Wins   int                    `json:"wins"`
+	Praise string                 `json:"praise"`
+}
+
 type ChallengeStatus struct {
-	Challenge   *DailyChallenge  `json:"challenge"`
-	Games       []ChallengeGame  `json:"games"`
-	Completed   int              `json:"completed"`
-	Total       int              `json:"total"`
-	AllDone     bool             `json:"allDone"`
-	Reward      *StageCompletion `json:"reward,omitempty"`
+	Challenge   *DailyChallenge        `json:"challenge"`
+	Games       []ChallengeGame        `json:"games"`
+	Completed   int                    `json:"completed"`
+	Total       int                    `json:"total"`
+	AllDone     bool                   `json:"allDone"`
+	Reward      *StageCompletion       `json:"reward,omitempty"`
+	Week        *ChallengeWeekProgress `json:"week,omitempty"`
+}
+
+var challengeWeekdayLabels = [...]string{"вс", "пн", "вт", "ср", "чт", "пт", "сб"}
+
+func praiseForChallengeWins(wins int) string {
+	switch {
+	case wins <= 0:
+		return "Новая неделя — самое время блеснуть!"
+	case wins == 1:
+		return "Первая победа! Так держать 🌟"
+	case wins == 2:
+		return "Две победы — ты в ритме!"
+	case wins == 3:
+		return "Три дня силы — продолжай!"
+	case wins == 4:
+		return "Уже 4 из 7 — ты почти чемпион!"
+	case wins == 5:
+		return "Пять побед! Неделя горит огнём 🔥"
+	case wins == 6:
+		return "Шесть дней! Ещё один — и идеал!"
+	default:
+		return "Семь из семи! Ты легенда недели! 🏆"
+	}
+}
+
+func (s *Store) GetChallengeWeekProgress(ctx context.Context, userID int) (*ChallengeWeekProgress, error) {
+	loc, err := time.LoadLocation("Europe/Moscow")
+	if err != nil {
+		loc = time.FixedZone("MSK", 3*60*60)
+	}
+	now := time.Now().In(loc)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+	start := today.AddDate(0, 0, -6)
+
+	doneDays := make(map[string]bool)
+	rows, err := s.pool.Query(ctx, `
+		SELECT DISTINCT (completed_at AT TIME ZONE 'Europe/Moscow')::date
+		FROM stage_completions
+		WHERE user_id = $1
+		  AND game_id = $2
+		  AND completed_at >= $3
+	`, userID, ChallengeGameID, start)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var day time.Time
+		if err := rows.Scan(&day); err != nil {
+			return nil, err
+		}
+		doneDays[day.Format("2006-01-02")] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	days := make([]ChallengeDayProgress, 0, 7)
+	wins := 0
+	for i := 0; i < 7; i++ {
+		day := start.AddDate(0, 0, i)
+		key := day.Format("2006-01-02")
+		done := doneDays[key]
+		if done {
+			wins++
+		}
+		days = append(days, ChallengeDayProgress{
+			Date:  key,
+			Label: challengeWeekdayLabels[day.Weekday()],
+			Done:  done,
+		})
+	}
+
+	return &ChallengeWeekProgress{
+		Days:   days,
+		Wins:   wins,
+		Praise: praiseForChallengeWins(wins),
+	}, nil
 }
 
 func (s *Store) GetActiveChallenge(ctx context.Context) (*DailyChallenge, error) {
@@ -190,8 +282,13 @@ func (s *Store) GetChallengeStatus(ctx context.Context, userID int) (*ChallengeS
 	if err != nil {
 		return nil, err
 	}
+	week, weekErr := s.GetChallengeWeekProgress(ctx, userID)
+	if weekErr != nil {
+		return nil, weekErr
+	}
+
 	if ch == nil {
-		return &ChallengeStatus{Games: []ChallengeGame{}, Total: 0}, nil
+		return &ChallengeStatus{Games: []ChallengeGame{}, Total: 0, Week: week}, nil
 	}
 
 	done := make(map[string]bool)
@@ -231,6 +328,7 @@ func (s *Store) GetChallengeStatus(ctx context.Context, userID int) (*ChallengeS
 		Completed: completed,
 		Total:     len(games),
 		AllDone:   len(games) > 0 && completed == len(games),
+		Week:      week,
 	}
 
 	var sc StageCompletion

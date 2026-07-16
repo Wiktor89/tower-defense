@@ -100,6 +100,13 @@ export function setUserPassword(userId: number, password: string, currentPasswor
   });
 }
 
+export function setUserAvatar(userId: number, avatar: string): Promise<User> {
+  return request<User>('/api/users/avatar', {
+    method: 'PUT',
+    body: JSON.stringify({ userId, avatar }),
+  });
+}
+
 export interface TdSessionStart {
   sessionId: string;
   minDurationMs: number;
