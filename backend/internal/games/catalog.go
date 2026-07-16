@@ -98,6 +98,18 @@ func SuitableForGrade(grade int) []Game {
 	return SuitableForGradeOrIDs(grade, nil)
 }
 
+func IsSuitableForGrade(gameID string, grade int) bool {
+	if grade < 1 || grade > 11 {
+		return false
+	}
+	for _, g := range Catalog() {
+		if g.ID == gameID {
+			return grade >= g.MinGrade && grade <= g.MaxGrade
+		}
+	}
+	return false
+}
+
 func SuitableForGradeOrIDs(grade int, extraIDs []string) []Game {
 	all := Catalog()
 	if grade < 1 || grade > 11 {

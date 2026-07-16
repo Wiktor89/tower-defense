@@ -154,14 +154,8 @@ export interface ChallengeStatus {
 
 export interface DailyChallengeAdmin {
   id?: number;
-  userId?: number;
-  userLogin?: string;
   games: ChallengeGameItem[];
   createdAt?: string;
-}
-
-export interface DailyChallengeAssignments {
-  assignments: DailyChallengeAdmin[];
 }
 
 export interface FillBlankText {

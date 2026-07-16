@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"games/internal/games"
+
 	"github.com/jackc/pgx/v5"
 )
 
@@ -149,17 +151,14 @@ func (s *Store) loadChallengeGames(ctx context.Context, challengeID int) ([]Chal
 	return out, rows.Err()
 }
 
-func (s *Store) GetActiveChallenge(ctx context.Context, userID int) (*DailyChallenge, error) {
-	if userID <= 0 {
-		return nil, nil
-	}
+func (s *Store) GetActiveChallenge(ctx context.Context) (*DailyChallenge, error) {
 	var ch DailyChallenge
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, user_id, created_at FROM daily_challenges
-		WHERE active = TRUE AND user_id = $1
+		SELECT id, created_at FROM daily_challenges
+		WHERE active = TRUE AND user_id IS NULL
 		ORDER BY id DESC
 		LIMIT 1
-	`, userID).Scan(&ch.ID, &ch.UserID, &ch.CreatedAt)
+	`).Scan(&ch.ID, &ch.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -167,51 +166,15 @@ func (s *Store) GetActiveChallenge(ctx context.Context, userID int) (*DailyChall
 		return nil, err
 	}
 
-	games, err := s.loadChallengeGames(ctx, ch.ID)
+	list, err := s.loadChallengeGames(ctx, ch.ID)
 	if err != nil {
 		return nil, err
 	}
-	ch.Games = games
+	ch.Games = list
 	return &ch, nil
 }
 
-func (s *Store) ListActiveUserChallenges(ctx context.Context) ([]DailyChallenge, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT c.id, c.user_id, u.login, c.created_at
-		FROM daily_challenges c
-		JOIN users u ON u.id = c.user_id
-		WHERE c.active = TRUE AND c.user_id IS NOT NULL
-		ORDER BY u.login
-	`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var list []DailyChallenge
-	for rows.Next() {
-		var ch DailyChallenge
-		if err := rows.Scan(&ch.ID, &ch.UserID, &ch.UserLogin, &ch.CreatedAt); err != nil {
-			return nil, err
-		}
-		games, err := s.loadChallengeGames(ctx, ch.ID)
-		if err != nil {
-			return nil, err
-		}
-		ch.Games = games
-		list = append(list, ch)
-	}
-	return list, rows.Err()
-}
-
-func (s *Store) SetActiveChallenge(ctx context.Context, userID int, gameIDs []string) (*DailyChallenge, error) {
-	if userID <= 0 {
-		return nil, errors.New("userId is required")
-	}
-	if _, err := s.GetUser(ctx, userID); err != nil {
-		return nil, err
-	}
-
+func (s *Store) SetActiveChallenge(ctx context.Context, gameIDs []string) (*DailyChallenge, error) {
 	seen := make(map[string]bool, len(gameIDs))
 	clean := make([]string, 0, len(gameIDs))
 	for _, id := range gameIDs {
@@ -221,6 +184,9 @@ func (s *Store) SetActiveChallenge(ctx context.Context, userID int, gameIDs []st
 		seen[id] = true
 		clean = append(clean, id)
 	}
+	if len(clean) == 0 {
+		return nil, errors.New("at least one game is required")
+	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -228,25 +194,15 @@ func (s *Store) SetActiveChallenge(ctx context.Context, userID int, gameIDs []st
 	}
 	defer tx.Rollback(ctx)
 
-	if _, err := tx.Exec(ctx, `
-		UPDATE daily_challenges SET active = FALSE
-		WHERE active = TRUE AND user_id = $1
-	`, userID); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE daily_challenges SET active = FALSE WHERE active = TRUE`); err != nil {
 		return nil, err
-	}
-
-	if len(clean) == 0 {
-		if err := tx.Commit(ctx); err != nil {
-			return nil, err
-		}
-		return &DailyChallenge{UserID: userID, Games: []ChallengeGame{}}, nil
 	}
 
 	var ch DailyChallenge
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO daily_challenges (active, user_id) VALUES (TRUE, $1)
-		RETURNING id, user_id, created_at
-	`, userID).Scan(&ch.ID, &ch.UserID, &ch.CreatedAt); err != nil {
+		INSERT INTO daily_challenges (active, user_id) VALUES (TRUE, NULL)
+		RETURNING id, created_at
+	`).Scan(&ch.ID, &ch.CreatedAt); err != nil {
 		return nil, err
 	}
 
@@ -266,14 +222,36 @@ func (s *Store) SetActiveChallenge(ctx context.Context, userID int, gameIDs []st
 	return &ch, nil
 }
 
+func (s *Store) challengeGamesForUser(ctx context.Context, userID int, all []ChallengeGame) ([]ChallengeGame, error) {
+	user, err := s.GetUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if user.Grade == nil {
+		return []ChallengeGame{}, nil
+	}
+	grade := *user.Grade
+	out := make([]ChallengeGame, 0, len(all))
+	for _, g := range all {
+		if games.IsSuitableForGrade(g.GameID, grade) {
+			out = append(out, g)
+		}
+	}
+	return out, nil
+}
+
 func (s *Store) MarkChallengeGameDone(ctx context.Context, userID int, gameID string) (*StageCompletion, error) {
-	ch, err := s.GetActiveChallenge(ctx, userID)
+	ch, err := s.GetActiveChallenge(ctx)
 	if err != nil || ch == nil {
 		return nil, err
 	}
 
+	relevant, err := s.challengeGamesForUser(ctx, userID, ch.Games)
+	if err != nil {
+		return nil, err
+	}
 	inChallenge := false
-	for _, g := range ch.Games {
+	for _, g := range relevant {
 		if g.GameID == gameID {
 			inChallenge = true
 			break
@@ -334,7 +312,7 @@ func (s *Store) grantChallengeReward(ctx context.Context, userID, challengeID in
 }
 
 func (s *Store) GetChallengeStatus(ctx context.Context, userID int) (*ChallengeStatus, error) {
-	ch, err := s.GetActiveChallenge(ctx, userID)
+	ch, err := s.GetActiveChallenge(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -345,6 +323,14 @@ func (s *Store) GetChallengeStatus(ctx context.Context, userID int) (*ChallengeS
 
 	if ch == nil {
 		return &ChallengeStatus{Games: []ChallengeGame{}, Total: 0, Week: week}, nil
+	}
+
+	relevant, err := s.challengeGamesForUser(ctx, userID, ch.Games)
+	if err != nil {
+		return nil, err
+	}
+	if len(relevant) == 0 {
+		return &ChallengeStatus{Challenge: ch, Games: []ChallengeGame{}, Total: 0, Week: week}, nil
 	}
 
 	done := make(map[string]bool)
@@ -367,23 +353,23 @@ func (s *Store) GetChallengeStatus(ctx context.Context, userID int) (*ChallengeS
 		return nil, err
 	}
 
-	games := make([]ChallengeGame, 0, len(ch.Games))
+	list := make([]ChallengeGame, 0, len(relevant))
 	completed := 0
-	for _, g := range ch.Games {
+	for _, g := range relevant {
 		item := g
 		item.Done = done[g.GameID]
 		if item.Done {
 			completed++
 		}
-		games = append(games, item)
+		list = append(list, item)
 	}
 
 	status := &ChallengeStatus{
 		Challenge: ch,
-		Games:     games,
+		Games:     list,
 		Completed: completed,
-		Total:     len(games),
-		AllDone:   len(games) > 0 && completed == len(games),
+		Total:     len(list),
+		AllDone:   len(list) > 0 && completed == len(list),
 		Week:      week,
 	}
 

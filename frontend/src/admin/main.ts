@@ -1,7 +1,7 @@
 import './admin.css';
 import '../shared/modal.css';
 import { adminDeleteUser, adminLogin, adminSetUserGrade, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminChallenge, fetchAdminFillBlankTexts, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateAdminChallenge, updateAdminFillBlankPercent, updateAdminFillBlankText, updateMathColumnsSettings } from '../api/client';
-import type { DailyChallengeAdmin, DailyChallengeAssignments, FillBlankText, GameSettings, StageCompletion, UserStatsRow } from '../types';
+import type { DailyChallengeAdmin, FillBlankText, GameSettings, StageCompletion, UserStatsRow } from '../types';
 import { PLANETS } from '../shared/planets';
 import { captchaFieldHtml, setupCaptcha } from '../shared/captcha';
 import { getAdminToken, setAdminToken, clearAdminToken } from '../shared/user';
@@ -271,7 +271,7 @@ type SettingsGameId =
 const SETTINGS_GAME_KEY = 'admin_settings_game';
 
 const SETTINGS_GAMES: { id: SettingsGameId; label: string; hint: string }[] = [
-  { id: 'daily-challenge', label: '🎯 Вызов дня', hint: 'Персональный список игр для ученика' },
+  { id: 'daily-challenge', label: '🎯 Вызов дня', hint: 'Общий список игр для всех учеников' },
   { id: 'math-columns', label: '📐 Столбик', hint: 'Знаки чисел и длина серии' },
   { id: 'fill-blanks', label: '📝 Заполни пропуски', hint: 'Тексты и процент пропусков' },
   { id: 'tower-defense', label: '🌻 Защита от зомби', hint: 'Настройки волны и сложности' },
@@ -313,34 +313,8 @@ function renderSettingsList(): string {
   `;
 }
 
-const CHALLENGE_USER_KEY = 'admin_challenge_user';
-
-function getChallengeUserId(): number {
-  const n = Number(sessionStorage.getItem(CHALLENGE_USER_KEY) ?? '');
-  return n > 0 ? n : 0;
-}
-
-function setChallengeUserId(userId: number): void {
-  if (userId > 0) sessionStorage.setItem(CHALLENGE_USER_KEY, String(userId));
-  else sessionStorage.removeItem(CHALLENGE_USER_KEY);
-}
-
-function renderChallengeSettings(
-  assignments: DailyChallengeAdmin[],
-  users: UserStatsRow[],
-): string {
-  const selectedUserId = getChallengeUserId();
-  const current = assignments.find(a => a.userId === selectedUserId);
-  const selected = new Set((current?.games ?? []).map(g => g.gameId));
-  const userOptions = users
-    .filter(u => u.role !== 'admin')
-    .map(u => {
-      const grade = u.grade ? ` · ${u.grade} кл.` : '';
-      const sel = u.userId === selectedUserId ? ' selected' : '';
-      return `<option value="${u.userId}"${sel}>${u.login}${grade}</option>`;
-    })
-    .join('');
-
+function renderChallengeSettings(challenge: DailyChallengeAdmin | null): string {
+  const selected = new Set((challenge?.games ?? []).map(g => g.gameId));
   const checks = CHALLENGE_GAME_OPTIONS.map(g => `
     <label class="admin-check">
       <input type="checkbox" name="challenge-game" value="${g.id}" ${selected.has(g.id) ? 'checked' : ''}>
@@ -348,30 +322,14 @@ function renderChallengeSettings(
     </label>
   `).join('');
 
-  const assignmentRows = assignments.length
-    ? assignments.map(a => {
-        const titles = (a.games ?? []).map(g => g.title ?? g.gameId).join(', ') || '—';
-        return `<li><strong>${a.userLogin ?? a.userId}</strong>: ${titles}</li>`;
-      }).join('')
-    : '<li class="admin-empty">Пока никому не назначен</li>';
-
   return `
     <section class="admin-section">
-      <p class="admin-section__hint">У каждого ученика свой вызов дня. Выберите ученика и отметьте игры.</p>
+      <p class="admin-section__hint">Общий список для всех. Ученик видит только игры своего класса (1–11).</p>
       <form id="challenge-form" class="admin-challenge-form">
-        <label class="admin-field">
-          <span>Ученик</span>
-          <select id="challenge-user" required>
-            <option value="">Выберите ученика</option>
-            ${userOptions}
-          </select>
-        </label>
         <div class="admin-check-list">${checks}</div>
         <button type="submit" class="admin-btn">Сохранить вызов</button>
       </form>
       <p class="admin-verify-result hidden" id="challenge-result"></p>
-      <h3 class="admin-subtitle">Назначенные вызовы</h3>
-      <ul class="admin-assignment-list">${assignmentRows}</ul>
     </section>
   `;
 }
@@ -455,15 +413,14 @@ function renderBreadcrumbs(activeTab: AdminTab): string {
 function renderSettingsTab(
   mathSettings: GameSettings | null,
   fillTexts: FillBlankText[],
-  challenge: DailyChallengeAssignments | null,
-  users: UserStatsRow[],
+  challenge: DailyChallengeAdmin | null,
 ): string {
   const gameId = getSettingsGame();
   if (!gameId) return renderSettingsList();
 
   switch (gameId) {
     case 'daily-challenge':
-      return renderChallengeSettings(challenge?.assignments ?? [], users);
+      return renderChallengeSettings(challenge);
     case 'math-columns':
       return renderMathSettings(mathSettings);
     case 'fill-blanks':
@@ -512,7 +469,7 @@ function renderDashboard(
   stages: StageCompletion[],
   mathSettings: GameSettings | null,
   fillTexts: FillBlankText[],
-  challenge: DailyChallengeAssignments | null,
+  challenge: DailyChallengeAdmin | null,
   loadError?: string,
   loading = false,
 ): void {
@@ -531,7 +488,7 @@ function renderDashboard(
     <nav class="admin-tabs">${tabButtons}</nav>
 
     <div class="admin-tab-panel${activeTab === 'settings' ? ' admin-tab-panel--active' : ''}" data-panel="settings">
-      ${renderSettingsTab(mathSettings, fillTexts, challenge, rows)}
+      ${renderSettingsTab(mathSettings, fillTexts, challenge)}
     </div>
 
     <div class="admin-tab-panel${activeTab === 'verify' ? ' admin-tab-panel--active' : ''}" data-panel="verify">
@@ -609,43 +566,15 @@ function renderDashboard(
     }
   });
 
-  const challengeFlash = sessionStorage.getItem('admin_challenge_flash');
-  if (challengeFlash) {
-    sessionStorage.removeItem('admin_challenge_flash');
-    const resultEl = appEl.querySelector<HTMLParagraphElement>('#challenge-result');
-    if (resultEl) {
-      resultEl.textContent = challengeFlash;
-      resultEl.className = 'admin-verify-result admin-verify-result--ok';
-    }
-  }
-
-  appEl.querySelector<HTMLSelectElement>('#challenge-user')?.addEventListener('change', (e) => {
-    const userId = Number((e.target as HTMLSelectElement).value);
-    setChallengeUserId(userId);
-    void loadDashboard(token);
-  });
-
   appEl.querySelector<HTMLFormElement>('#challenge-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const resultEl = appEl.querySelector<HTMLParagraphElement>('#challenge-result')!;
-    const userId = Number((appEl.querySelector('#challenge-user') as HTMLSelectElement).value);
     const gameIds = [...appEl.querySelectorAll<HTMLInputElement>('input[name="challenge-game"]:checked')]
       .map(el => el.value);
-    if (!userId) {
-      resultEl.textContent = 'Выберите ученика';
-      resultEl.className = 'admin-verify-result admin-verify-result--fail';
-      return;
-    }
     try {
-      const saved = await updateAdminChallenge(token, userId, gameIds);
-      setChallengeUserId(userId);
-      sessionStorage.setItem(
-        'admin_challenge_flash',
-        gameIds.length
-          ? `Вызов для ученика сохранён: ${saved.games.length} игр`
-          : 'Вызов у ученика снят',
-      );
-      void loadDashboard(token);
+      const saved = await updateAdminChallenge(token, gameIds);
+      resultEl.textContent = `Вызов сохранён для всех: ${saved.games.length} игр (с учётом класса ученика)`;
+      resultEl.className = 'admin-verify-result admin-verify-result--ok';
     } catch (err) {
       resultEl.textContent = err instanceof Error ? err.message : 'Ошибка сохранения';
       resultEl.className = 'admin-verify-result admin-verify-result--fail';
