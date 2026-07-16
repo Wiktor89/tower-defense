@@ -95,6 +95,7 @@ export interface VerifyResult {
 export interface GameSettings {
   gameId: string;
   sessionSize: number;
+  digitCount: number;
 }
 
 export interface FillBlanksToken {

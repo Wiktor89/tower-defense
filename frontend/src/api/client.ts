@@ -220,11 +220,15 @@ export function fetchAdminMathColumnsSettings(token: string): Promise<GameSettin
   });
 }
 
-export function updateMathColumnsSettings(token: string, sessionSize: number): Promise<GameSettings> {
+export function updateMathColumnsSettings(
+  token: string,
+  sessionSize: number,
+  digitCount: number,
+): Promise<GameSettings> {
   return request<GameSettings>('/api/admin/settings/math-columns', {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ sessionSize }),
+    body: JSON.stringify({ sessionSize, digitCount }),
   });
 }
 

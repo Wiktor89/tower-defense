@@ -294,8 +294,13 @@ function renderSettingsTab(
 
     <section class="admin-section">
       <h2>📐 Столбик</h2>
-      <p class="admin-section__hint">Сколько правильных примеров нужно решить для завершения серии</p>
+      <p class="admin-section__hint">Длина чисел в примерах и сколько правильных ответов нужно для серии</p>
       <form id="settings-form" class="admin-verify-form">
+        <label class="admin-field">
+          <span>Знаков в числе (1–6)</span>
+          <input type="number" id="digit-count" min="1" max="6"
+            value="${mathSettings?.digitCount ?? 2}" required>
+        </label>
         <label class="admin-field">
           <span>Примеров в серии</span>
           <input type="number" id="session-size" min="1" max="200"
@@ -464,10 +469,11 @@ function renderDashboard(
     e.preventDefault();
     const resultEl = appEl.querySelector<HTMLParagraphElement>('#settings-result')!;
     const sessionSize = Number((appEl.querySelector('#session-size') as HTMLInputElement).value);
+    const digitCount = Number((appEl.querySelector('#digit-count') as HTMLInputElement).value);
 
     try {
-      const settings = await updateMathColumnsSettings(token, sessionSize);
-      resultEl.textContent = `Сохранено: ${settings.sessionSize} примеров в серии`;
+      const settings = await updateMathColumnsSettings(token, sessionSize, digitCount);
+      resultEl.textContent = `Сохранено: ${settings.digitCount} знаков, ${settings.sessionSize} примеров в серии`;
       resultEl.className = 'admin-verify-result admin-verify-result--ok';
     } catch (err) {
       resultEl.textContent = err instanceof Error ? err.message : 'Ошибка сохранения';

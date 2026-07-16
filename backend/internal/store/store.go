@@ -102,8 +102,11 @@ func (s *Store) migrate(ctx context.Context) error {
 			session_size INTEGER NOT NULL DEFAULT 50 CHECK (session_size >= 1 AND session_size <= 200)
 		);
 
-		INSERT INTO game_settings (game_id, session_size)
-		VALUES ('math-columns', 50)
+		ALTER TABLE game_settings
+			ADD COLUMN IF NOT EXISTS digit_count INTEGER NOT NULL DEFAULT 2;
+
+		INSERT INTO game_settings (game_id, session_size, digit_count)
+		VALUES ('math-columns', 50, 2)
 		ON CONFLICT (game_id) DO NOTHING;
 
 		CREATE TABLE IF NOT EXISTS fill_blank_texts (

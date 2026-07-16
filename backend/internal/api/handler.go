@@ -174,7 +174,12 @@ func (h *Handler) createMathProblem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	problem := mathpkg.Generate(*user.Grade, "mixed")
+	digits, err := h.db.GetDigitCount(ctx, "math-columns")
+	if err != nil {
+		digits = store.DefaultDigitCount
+	}
+
+	problem := mathpkg.Generate(*user.Grade, digits, "mixed")
 	h.mathStore.Save(problem)
 	writeJSON(w, http.StatusOK, mathpkg.PublicView(problem))
 }
@@ -909,15 +914,16 @@ func (h *Handler) mathColumnsSettings(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	size, err := h.db.GetSessionSize(ctx, "math-columns")
+	gs, err := h.db.GetGameSettings(ctx, "math-columns")
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to load settings")
+		writeJSON(w, http.StatusOK, store.GameSettings{
+			GameID:      "math-columns",
+			SessionSize: store.DefaultSessionSize,
+			DigitCount:  store.DefaultDigitCount,
+		})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"gameId":      "math-columns",
-		"sessionSize": size,
-	})
+	writeJSON(w, http.StatusOK, gs)
 }
 
 func (h *Handler) adminGetMathColumnsSettings(w http.ResponseWriter, r *http.Request) {
@@ -930,19 +936,21 @@ func (h *Handler) adminGetMathColumnsSettings(w http.ResponseWriter, r *http.Req
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	size, err := h.db.GetSessionSize(ctx, "math-columns")
+	gs, err := h.db.GetGameSettings(ctx, "math-columns")
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to load settings")
+		writeJSON(w, http.StatusOK, store.GameSettings{
+			GameID:      "math-columns",
+			SessionSize: store.DefaultSessionSize,
+			DigitCount:  store.DefaultDigitCount,
+		})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"gameId":      "math-columns",
-		"sessionSize": size,
-	})
+	writeJSON(w, http.StatusOK, gs)
 }
 
 type mathColumnsSettingsRequest struct {
 	SessionSize int `json:"sessionSize"`
+	DigitCount  int `json:"digitCount"`
 }
 
 func (h *Handler) adminSetMathColumnsSettings(w http.ResponseWriter, r *http.Request) {
@@ -961,11 +969,15 @@ func (h *Handler) adminSetMathColumnsSettings(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusBadRequest, "sessionSize must be between 1 and 200")
 		return
 	}
+	if req.DigitCount < store.MinDigitCount || req.DigitCount > store.MaxDigitCount {
+		writeError(w, http.StatusBadRequest, "digitCount must be between 1 and 6")
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	gs, err := h.db.SetSessionSize(ctx, "math-columns", req.SessionSize)
+	gs, err := h.db.SetMathColumnsSettings(ctx, req.SessionSize, req.DigitCount)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
