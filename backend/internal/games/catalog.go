@@ -95,13 +95,23 @@ func Catalog() []Game {
 }
 
 func SuitableForGrade(grade int) []Game {
+	return SuitableForGradeOrIDs(grade, nil)
+}
+
+func SuitableForGradeOrIDs(grade int, extraIDs []string) []Game {
 	all := Catalog()
 	if grade < 1 || grade > 11 {
 		return nil
 	}
+	extra := make(map[string]bool, len(extraIDs))
+	for _, id := range extraIDs {
+		if id != "" {
+			extra[id] = true
+		}
+	}
 	out := make([]Game, 0, len(all))
 	for _, g := range all {
-		if grade >= g.MinGrade && grade <= g.MaxGrade {
+		if (grade >= g.MinGrade && grade <= g.MaxGrade) || extra[g.ID] {
 			out = append(out, g)
 		}
 	}

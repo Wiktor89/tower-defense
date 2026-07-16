@@ -131,7 +131,15 @@ func (h *Handler) listGames(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, []games.Game{})
 		return
 	}
-	writeJSON(w, http.StatusOK, games.SuitableForGrade(*user.Grade))
+
+	var challengeIDs []string
+	if ch, err := h.db.GetActiveChallenge(ctx); err == nil && ch != nil {
+		challengeIDs = make([]string, 0, len(ch.Games))
+		for _, g := range ch.Games {
+			challengeIDs = append(challengeIDs, g.GameID)
+		}
+	}
+	writeJSON(w, http.StatusOK, games.SuitableForGradeOrIDs(*user.Grade, challengeIDs))
 }
 
 type mathProblemRequest struct {
