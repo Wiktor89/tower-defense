@@ -252,6 +252,16 @@ function onSettingsChange(): void {
   void renderColumn();
 }
 
+function applyUserGrade(userGrade: number | null | undefined): void {
+  if (userGrade == null || userGrade < 1 || userGrade > 11) return;
+  level = Math.min(3, Math.max(1, userGrade));
+  const levelControl = document.getElementById('level-control');
+  if (levelControl) levelControl.hidden = true;
+  document.querySelectorAll<HTMLButtonElement>('#level-btns .ctrl-btn').forEach(btn => {
+    btn.classList.toggle('active', Number(btn.dataset.level) === level);
+  });
+}
+
 document.querySelectorAll<HTMLButtonElement>('#level-btns .ctrl-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('#level-btns .ctrl-btn').forEach(b => b.classList.remove('active'));
@@ -283,7 +293,10 @@ ui.hintBtn.addEventListener('click', showHint);
 
 updateProgress();
 void ensureUserLogin()
-  .then(() => fetchMathColumnsSettings())
+  .then(user => {
+    applyUserGrade(user.grade);
+    return fetchMathColumnsSettings();
+  })
   .then(settings => {
     sessionSize = settings.sessionSize;
     updateProgress();
