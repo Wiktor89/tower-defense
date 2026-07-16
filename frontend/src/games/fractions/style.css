@@ -141,6 +141,61 @@ header {
   font-size: 0.9rem;
 }
 
+.gate-locked {
+  opacity: 0.55;
+}
+
+.tutorial {
+  display: flex;
+  justify-content: center;
+}
+
+.tutorial-card {
+  width: 100%;
+  max-width: 640px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #e2c39a;
+  border-radius: 18px;
+  box-shadow: 0 8px 28px rgba(90, 50, 20, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tutorial-progress {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #a07850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tutorial-card h2 {
+  font-size: 1.35rem;
+}
+
+.tutorial-body {
+  line-height: 1.5;
+  color: #5a3518;
+}
+
+.tutorial-tip {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff1de;
+  border: 1px dashed #e8c89a;
+  color: #8a4b22;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.tutorial-pie {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
 .board {
   padding: 20px;
   background: rgba(255, 255, 255, 0.94);

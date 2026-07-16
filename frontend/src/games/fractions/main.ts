@@ -5,13 +5,17 @@ import { ensureUserLogin } from '../../shared/login';
 import { showChallengeReward } from '../../shared/solar-reward';
 import { setupLab } from './lab';
 import { countSelected, renderPie } from './pie';
+import { createTutorialController, isTutorialDone, markTutorialDone } from './tutorial';
 
 const gateEl = document.getElementById('gate');
 const playEl = document.getElementById('play');
+const tutorialEl = document.getElementById('tutorial');
+const gateEyebrow = document.getElementById('gate-eyebrow');
 const gateHeading = document.getElementById('gate-heading');
 const gateDesc = document.getElementById('gate-desc');
 const gatePhase = document.getElementById('gate-phase');
 const gateError = document.getElementById('gate-error');
+const learnBtn = document.getElementById('learn-btn') as HTMLButtonElement | null;
 const startBtn = document.getElementById('start-btn') as HTMLButtonElement | null;
 const labOpenBtn = document.getElementById('lab-open-btn') as HTMLButtonElement | null;
 const labBtn = document.getElementById('lab-btn') as HTMLButtonElement | null;
@@ -32,30 +36,46 @@ const nextBtn = document.getElementById('next-btn') as HTMLButtonElement | null;
 const rankTitleEl = document.getElementById('rank-title');
 const scoreCorrectEl = document.getElementById('score-correct');
 const scoreWrongEl = document.getElementById('score-wrong');
+const tutorialProgress = document.getElementById('tutorial-progress');
+const tutorialTitle = document.getElementById('tutorial-title');
+const tutorialBody = document.getElementById('tutorial-body');
+const tutorialTip = document.getElementById('tutorial-tip');
+const tutorialPie = document.getElementById('tutorial-pie');
+const quizPrompt = document.getElementById('quiz-prompt');
+const quizStage = document.getElementById('quiz-stage');
+const tutorialFeedback = document.getElementById('tutorial-feedback');
+const tutorialPrev = document.getElementById('tutorial-prev') as HTMLButtonElement | null;
+const tutorialNext = document.getElementById('tutorial-next') as HTMLButtonElement | null;
+const lessonPane = document.getElementById('lesson-pane');
+const quizPane = document.getElementById('quiz-pane');
 
 if (
-  !gateEl || !playEl || !gateHeading || !gateDesc || !gatePhase || !gateError ||
-  !startBtn || !labOpenBtn || !labBtn || !labPanel || !labPie || !labFrac ||
-  !labParts || !labPartsVal || !labCloseBtn || !questGrade || !questTitle ||
+  !gateEl || !playEl || !tutorialEl || !gateEyebrow || !gateHeading || !gateDesc || !gatePhase ||
+  !gateError || !learnBtn || !startBtn || !labOpenBtn || !labBtn || !labPanel || !labPie ||
+  !labFrac || !labParts || !labPartsVal || !labCloseBtn || !questGrade || !questTitle ||
   !promptEl || !stageEl || !hintPieEl || !feedbackEl || !checkBtn || !nextBtn ||
-  !rankTitleEl || !scoreCorrectEl || !scoreWrongEl
+  !rankTitleEl || !scoreCorrectEl || !scoreWrongEl || !tutorialProgress || !tutorialTitle ||
+  !tutorialBody || !tutorialTip || !tutorialPie || !quizPrompt || !quizStage ||
+  !tutorialFeedback || !tutorialPrev || !tutorialNext || !lessonPane || !quizPane
 ) {
   throw new Error('Missing required DOM elements');
 }
 
 const ui = {
-  gateEl, playEl, gateHeading, gateDesc, gatePhase, gateError, startBtn,
-  questGrade, questTitle, promptEl, stageEl, hintPieEl, feedbackEl,
+  gateEl, playEl, tutorialEl, gateEyebrow, gateHeading, gateDesc, gatePhase, gateError,
+  learnBtn, startBtn, questGrade, questTitle, promptEl, stageEl, hintPieEl, feedbackEl,
   checkBtn, nextBtn, rankTitleEl, scoreCorrectEl, scoreWrongEl,
 };
 
 let userId = 0;
+let unlocked = false;
 let problem: FractionProblem | null = null;
 let locked = false;
 let correctCount = 0;
 let wrongCount = 0;
 let pieSelected: boolean[] = [];
 let comparePick: 'a' | 'b' | null = null;
+let userGrade: number | null = null;
 
 const PHASES: Record<number, string> = {
   1: 'Фаза «Знакомство с долями» — половины и равные части',
@@ -101,19 +121,39 @@ function showVisualHint(hint?: FractionVisualHint): void {
     ?? `Вспомни пирог: ${hint.take ?? 0} из ${hint.parts} частей`;
 }
 
-function renderGate(grade: number | null | undefined): void {
-  if (!grade) {
+function renderGate(): void {
+  ui.gateEl.classList.remove('hidden');
+  ui.playEl.classList.add('hidden');
+  ui.tutorialEl.classList.add('hidden');
+
+  if (!unlocked) {
+    ui.gateEyebrow.textContent = 'Обязательное обучение';
+    ui.gateHeading.textContent = 'Что такое дроби?';
+    ui.gateDesc.textContent =
+      'Перед квестами пройди короткое обучение по Колесникову: равные части, половина, четверть и запись дроби. Затем сдашь мини-тест из 3 вопросов — только после этого откроется «Деление и дроби».';
+    ui.gatePhase.textContent = 'Квесты заблокированы, пока не сдан мини-тест';
+    ui.learnBtn.classList.remove('hidden');
+    ui.startBtn.classList.add('hidden');
+    ui.startBtn.disabled = true;
+    return;
+  }
+
+  ui.learnBtn.classList.add('hidden');
+  ui.startBtn.classList.remove('hidden');
+  ui.gateEyebrow.textContent = 'Обучение пройдено';
+
+  if (!userGrade) {
     ui.gateHeading.textContent = 'Класс ещё не назначен';
     ui.gateDesc.textContent = 'Попросите администратора указать ваш класс (1–9). Лабораторию можно открыть уже сейчас.';
     ui.gatePhase.textContent = 'Ожидание класса';
     ui.startBtn.disabled = true;
-    ui.gateError.textContent = '';
-    ui.gateError.classList.add('hidden');
     return;
   }
-  const capped = Math.min(grade, 9);
-  ui.gateHeading.textContent = `${capped} класс`;
-  ui.gateDesc.textContent = 'Мир потерял целостность. Чтобы чинить мосты и распределять ресурсы, освой магию деления и дробей — без сухих цифр в начале, только визуальные доли.';
+
+  const capped = Math.min(userGrade, 9);
+  ui.gateHeading.textContent = `${capped} класс — квесты открыты`;
+  ui.gateDesc.textContent =
+    'Мир потерял целостность. Чини мосты и распределяй ресурсы с помощью деления и дробей.';
   ui.gatePhase.textContent = PHASES[capped] ?? PHASES[9] ?? '';
   ui.startBtn.disabled = false;
 }
@@ -277,6 +317,10 @@ function readAnswer(): number | string | { num: number; den: number } | null {
 }
 
 async function loadProblem(): Promise<void> {
+  if (!unlocked) {
+    showFeedback('Сначала пройди обучение и мини-тест.', 'hint');
+    return;
+  }
   try {
     problem = await fetchFractionProblem(userId);
     renderStage();
@@ -292,7 +336,7 @@ async function loadProblem(): Promise<void> {
 }
 
 async function onCheck(): Promise<void> {
-  if (!problem || locked) return;
+  if (!problem || locked || !unlocked) return;
   const answer = readAnswer();
   if (answer === null) {
     showFeedback('Сначала выбери или введи ответ.', 'hint');
@@ -320,6 +364,30 @@ async function onCheck(): Promise<void> {
   }
 }
 
+const tutorial = createTutorialController(
+  {
+    root: tutorialEl,
+    progress: tutorialProgress,
+    title: tutorialTitle,
+    body: tutorialBody,
+    tip: tutorialTip,
+    pie: tutorialPie,
+    quizPrompt,
+    quizStage,
+    feedback: tutorialFeedback,
+    prevBtn: tutorialPrev,
+    nextBtn: tutorialNext,
+    lessonPane,
+    quizPane,
+  },
+  () => {
+    markTutorialDone(userId);
+    unlocked = true;
+    tutorial.hide();
+    renderGate();
+  },
+);
+
 setupLab({
   panel: labPanel,
   pie: labPie,
@@ -330,7 +398,13 @@ setupLab({
   closeBtn: labCloseBtn,
 });
 
+ui.learnBtn.addEventListener('click', () => {
+  ui.gateEl.classList.add('hidden');
+  tutorial.start();
+});
+
 ui.startBtn.addEventListener('click', () => {
+  if (!unlocked) return;
   ui.gateEl.classList.add('hidden');
   ui.playEl.classList.remove('hidden');
   void loadProblem();
@@ -342,7 +416,9 @@ ui.nextBtn.addEventListener('click', () => void loadProblem());
 async function boot(): Promise<void> {
   const user = await ensureUserLogin();
   userId = user.id;
-  renderGate(user.grade);
+  userGrade = user.grade ?? null;
+  unlocked = isTutorialDone(userId);
+  renderGate();
   updateScore();
 }
 

@@ -22,15 +22,38 @@
 
     <section id="gate" class="gate">
       <div class="gate-card">
-        <p class="gate-eyebrow">Первый запуск</p>
-        <h2 id="gate-heading">Твой класс</h2>
+        <p class="gate-eyebrow" id="gate-eyebrow">Сначала обучение</p>
+        <h2 id="gate-heading">Что такое дроби?</h2>
         <p id="gate-desc" class="gate-desc"></p>
         <div id="gate-phase" class="gate-phase"></div>
         <div class="gate-actions">
-          <button id="start-btn" class="action-btn action-btn--primary" type="button">Начать квест</button>
+          <button id="learn-btn" class="action-btn action-btn--primary" type="button">Пройти обучение</button>
+          <button id="start-btn" class="action-btn action-btn--primary hidden" type="button">Начать квест</button>
           <button id="lab-open-btn" class="action-btn action-btn--ghost" type="button">Лаборатория</button>
         </div>
         <p id="gate-error" class="gate-error hidden"></p>
+      </div>
+    </section>
+
+    <section id="tutorial" class="tutorial hidden">
+      <div class="tutorial-card">
+        <p id="tutorial-progress" class="tutorial-progress"></p>
+        <div id="lesson-pane">
+          <h2 id="tutorial-title"></h2>
+          <p id="tutorial-body" class="tutorial-body"></p>
+          <p id="tutorial-tip" class="tutorial-tip"></p>
+          <div id="tutorial-pie" class="tutorial-pie"></div>
+        </div>
+        <div id="quiz-pane" class="hidden">
+          <h2>Мини-тест</h2>
+          <p id="quiz-prompt" class="tutorial-body"></p>
+          <div id="quiz-stage" class="stage"></div>
+        </div>
+        <div id="tutorial-feedback" class="feedback hidden"></div>
+        <div class="actions">
+          <button id="tutorial-prev" class="action-btn action-btn--ghost hidden" type="button">Назад</button>
+          <button id="tutorial-next" class="action-btn action-btn--primary" type="button">Дальше</button>
+        </div>
       </div>
     </section>
 
