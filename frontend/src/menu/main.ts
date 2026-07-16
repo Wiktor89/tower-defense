@@ -152,37 +152,25 @@ function updateUserLabel(): void {
   }
 }
 
-avatarBtnEl.addEventListener('click', () => {
-  showAvatarPicker(() => updateUserLabel());
-});
-
-logoutBtnEl.addEventListener('click', () => {
-  clearUser();
-  updateUserLabel();
-  void promptUserLogin().then(() => updateUserLabel());
-});
-
-adminBtnEl.addEventListener('click', () => {
-  window.location.href = '/admin/';
-});
-
-async function init() {
-  const user = await ensureUserLogin();
-  updateUserLabel();
-  if (!user.avatar) {
-    showAvatarPicker(() => updateUserLabel());
-  }
+async function loadMenuForUser(userId: number, isAdmin: boolean): Promise<void> {
+  gamesGrid.innerHTML = '';
+  challengePanelEl.classList.add('hidden');
+  challengePanelEl.innerHTML = '';
 
   try {
     const [games, challenge] = await Promise.all([
-      fetchGames(user.id),
-      fetchChallenge(user.id).catch(() => null),
+      fetchGames(userId),
+      fetchChallenge(userId).catch(() => null),
     ]);
 
     if (challenge) renderChallenge(challenge);
+    else {
+      challengePanelEl.classList.add('hidden');
+      challengePanelEl.innerHTML = '';
+    }
 
     if (games.length === 0) {
-      gamesGrid.innerHTML = isAdminUser(user)
+      gamesGrid.innerHTML = isAdmin
         ? '<p class="menu-error">Список игр пуст.</p>'
         : '<p class="menu-error">Администратор ещё не назначил ваш класс — игры появятся после этого.</p>';
       return;
@@ -191,6 +179,38 @@ async function init() {
   } catch {
     gamesGrid.innerHTML = '<p class="menu-error">Не удалось загрузить список игр. Запустите backend.</p>';
   }
+}
+
+async function afterLogin(): Promise<void> {
+  const user = getUser();
+  updateUserLabel();
+  if (!user) return;
+  if (!user.avatar) {
+    showAvatarPicker(() => updateUserLabel());
+  }
+  await loadMenuForUser(user.id, isAdminUser(user));
+}
+
+avatarBtnEl.addEventListener('click', () => {
+  showAvatarPicker(() => updateUserLabel());
+});
+
+logoutBtnEl.addEventListener('click', () => {
+  clearUser();
+  updateUserLabel();
+  gamesGrid.innerHTML = '';
+  challengePanelEl.classList.add('hidden');
+  challengePanelEl.innerHTML = '';
+  void promptUserLogin().then(() => afterLogin());
+});
+
+adminBtnEl.addEventListener('click', () => {
+  window.location.href = '/admin/';
+});
+
+async function init() {
+  await ensureUserLogin();
+  await afterLogin();
 }
 
 void init();
