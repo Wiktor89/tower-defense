@@ -12,6 +12,7 @@ import (
 	"games/internal/admin"
 	"games/internal/captcha"
 	"games/internal/fillblanks"
+	"games/internal/fractions"
 	"games/internal/games"
 	mathpkg "games/internal/math"
 	"games/internal/store"
@@ -23,6 +24,7 @@ type Handler struct {
 	mathSessions *mathpkg.SessionTracker
 	tdSessions   *td.Store
 	fillStore    *fillblanks.Store
+	fracStore    *fractions.Store
 	db           *store.Store
 	adminAuth    *admin.Auth
 	captcha      *captcha.Store
@@ -33,6 +35,7 @@ func NewHandler(
 	mathSessions *mathpkg.SessionTracker,
 	tdSessions *td.Store,
 	fillStore *fillblanks.Store,
+	fracStore *fractions.Store,
 	db *store.Store,
 	adminAuth *admin.Auth,
 	captchaStore *captcha.Store,
@@ -42,6 +45,7 @@ func NewHandler(
 		mathSessions: mathSessions,
 		tdSessions:   tdSessions,
 		fillStore:    fillStore,
+		fracStore:    fracStore,
 		db:           db,
 		adminAuth:    adminAuth,
 		captcha:      captchaStore,
@@ -63,6 +67,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/fill-blanks/puzzle", h.fillBlanksPuzzle)
 	mux.HandleFunc("POST /api/fill-blanks/check", h.fillBlanksCheck)
 	mux.HandleFunc("POST /api/disassemble/complete", h.disassembleComplete)
+	mux.HandleFunc("POST /api/fractions/problem", h.createFractionProblem)
+	mux.HandleFunc("POST /api/fractions/check", h.checkFractionAnswer)
 	mux.HandleFunc("GET /api/settings/math-columns", h.mathColumnsSettings)
 	mux.HandleFunc("POST /api/admin/login", h.adminLogin)
 	mux.HandleFunc("GET /api/admin/stats", h.adminStats)
@@ -614,6 +620,122 @@ func (h *Handler) disassembleComplete(w http.ResponseWriter, r *http.Request) {
 		out["challengeReward"] = reward
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+func (h *Handler) createFractionProblem(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UserID int `json:"userId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.UserID <= 0 {
+		writeError(w, http.StatusBadRequest, "userId is required")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	user, err := h.db.GetUser(ctx, req.UserID)
+	if err != nil {
+		if errors.Is(err, store.ErrUserNotFound) {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to load user")
+		return
+	}
+	if user.Grade == nil {
+		writeError(w, http.StatusBadRequest, "user grade is not set")
+		return
+	}
+	grade := *user.Grade
+	if grade > 9 {
+		grade = 9
+	}
+
+	problem := fractions.Generate(grade)
+	h.fracStore.Save(problem)
+	writeJSON(w, http.StatusOK, fractions.PublicView(problem))
+}
+
+type fractionCheckRequest struct {
+	ID     string `json:"id"`
+	Answer any    `json:"answer"`
+	UserID int    `json:"userId"`
+}
+
+type fractionCheckResponse struct {
+	Correct         bool                   `json:"correct"`
+	VisualHint      map[string]any         `json:"visualHint,omitempty"`
+	RankTitle       string                 `json:"rankTitle,omitempty"`
+	ChallengeReward *store.StageCompletion `json:"challengeReward,omitempty"`
+}
+
+func (h *Handler) checkFractionAnswer(w http.ResponseWriter, r *http.Request) {
+	var req fractionCheckRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.ID == "" {
+		writeError(w, http.StatusBadRequest, "missing problem id")
+		return
+	}
+
+	problem, ok := h.fracStore.Get(req.ID)
+	if !ok {
+		writeError(w, http.StatusNotFound, "problem not found or expired")
+		return
+	}
+	defer h.fracStore.Delete(req.ID)
+
+	correct, hint := fractions.Check(problem, req.Answer)
+	resp := fractionCheckResponse{Correct: correct}
+	if !correct {
+		resp.VisualHint = hint
+	}
+
+	if req.UserID > 0 {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		if _, err := h.db.GetUser(ctx, req.UserID); err != nil {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+
+		delta := store.StatsDelta{}
+		if correct {
+			delta.Correct = 1
+			delta.SessionsCompleted = 1
+		} else {
+			delta.Wrong = 1
+		}
+		if err := h.db.AddStats(ctx, req.UserID, "fractions", delta); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to save stats")
+			return
+		}
+
+		if stats, err := h.db.GetGameStats(ctx, req.UserID, "fractions"); err == nil {
+			resp.RankTitle = fractions.RankTitle(stats.Correct)
+		} else if correct {
+			resp.RankTitle = fractions.RankTitle(1)
+		}
+
+		if correct {
+			if reward, err := h.db.MarkChallengeGameDone(ctx, req.UserID, "fractions"); err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to update challenge")
+				return
+			} else if reward != nil {
+				resp.ChallengeReward = reward
+			}
+		}
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func (h *Handler) getChallenge(w http.ResponseWriter, r *http.Request) {

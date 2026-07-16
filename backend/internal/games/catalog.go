@@ -59,6 +59,17 @@ func Catalog() []Game {
 			MaxGrade:    11,
 		},
 		{
+			ID:          "fractions",
+			Title:       "Деление и дроби",
+			Description: "Мир долей по Колесникову: от половинок и пиццы до алгебраических дробей.",
+			Icon:        "🍕",
+			URL:         "/games/fractions/",
+			Available:   true,
+			Tags:        []string{"математика", "дроби"},
+			MinGrade:    1,
+			MaxGrade:    9,
+		},
+		{
 			ID:          "snake",
 			Title:       "Змейка",
 			Description: "Классическая аркада — собирайте яблоки и не врезайтесь в стены.",

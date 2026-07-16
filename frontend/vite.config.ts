@@ -11,6 +11,7 @@ export default defineConfig({
         mathColumns: resolve(__dirname, 'games/math-columns/index.html'),
         fillBlanks: resolve(__dirname, 'games/fill-blanks/index.html'),
         disassemble: resolve(__dirname, 'games/disassemble/index.html'),
+        fractions: resolve(__dirname, 'games/fractions/index.html'),
         admin: resolve(__dirname, 'admin/index.html'),
       },
     },

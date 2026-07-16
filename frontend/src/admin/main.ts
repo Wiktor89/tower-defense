@@ -14,6 +14,7 @@ const GAME_NAMES: Record<string, string> = {
   'math-columns': '📐 Столбик',
   'fill-blanks': '📝 Заполни пропуски',
   'disassemble': '🔧 Разбери и собери',
+  'fractions': '🍕 Деление и дроби',
 };
 
 type AdminTab = 'settings' | 'verify' | 'stats';
@@ -266,7 +267,8 @@ type SettingsGameId =
   | 'math-columns'
   | 'fill-blanks'
   | 'tower-defense'
-  | 'disassemble';
+  | 'disassemble'
+  | 'fractions';
 
 const SETTINGS_GAME_KEY = 'admin_settings_game';
 
@@ -276,6 +278,7 @@ const SETTINGS_GAMES: { id: SettingsGameId; label: string; hint: string; hasGrad
   { id: 'fill-blanks', label: '📝 Заполни пропуски', hint: 'Тексты и процент пропусков', hasGrade: true },
   { id: 'tower-defense', label: '🌻 Защита от зомби', hint: 'Настройки волны и сложности', hasGrade: true },
   { id: 'disassemble', label: '🔧 Разбери и собери', hint: 'Настройки сборки', hasGrade: true },
+  { id: 'fractions', label: '🍕 Деление и дроби', hint: 'Задания по классу (1–9)', hasGrade: true },
 ];
 
 const CHALLENGE_GAME_OPTIONS: { id: string; label: string }[] = [
@@ -283,6 +286,7 @@ const CHALLENGE_GAME_OPTIONS: { id: string; label: string }[] = [
   { id: 'fill-blanks', label: '📝 Заполни пропуски' },
   { id: 'tower-defense', label: '🌻 Защита от зомби' },
   { id: 'disassemble', label: '🔧 Разбери и собери' },
+  { id: 'fractions', label: '🍕 Деление и дроби' },
 ];
 
 function getSettingsGame(): SettingsGameId | null {
@@ -470,6 +474,7 @@ function renderSettingsTab(
       return renderFillBlanksSettings(fillTexts, grades);
     case 'tower-defense':
     case 'disassemble':
+    case 'fractions':
       return renderGameOnlyGradeSettings(gameId, grades);
     default:
       return renderSettingsList(grades);

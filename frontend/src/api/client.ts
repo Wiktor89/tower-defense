@@ -1,4 +1,4 @@
-import type { CaptchaChallenge, CaptchaPayload, ChallengeStatus, DailyChallengeAdmin, FillBlankText, FillBlanksCheckResult, FillBlanksPuzzle, GameCatalogItem, GameGrade, GameSettings, MathCheckResult, MathProblem, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
+import type { CaptchaChallenge, CaptchaPayload, ChallengeStatus, DailyChallengeAdmin, FillBlankText, FillBlanksCheckResult, FillBlanksPuzzle, FractionCheckResult, FractionProblem, GameCatalogItem, GameGrade, GameSettings, MathCheckResult, MathProblem, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -138,6 +138,24 @@ export function checkFillBlanks(id: string, answers: string[], userId?: number):
   return request<FillBlanksCheckResult>('/api/fill-blanks/check', {
     method: 'POST',
     body: JSON.stringify({ id, answers, userId: userId ?? 0 }),
+  });
+}
+
+export function fetchFractionProblem(userId: number): Promise<FractionProblem> {
+  return request<FractionProblem>('/api/fractions/problem', {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  });
+}
+
+export function checkFractionAnswer(
+  id: string,
+  answer: number | string | { num: number; den: number },
+  userId?: number,
+): Promise<FractionCheckResult> {
+  return request<FractionCheckResult>('/api/fractions/check', {
+    method: 'POST',
+    body: JSON.stringify({ id, answer, userId: userId ?? 0 }),
   });
 }
 

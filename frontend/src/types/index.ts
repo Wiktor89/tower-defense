@@ -128,6 +128,28 @@ export interface FillBlanksCheckResult {
   challengeReward?: StageCompletion;
 }
 
+export interface FractionProblem {
+  id: string;
+  grade: number;
+  kind: string;
+  title: string;
+  prompt: string;
+  payload: Record<string, unknown>;
+}
+
+export interface FractionVisualHint {
+  parts?: number;
+  take?: number;
+  label?: string;
+}
+
+export interface FractionCheckResult {
+  correct: boolean;
+  visualHint?: FractionVisualHint;
+  rankTitle?: string;
+  challengeReward?: StageCompletion;
+}
+
 export interface ChallengeGameItem {
   gameId: string;
   title?: string;

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Деление и дроби</title>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <a href="/" class="back-btn" title="Вернуться в меню">← Меню</a>
+      <div class="header-title">
+        <h1>🍕 Деление и дроби</h1>
+        <p class="subtitle">По книге Олега Колесникова</p>
+      </div>
+      <div class="stats">
+        <span id="rank-title">Ученик</span>
+        <span id="score-correct">✓ 0</span>
+        <span id="score-wrong">✗ 0</span>
+      </div>
+    </header>
+
+    <section id="gate" class="gate">
+      <div class="gate-card">
+        <p class="gate-eyebrow">Первый запуск</p>
+        <h2 id="gate-heading">Твой класс</h2>
+        <p id="gate-desc" class="gate-desc"></p>
+        <div id="gate-phase" class="gate-phase"></div>
+        <div class="gate-actions">
+          <button id="start-btn" class="action-btn action-btn--primary" type="button">Начать квест</button>
+          <button id="lab-open-btn" class="action-btn action-btn--ghost" type="button">Лаборатория</button>
+        </div>
+        <p id="gate-error" class="gate-error hidden"></p>
+      </div>
+    </section>
+
+    <main id="play" class="board hidden">
+      <div class="quest-meta">
+        <span id="quest-grade" class="badge"></span>
+        <span id="quest-title" class="quest-title"></span>
+      </div>
+      <p id="prompt" class="prompt"></p>
+      <div id="stage" class="stage"></div>
+      <div id="hint-pie" class="hint-pie hidden"></div>
+      <div id="feedback" class="feedback hidden"></div>
+      <div class="actions">
+        <button id="check-btn" class="action-btn action-btn--primary" type="button">Проверить</button>
+        <button id="next-btn" class="action-btn hidden" type="button">Следующий квест</button>
+        <button id="lab-btn" class="action-btn action-btn--ghost" type="button">Лаборатория</button>
+      </div>
+    </main>
+
+    <aside id="lab" class="lab hidden" aria-label="Лаборатория дробей">
+      <div class="lab-card">
+        <div class="lab-head">
+          <h2>Лаборатория</h2>
+          <button id="lab-close-btn" class="lab-close" type="button" aria-label="Закрыть">×</button>
+        </div>
+        <p class="lab-hint">Разрежь объект на N частей и отметь, сколько взял — увидишь дробь.</p>
+        <div class="lab-controls">
+          <label>Частей <input id="lab-parts" type="range" min="2" max="12" value="4"></label>
+          <span id="lab-parts-val">4</span>
+        </div>
+        <div id="lab-pie" class="lab-pie"></div>
+        <p id="lab-frac" class="lab-frac">0/4</p>
+      </div>
+    </aside>
+  </div>
+
+  <script type="module" src="/src/games/fractions/main.ts"></script>
+</body>
+</html>

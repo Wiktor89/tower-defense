@@ -48,6 +48,21 @@ func (s *Store) AddStats(ctx context.Context, userID int, gameID string, delta S
 	return err
 }
 
+func (s *Store) GetGameStats(ctx context.Context, userID int, gameID string) (GameStats, error) {
+	var gs GameStats
+	err := s.pool.QueryRow(ctx, `
+		SELECT game_id, correct, wrong, sessions_completed, games_won, games_lost, updated_at
+		FROM user_game_stats
+		WHERE user_id = $1 AND game_id = $2
+	`, userID, gameID).Scan(
+		&gs.GameID, &gs.Correct, &gs.Wrong, &gs.SessionsCompleted, &gs.GamesWon, &gs.GamesLost, &gs.UpdatedAt,
+	)
+	if err != nil {
+		return GameStats{GameID: gameID}, err
+	}
+	return gs, nil
+}
+
 func (s *Store) ListAllUserStats(ctx context.Context) ([]UserStatsRow, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT u.id, u.login, u.role, u.grade, u.created_at,
