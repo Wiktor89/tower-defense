@@ -5,8 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"games/internal/games"
-
 	"github.com/jackc/pgx/v5"
 )
 
@@ -233,7 +231,11 @@ func (s *Store) challengeGamesForUser(ctx context.Context, userID int, all []Cha
 	grade := *user.Grade
 	out := make([]ChallengeGame, 0, len(all))
 	for _, g := range all {
-		if games.IsSuitableForGrade(g.GameID, grade) {
+		ok, err := s.IsGameSuitableForGrade(ctx, g.GameID, grade)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
 			out = append(out, g)
 		}
 	}

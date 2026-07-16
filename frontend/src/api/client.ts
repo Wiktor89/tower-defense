@@ -1,4 +1,4 @@
-import type { CaptchaChallenge, CaptchaPayload, ChallengeStatus, DailyChallengeAdmin, FillBlankText, FillBlanksCheckResult, FillBlanksPuzzle, GameCatalogItem, GameSettings, MathCheckResult, MathProblem, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
+import type { CaptchaChallenge, CaptchaPayload, ChallengeStatus, DailyChallengeAdmin, FillBlankText, FillBlanksCheckResult, FillBlanksPuzzle, GameCatalogItem, GameGrade, GameSettings, MathCheckResult, MathProblem, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -236,6 +236,25 @@ export function updateMathColumnsSettings(
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ sessionSize, digitCount }),
+  });
+}
+
+export function fetchAdminGameGrades(token: string): Promise<GameGrade[]> {
+  return request<GameGrade[]>('/api/admin/settings/game-grades', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function updateAdminGameGrade(
+  token: string,
+  gameId: string,
+  minGrade: number,
+  maxGrade: number,
+): Promise<GameGrade> {
+  return request<GameGrade>('/api/admin/settings/game-grades', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ gameId, minGrade, maxGrade }),
   });
 }
 

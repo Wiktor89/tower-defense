@@ -1,7 +1,7 @@
 import './admin.css';
 import '../shared/modal.css';
-import { adminDeleteUser, adminLogin, adminSetUserGrade, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminChallenge, fetchAdminFillBlankTexts, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateAdminChallenge, updateAdminFillBlankPercent, updateAdminFillBlankText, updateMathColumnsSettings } from '../api/client';
-import type { DailyChallengeAdmin, FillBlankText, GameSettings, StageCompletion, UserStatsRow } from '../types';
+import { adminDeleteUser, adminLogin, adminSetUserGrade, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminChallenge, fetchAdminFillBlankTexts, fetchAdminGameGrades, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateAdminChallenge, updateAdminFillBlankPercent, updateAdminFillBlankText, updateAdminGameGrade, updateMathColumnsSettings } from '../api/client';
+import type { DailyChallengeAdmin, FillBlankText, GameGrade, GameSettings, StageCompletion, UserStatsRow } from '../types';
 import { PLANETS } from '../shared/planets';
 import { captchaFieldHtml, setupCaptcha } from '../shared/captcha';
 import { getAdminToken, setAdminToken, clearAdminToken } from '../shared/user';
@@ -270,12 +270,12 @@ type SettingsGameId =
 
 const SETTINGS_GAME_KEY = 'admin_settings_game';
 
-const SETTINGS_GAMES: { id: SettingsGameId; label: string; hint: string }[] = [
-  { id: 'daily-challenge', label: '🎯 Вызов дня', hint: 'Общий список игр для всех учеников' },
-  { id: 'math-columns', label: '📐 Столбик', hint: 'Знаки чисел и длина серии' },
-  { id: 'fill-blanks', label: '📝 Заполни пропуски', hint: 'Тексты и процент пропусков' },
-  { id: 'tower-defense', label: '🌻 Защита от зомби', hint: 'Настройки волны и сложности' },
-  { id: 'disassemble', label: '🔧 Разбери и собери', hint: 'Настройки сборки' },
+const SETTINGS_GAMES: { id: SettingsGameId; label: string; hint: string; hasGrade: boolean }[] = [
+  { id: 'daily-challenge', label: '🎯 Вызов дня', hint: 'Общий список игр для всех учеников', hasGrade: false },
+  { id: 'math-columns', label: '📐 Столбик', hint: 'Знаки чисел и длина серии', hasGrade: true },
+  { id: 'fill-blanks', label: '📝 Заполни пропуски', hint: 'Тексты и процент пропусков', hasGrade: true },
+  { id: 'tower-defense', label: '🌻 Защита от зомби', hint: 'Настройки волны и сложности', hasGrade: true },
+  { id: 'disassemble', label: '🔧 Разбери и собери', hint: 'Настройки сборки', hasGrade: true },
 ];
 
 const CHALLENGE_GAME_OPTIONS: { id: string; label: string }[] = [
@@ -296,18 +296,55 @@ function setSettingsGame(id: SettingsGameId | null): void {
   else sessionStorage.removeItem(SETTINGS_GAME_KEY);
 }
 
-function renderSettingsList(): string {
-  const items = SETTINGS_GAMES.map(g => `
+function gradeOptions(selected: number): string {
+  return Array.from({ length: 11 }, (_, i) => {
+    const g = i + 1;
+    return `<option value="${g}"${g === selected ? ' selected' : ''}>${g}</option>`;
+  }).join('');
+}
+
+function findGameGrade(grades: GameGrade[], gameId: string): GameGrade {
+  return grades.find(g => g.gameId === gameId) ?? { gameId, minGrade: 1, maxGrade: 11 };
+}
+
+function renderGradeSettings(gameId: string, grades: GameGrade[]): string {
+  const gg = findGameGrade(grades, gameId);
+  return `
+    <section class="admin-section">
+      <h3 class="admin-subtitle">Возрастная категория</h3>
+      <p class="admin-section__hint">Игра видна ученикам только в указанном диапазоне классов (1–11)</p>
+      <form id="grade-form" class="admin-verify-form" data-game-id="${gameId}">
+        <label class="admin-field">
+          <span>От класса</span>
+          <select id="min-grade" required>${gradeOptions(gg.minGrade)}</select>
+        </label>
+        <label class="admin-field">
+          <span>До класса</span>
+          <select id="max-grade" required>${gradeOptions(gg.maxGrade)}</select>
+        </label>
+        <button type="submit" class="admin-btn">Сохранить классы</button>
+      </form>
+      <p class="admin-verify-result hidden" id="grade-result"></p>
+    </section>
+  `;
+}
+
+function renderSettingsList(grades: GameGrade[]): string {
+  const items = SETTINGS_GAMES.map(g => {
+    const gg = g.hasGrade ? findGameGrade(grades, g.id) : null;
+    const gradeHint = gg ? ` · ${gg.minGrade}–${gg.maxGrade} кл.` : '';
+    return `
     <button type="button" class="admin-game-link" data-settings-game="${g.id}">
       <span class="admin-game-link__title">${g.label}</span>
-      <span class="admin-game-link__hint">${g.hint}</span>
+      <span class="admin-game-link__hint">${g.hint}${gradeHint}</span>
       <span class="admin-game-link__arrow" aria-hidden="true">→</span>
     </button>
-  `).join('');
+  `;
+  }).join('');
 
   return `
     <section class="admin-section">
-      <p class="admin-section__hint">Выберите игру, чтобы изменить её параметры</p>
+      <p class="admin-section__hint">Выберите игру, чтобы изменить её параметры и возрастную категорию</p>
       <div class="admin-game-list">${items}</div>
     </section>
   `;
@@ -334,10 +371,12 @@ function renderChallengeSettings(challenge: DailyChallengeAdmin | null): string 
   `;
 }
 
-function renderMathSettings(mathSettings: GameSettings | null): string {
+function renderMathSettings(mathSettings: GameSettings | null, grades: GameGrade[]): string {
   return `
+    ${renderGradeSettings('math-columns', grades)}
     <section class="admin-section">
-      <p class="admin-section__hint">Длина чисел в примерах и сколько правильных ответов нужно для серии</p>
+      <h3 class="admin-subtitle">Параметры серии</h3>
+      <p class="admin-section__hint">Длина чисел в примерах (для 5+ класса) и сколько правильных ответов нужно для серии</p>
       <form id="settings-form" class="admin-verify-form">
         <label class="admin-field">
           <span>Знаков в числе (1–6)</span>
@@ -356,9 +395,11 @@ function renderMathSettings(mathSettings: GameSettings | null): string {
   `;
 }
 
-function renderFillBlanksSettings(fillTexts: FillBlankText[]): string {
+function renderFillBlanksSettings(fillTexts: FillBlankText[], grades: GameGrade[]): string {
   return `
+    ${renderGradeSettings('fill-blanks', grades)}
     <section class="admin-section">
+      <h3 class="admin-subtitle">Тексты</h3>
       <p class="admin-section__hint">Добавьте полный текст. Если больше 30 слов — разобьётся на абзацы/предложения; у каждого — свой список слов справа.</p>
       <form id="fill-text-form" class="admin-fill-form">
         <textarea id="fill-text-input" rows="5" placeholder="Вставьте текст скороговорки или предложения…" required></textarea>
@@ -371,10 +412,11 @@ function renderFillBlanksSettings(fillTexts: FillBlankText[]): string {
   `;
 }
 
-function renderEmptyGameSettings(): string {
+function renderGameOnlyGradeSettings(gameId: string, grades: GameGrade[]): string {
   return `
+    ${renderGradeSettings(gameId, grades)}
     <section class="admin-section">
-      <p class="admin-section__hint">Для этой игры пока нет дополнительных настроек.</p>
+      <p class="admin-section__hint">Других настроек для этой игры пока нет.</p>
     </section>
   `;
 }
@@ -414,22 +456,23 @@ function renderSettingsTab(
   mathSettings: GameSettings | null,
   fillTexts: FillBlankText[],
   challenge: DailyChallengeAdmin | null,
+  grades: GameGrade[],
 ): string {
   const gameId = getSettingsGame();
-  if (!gameId) return renderSettingsList();
+  if (!gameId) return renderSettingsList(grades);
 
   switch (gameId) {
     case 'daily-challenge':
       return renderChallengeSettings(challenge);
     case 'math-columns':
-      return renderMathSettings(mathSettings);
+      return renderMathSettings(mathSettings, grades);
     case 'fill-blanks':
-      return renderFillBlanksSettings(fillTexts);
+      return renderFillBlanksSettings(fillTexts, grades);
     case 'tower-defense':
     case 'disassemble':
-      return renderEmptyGameSettings();
+      return renderGameOnlyGradeSettings(gameId, grades);
     default:
-      return renderSettingsList();
+      return renderSettingsList(grades);
   }
 }
 
@@ -470,6 +513,7 @@ function renderDashboard(
   mathSettings: GameSettings | null,
   fillTexts: FillBlankText[],
   challenge: DailyChallengeAdmin | null,
+  grades: GameGrade[],
   loadError?: string,
   loading = false,
 ): void {
@@ -488,7 +532,7 @@ function renderDashboard(
     <nav class="admin-tabs">${tabButtons}</nav>
 
     <div class="admin-tab-panel${activeTab === 'settings' ? ' admin-tab-panel--active' : ''}" data-panel="settings">
-      ${renderSettingsTab(mathSettings, fillTexts, challenge)}
+      ${renderSettingsTab(mathSettings, fillTexts, challenge, grades)}
     </div>
 
     <div class="admin-tab-panel${activeTab === 'verify' ? ' admin-tab-panel--active' : ''}" data-panel="verify">
@@ -574,6 +618,23 @@ function renderDashboard(
     try {
       const saved = await updateAdminChallenge(token, gameIds);
       resultEl.textContent = `Вызов сохранён для всех: ${saved.games.length} игр (с учётом класса ученика)`;
+      resultEl.className = 'admin-verify-result admin-verify-result--ok';
+    } catch (err) {
+      resultEl.textContent = err instanceof Error ? err.message : 'Ошибка сохранения';
+      resultEl.className = 'admin-verify-result admin-verify-result--fail';
+    }
+  });
+
+  appEl.querySelector<HTMLFormElement>('#grade-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const resultEl = appEl.querySelector<HTMLParagraphElement>('#grade-result')!;
+    const gameId = form.dataset.gameId ?? '';
+    const minGrade = Number((appEl.querySelector('#min-grade') as HTMLSelectElement).value);
+    const maxGrade = Number((appEl.querySelector('#max-grade') as HTMLSelectElement).value);
+    try {
+      const saved = await updateAdminGameGrade(token, gameId, minGrade, maxGrade);
+      resultEl.textContent = `Сохранено: ${saved.minGrade}–${saved.maxGrade} класс`;
       resultEl.className = 'admin-verify-result admin-verify-result--ok';
     } catch (err) {
       resultEl.textContent = err instanceof Error ? err.message : 'Ошибка сохранения';
@@ -730,18 +791,19 @@ function renderDashboard(
 
 async function loadDashboard(token: string): Promise<void> {
   const activeTab = getActiveTab();
-  renderDashboard(token, [], [], null, [], null, undefined, true);
+  renderDashboard(token, [], [], null, [], null, [], undefined, true);
   setActiveTab(activeTab);
 
-  const [statsResult, stagesResult, settingsResult, fillTextsResult, challengeResult] = await Promise.allSettled([
+  const [statsResult, stagesResult, settingsResult, fillTextsResult, challengeResult, gradesResult] = await Promise.allSettled([
     fetchAdminStats(token),
     fetchAdminStages(token),
     fetchAdminMathColumnsSettings(token),
     fetchAdminFillBlankTexts(token),
     fetchAdminChallenge(token),
+    fetchAdminGameGrades(token),
   ]);
 
-  const unauthorized = [statsResult, stagesResult, settingsResult, fillTextsResult, challengeResult].some(
+  const unauthorized = [statsResult, stagesResult, settingsResult, fillTextsResult, challengeResult, gradesResult].some(
     r => r.status === 'rejected' && r.reason instanceof Error && r.reason.message.toLowerCase().includes('unauthorized'),
   );
   if (unauthorized) {
@@ -755,6 +817,7 @@ async function loadDashboard(token: string): Promise<void> {
   const mathSettings = settingsResult.status === 'fulfilled' ? settingsResult.value : null;
   const fillTexts = fillTextsResult.status === 'fulfilled' ? fillTextsResult.value : [];
   const challenge = challengeResult.status === 'fulfilled' ? challengeResult.value : null;
+  const grades = gradesResult.status === 'fulfilled' ? gradesResult.value : [];
 
   const errors: string[] = [];
   if (statsResult.status === 'rejected') {
@@ -777,6 +840,10 @@ async function loadDashboard(token: string): Promise<void> {
     const msg = challengeResult.reason instanceof Error ? challengeResult.reason.message : 'не удалось загрузить вызов дня';
     errors.push(msg);
   }
+  if (gradesResult.status === 'rejected') {
+    const msg = gradesResult.reason instanceof Error ? gradesResult.reason.message : 'не удалось загрузить классы игр';
+    errors.push(msg);
+  }
 
   renderDashboard(
     token,
@@ -785,6 +852,7 @@ async function loadDashboard(token: string): Promise<void> {
     mathSettings,
     fillTexts,
     challenge,
+    grades,
     errors.length ? `⚠️ ${errors.join('; ')}` : undefined,
   );
 }

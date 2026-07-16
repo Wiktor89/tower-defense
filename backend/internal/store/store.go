@@ -148,6 +148,16 @@ func (s *Store) migrate(ctx context.Context) error {
 			completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			PRIMARY KEY (challenge_id, user_id, game_id)
 		);
+
+		CREATE TABLE IF NOT EXISTS game_grades (
+			game_id VARCHAR(64) PRIMARY KEY,
+			min_grade INTEGER NOT NULL CHECK (min_grade >= 1 AND min_grade <= 11),
+			max_grade INTEGER NOT NULL CHECK (max_grade >= 1 AND max_grade <= 11),
+			CHECK (min_grade <= max_grade)
+		);
 	`)
-	return err
+	if err != nil {
+		return err
+	}
+	return s.ensureGameGrades(ctx)
 }

@@ -76,6 +76,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/admin/settings/fill-blanks/{id}", h.adminDeleteFillText)
 	mux.HandleFunc("GET /api/admin/settings/daily-challenge", h.adminGetChallenge)
 	mux.HandleFunc("PUT /api/admin/settings/daily-challenge", h.adminSetChallenge)
+	mux.HandleFunc("GET /api/admin/settings/game-grades", h.adminListGameGrades)
+	mux.HandleFunc("PUT /api/admin/settings/game-grades", h.adminSetGameGrade)
 	mux.HandleFunc("PUT /api/admin/users/{id}/grade", h.adminSetUserGrade)
 	mux.HandleFunc("DELETE /api/admin/users/{id}", h.adminDeleteUser)
 }
@@ -103,7 +105,14 @@ func (h *Handler) checkCaptcha(w http.ResponseWriter, id string, answer int) boo
 func (h *Handler) listGames(w http.ResponseWriter, r *http.Request) {
 	userIDStr := r.URL.Query().Get("userId")
 	if userIDStr == "" {
-		writeJSON(w, http.StatusOK, games.Catalog())
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		catalog, err := h.db.CatalogWithGrades(ctx)
+		if err != nil {
+			writeJSON(w, http.StatusOK, games.Catalog())
+			return
+		}
+		writeJSON(w, http.StatusOK, catalog)
 		return
 	}
 	userID, err := strconv.Atoi(userIDStr)
@@ -125,7 +134,12 @@ func (h *Handler) listGames(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if user.Role == store.RoleAdmin {
-		writeJSON(w, http.StatusOK, games.Catalog())
+		catalog, err := h.db.CatalogWithGrades(ctx)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to load games")
+			return
+		}
+		writeJSON(w, http.StatusOK, catalog)
 		return
 	}
 	if user.Grade == nil {
@@ -133,7 +147,12 @@ func (h *Handler) listGames(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, games.SuitableForGrade(*user.Grade))
+	catalog, err := h.db.SuitableForGrade(ctx, *user.Grade)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load games")
+		return
+	}
+	writeJSON(w, http.StatusOK, catalog)
 }
 
 func enrichChallengeGames(list []store.ChallengeGame) {
@@ -616,6 +635,50 @@ func (h *Handler) getChallenge(w http.ResponseWriter, r *http.Request) {
 		enrichChallengeGames(status.Games)
 	}
 	writeJSON(w, http.StatusOK, status)
+}
+
+func (h *Handler) adminListGameGrades(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	list, err := h.db.ListGameGrades(ctx)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load game grades")
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (h *Handler) adminSetGameGrade(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	var req struct {
+		GameID   string `json:"gameId"`
+		MinGrade int    `json:"minGrade"`
+		MaxGrade int    `json:"maxGrade"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	gg, err := h.db.SetGameGrade(ctx, req.GameID, req.MinGrade, req.MaxGrade)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, gg)
 }
 
 func (h *Handler) adminGetChallenge(w http.ResponseWriter, r *http.Request) {

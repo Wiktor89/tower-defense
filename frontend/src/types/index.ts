@@ -99,6 +99,12 @@ export interface GameSettings {
   digitCount: number;
 }
 
+export interface GameGrade {
+  gameId: string;
+  minGrade: number;
+  maxGrade: number;
+}
+
 export interface FillBlanksToken {
   type: 'text' | 'blank';
   value?: string;
