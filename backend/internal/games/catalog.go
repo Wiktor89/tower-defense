@@ -17,7 +17,7 @@ func Catalog() []Game {
 		{
 			ID:          "tower-defense",
 			Title:       "Защита от зомби",
-			Description: "Tower defense в стиле Plants vs Zombies. Сажайте растения и отбивайте волны зомби.",
+			Description: "Отбивайте волны зомби.",
 			Icon:        "🌻",
 			URL:         "/games/tower-defense/",
 			Available:   true,
