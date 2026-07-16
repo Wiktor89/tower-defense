@@ -1,5 +1,6 @@
 import './style.css';
 import { checkFillBlanks, fetchFillBlanksPuzzle } from '../../api/client';
+import { showChallengeReward } from '../../shared/solar-reward';
 import type { FillBlanksParagraph, FillBlanksPuzzle, FillBlanksToken } from '../../types';
 import { ensureUserLogin } from '../../shared/login';
 import { getUser } from '../../shared/user';
@@ -320,6 +321,7 @@ async function onCheck(): Promise<void> {
       ui.nextBtn.classList.remove('hidden');
       ui.clearBtn.classList.add('hidden');
       ui.checkBtn.classList.add('hidden');
+      if (result.challengeReward) showChallengeReward(result.challengeReward);
     } else {
       wrongCount++;
       updateScore();

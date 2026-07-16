@@ -116,6 +116,27 @@ func (s *Store) migrate(ctx context.Context) error {
 
 		ALTER TABLE fill_blank_texts
 			ADD COLUMN IF NOT EXISTS blank_percent INTEGER NOT NULL DEFAULT 30;
+
+		CREATE TABLE IF NOT EXISTS daily_challenges (
+			id SERIAL PRIMARY KEY,
+			active BOOLEAN NOT NULL DEFAULT TRUE,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		);
+
+		CREATE TABLE IF NOT EXISTS daily_challenge_games (
+			challenge_id INTEGER NOT NULL REFERENCES daily_challenges(id) ON DELETE CASCADE,
+			game_id VARCHAR(64) NOT NULL,
+			position INTEGER NOT NULL DEFAULT 1,
+			PRIMARY KEY (challenge_id, game_id)
+		);
+
+		CREATE TABLE IF NOT EXISTS daily_challenge_progress (
+			challenge_id INTEGER NOT NULL REFERENCES daily_challenges(id) ON DELETE CASCADE,
+			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			game_id VARCHAR(64) NOT NULL,
+			completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (challenge_id, user_id, game_id)
+		);
 	`)
 	return err
 }

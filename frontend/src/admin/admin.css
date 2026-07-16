@@ -97,6 +97,32 @@ body {
   font-size: 0.85rem;
 }
 
+.admin-challenge-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.admin-check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.admin-check input {
+  width: 18px;
+  height: 18px;
+}
+
 .admin-error {
   color: #fca5a5;
   margin-top: 12px;

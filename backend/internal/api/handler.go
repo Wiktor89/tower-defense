@@ -52,6 +52,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/health", h.health)
 	mux.HandleFunc("GET /api/captcha", h.getCaptcha)
 	mux.HandleFunc("GET /api/games", h.listGames)
+	mux.HandleFunc("GET /api/challenge", h.getChallenge)
 	mux.HandleFunc("POST /api/math/problem", h.createMathProblem)
 	mux.HandleFunc("POST /api/math/check", h.checkMathAnswer)
 	mux.HandleFunc("POST /api/users/login", h.userLogin)
@@ -60,6 +61,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/tower-defense/finish", h.tdFinish)
 	mux.HandleFunc("GET /api/fill-blanks/puzzle", h.fillBlanksPuzzle)
 	mux.HandleFunc("POST /api/fill-blanks/check", h.fillBlanksCheck)
+	mux.HandleFunc("POST /api/disassemble/complete", h.disassembleComplete)
 	mux.HandleFunc("GET /api/settings/math-columns", h.mathColumnsSettings)
 	mux.HandleFunc("POST /api/admin/login", h.adminLogin)
 	mux.HandleFunc("GET /api/admin/stats", h.adminStats)
@@ -71,6 +73,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/admin/settings/fill-blanks", h.adminAddFillText)
 	mux.HandleFunc("PUT /api/admin/settings/fill-blanks/{id}", h.adminSetFillBlankPercent)
 	mux.HandleFunc("DELETE /api/admin/settings/fill-blanks/{id}", h.adminDeleteFillText)
+	mux.HandleFunc("GET /api/admin/settings/daily-challenge", h.adminGetChallenge)
+	mux.HandleFunc("PUT /api/admin/settings/daily-challenge", h.adminSetChallenge)
 	mux.HandleFunc("PUT /api/admin/users/{id}/grade", h.adminSetUserGrade)
 	mux.HandleFunc("DELETE /api/admin/users/{id}", h.adminDeleteUser)
 }
@@ -224,12 +228,12 @@ func (h *Handler) checkMathAnswer(w http.ResponseWriter, r *http.Request) {
 					writeError(w, http.StatusInternalServerError, "failed to save stats")
 					return
 				}
-				stage, err := h.db.CompleteStage(ctx, req.UserID, "math-columns", problem.Level)
-				if err != nil {
-					writeError(w, http.StatusInternalServerError, "failed to complete stage")
+				if reward, err := h.db.MarkChallengeGameDone(ctx, req.UserID, "math-columns"); err != nil {
+					writeError(w, http.StatusInternalServerError, "failed to update challenge")
 					return
+				} else if reward != nil {
+					resp.StageCompletion = reward
 				}
-				resp.StageCompletion = &stage
 			}
 		}
 	}
@@ -403,7 +407,17 @@ func (h *Handler) tdFinish(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to save stats")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+
+	out := map[string]any{"status": "ok"}
+	if req.Result == "won" {
+		if reward, err := h.db.MarkChallengeGameDone(ctx, userID, "tower-defense"); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to update challenge")
+			return
+		} else if reward != nil {
+			out["challengeReward"] = reward
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (h *Handler) fillBlanksPuzzle(w http.ResponseWriter, r *http.Request) {
@@ -430,7 +444,8 @@ type fillBlanksCheckRequest struct {
 }
 
 type fillBlanksCheckResponse struct {
-	Correct bool `json:"correct"`
+	Correct          bool                   `json:"correct"`
+	ChallengeReward  *store.StageCompletion `json:"challengeReward,omitempty"`
 }
 
 func (h *Handler) fillBlanksCheck(w http.ResponseWriter, r *http.Request) {
@@ -472,9 +487,148 @@ func (h *Handler) fillBlanksCheck(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to save stats")
 			return
 		}
+		if correct {
+			if reward, err := h.db.MarkChallengeGameDone(ctx, req.UserID, "fill-blanks"); err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to update challenge")
+				return
+			} else if reward != nil {
+				resp.ChallengeReward = reward
+			}
+		}
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *Handler) disassembleComplete(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UserID int `json:"userId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.UserID <= 0 {
+		writeError(w, http.StatusBadRequest, "userId is required")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if _, err := h.db.GetUser(ctx, req.UserID); err != nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	if err := h.db.AddStats(ctx, req.UserID, "disassemble", store.StatsDelta{GamesWon: 1, SessionsCompleted: 1}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save stats")
+		return
+	}
+
+	out := map[string]any{"status": "ok"}
+	if reward, err := h.db.MarkChallengeGameDone(ctx, req.UserID, "disassemble"); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update challenge")
+		return
+	} else if reward != nil {
+		out["challengeReward"] = reward
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (h *Handler) getChallenge(w http.ResponseWriter, r *http.Request) {
+	userID, err := strconv.Atoi(r.URL.Query().Get("userId"))
+	if err != nil || userID <= 0 {
+		writeError(w, http.StatusBadRequest, "userId is required")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	status, err := h.db.GetChallengeStatus(ctx, userID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load challenge")
+		return
+	}
+	if status != nil {
+		titles := map[string]string{}
+		for _, g := range games.Catalog() {
+			titles[g.ID] = g.Title
+		}
+		for i := range status.Games {
+			status.Games[i].Title = titles[status.Games[i].GameID]
+		}
+	}
+	writeJSON(w, http.StatusOK, status)
+}
+
+func (h *Handler) adminGetChallenge(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	ch, err := h.db.GetActiveChallenge(ctx)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load challenge")
+		return
+	}
+	if ch == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"games": []store.ChallengeGame{}})
+		return
+	}
+	titles := map[string]string{}
+	for _, g := range games.Catalog() {
+		titles[g.ID] = g.Title
+	}
+	for i := range ch.Games {
+		ch.Games[i].Title = titles[ch.Games[i].GameID]
+	}
+	writeJSON(w, http.StatusOK, ch)
+}
+
+func (h *Handler) adminSetChallenge(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	var req struct {
+		GameIDs []string `json:"gameIds"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	valid := map[string]bool{}
+	for _, g := range games.Catalog() {
+		if g.Available {
+			valid[g.ID] = true
+		}
+	}
+	for _, id := range req.GameIDs {
+		if !valid[id] {
+			writeError(w, http.StatusBadRequest, "unknown or unavailable game: "+id)
+			return
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	ch, err := h.db.SetActiveChallenge(ctx, req.GameIDs)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	titles := map[string]string{}
+	for _, g := range games.Catalog() {
+		titles[g.ID] = g.Title
+	}
+	for i := range ch.Games {
+		ch.Games[i].Title = titles[ch.Games[i].GameID]
+	}
+	writeJSON(w, http.StatusOK, ch)
 }
 
 func (h *Handler) adminListFillTexts(w http.ResponseWriter, r *http.Request) {
@@ -713,15 +867,15 @@ func (h *Handler) adminVerify(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if req.UserLogin == "" || req.GameID == "" || req.Planet == "" || req.Code < 10 {
-		writeError(w, http.StatusBadRequest, "all fields are required")
+	if req.UserLogin == "" || req.Planet == "" || req.Code < 10 {
+		writeError(w, http.StatusBadRequest, "login, planet and code are required")
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	result, err := h.db.VerifyStage(ctx, req.UserLogin, req.GameID, req.Stage, req.Planet, req.Code)
+	result, err := h.db.VerifyChallenge(ctx, req.UserLogin, req.Planet, req.Code)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "verification failed")
 		return

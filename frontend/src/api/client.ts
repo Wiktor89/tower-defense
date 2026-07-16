@@ -1,4 +1,4 @@
-import type { CaptchaChallenge, CaptchaPayload, FillBlankText, FillBlanksCheckResult, FillBlanksPuzzle, GameCatalogItem, GameSettings, MathCheckResult, MathProblem, OpMode, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
+import type { CaptchaChallenge, CaptchaPayload, ChallengeStatus, DailyChallengeAdmin, FillBlankText, FillBlanksCheckResult, FillBlanksPuzzle, GameCatalogItem, GameSettings, MathCheckResult, MathProblem, OpMode, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -32,6 +32,31 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 export function fetchGames(userId?: number): Promise<GameCatalogItem[]> {
   const q = userId && userId > 0 ? `?userId=${userId}` : '';
   return request<GameCatalogItem[]>(`/api/games${q}`);
+}
+
+export function fetchChallenge(userId: number): Promise<ChallengeStatus> {
+  return request<ChallengeStatus>(`/api/challenge?userId=${userId}`);
+}
+
+export function reportDisassembleComplete(userId: number): Promise<{ status: string; challengeReward?: StageCompletion }> {
+  return request<{ status: string; challengeReward?: StageCompletion }>('/api/disassemble/complete', {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  });
+}
+
+export function fetchAdminChallenge(token: string): Promise<DailyChallengeAdmin> {
+  return request<DailyChallengeAdmin>('/api/admin/settings/daily-challenge', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function updateAdminChallenge(token: string, gameIds: string[]): Promise<DailyChallengeAdmin> {
+  return request<DailyChallengeAdmin>('/api/admin/settings/daily-challenge', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ gameIds }),
+  });
 }
 
 export function fetchCaptcha(): Promise<CaptchaChallenge> {
@@ -88,11 +113,14 @@ export function startTowerDefense(userId: number): Promise<TdSessionStart> {
   });
 }
 
-export function finishTowerDefense(sessionId: string, result: 'won' | 'lost'): Promise<void> {
-  return request<{ status: string }>('/api/tower-defense/finish', {
+export function finishTowerDefense(
+  sessionId: string,
+  result: 'won' | 'lost',
+): Promise<{ status: string; challengeReward?: StageCompletion }> {
+  return request<{ status: string; challengeReward?: StageCompletion }>('/api/tower-defense/finish', {
     method: 'POST',
     body: JSON.stringify({ sessionId, result }),
-  }).then(() => undefined);
+  });
 }
 
 export function fetchFillBlanksPuzzle(): Promise<FillBlanksPuzzle> {

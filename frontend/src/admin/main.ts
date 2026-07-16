@@ -1,8 +1,8 @@
 import './admin.css';
 import '../shared/modal.css';
-import { adminDeleteUser, adminLogin, adminSetUserGrade, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminFillBlankTexts, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateAdminFillBlankPercent, updateAdminFillBlankText, updateMathColumnsSettings } from '../api/client';
-import type { FillBlankText, GameSettings, StageCompletion, UserStatsRow } from '../types';
-import { PLANETS } from '../games/math-columns/planets';
+import { adminDeleteUser, adminLogin, adminSetUserGrade, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminChallenge, fetchAdminFillBlankTexts, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateAdminChallenge, updateAdminFillBlankPercent, updateAdminFillBlankText, updateMathColumnsSettings } from '../api/client';
+import type { DailyChallengeAdmin, FillBlankText, GameSettings, StageCompletion, UserStatsRow } from '../types';
+import { PLANETS } from '../shared/planets';
 import { captchaFieldHtml, setupCaptcha } from '../shared/captcha';
 import { getAdminToken, setAdminToken, clearAdminToken } from '../shared/user';
 
@@ -185,8 +185,7 @@ function renderStagesTable(stages: StageCompletion[]): string {
   const stageRows = stages.map(s => `
     <tr class="${s.verified ? 'admin-row--verified' : ''}">
       <td>${s.userLogin ?? '—'}</td>
-      <td>${GAME_NAMES[s.gameId] ?? s.gameId}</td>
-      <td>${s.stage} класс</td>
+      <td>#${s.stage}</td>
       <td>${s.planetName}</td>
       <td>${s.code}</td>
       <td>${s.rewardRub}₽</td>
@@ -201,8 +200,7 @@ function renderStagesTable(stages: StageCompletion[]): string {
         <thead>
           <tr>
             <th>Логин</th>
-            <th>Игра</th>
-            <th>Этап</th>
+            <th>Вызов</th>
             <th>Планета</th>
             <th>Код</th>
             <th>Награда</th>
@@ -211,7 +209,7 @@ function renderStagesTable(stages: StageCompletion[]): string {
           </tr>
         </thead>
         <tbody>
-          ${stageRows || '<tr><td colspan="8" class="admin-empty">Пока нет прохождений</td></tr>'}
+          ${stageRows || '<tr><td colspan="7" class="admin-empty">Пока нет наград</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -263,8 +261,37 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function renderSettingsTab(mathSettings: GameSettings | null, fillTexts: FillBlankText[]): string {
+const CHALLENGE_GAME_OPTIONS: { id: string; label: string }[] = [
+  { id: 'math-columns', label: '📐 Столбик' },
+  { id: 'fill-blanks', label: '📝 Заполни пропуски' },
+  { id: 'tower-defense', label: '🌻 Защита от зомби' },
+  { id: 'disassemble', label: '🔧 Разбери и собери' },
+];
+
+function renderSettingsTab(
+  mathSettings: GameSettings | null,
+  fillTexts: FillBlankText[],
+  challenge: DailyChallengeAdmin | null,
+): string {
+  const selected = new Set((challenge?.games ?? []).map(g => g.gameId));
+  const checks = CHALLENGE_GAME_OPTIONS.map(g => `
+    <label class="admin-check">
+      <input type="checkbox" name="challenge-game" value="${g.id}" ${selected.has(g.id) ? 'checked' : ''}>
+      ${g.label}
+    </label>
+  `).join('');
+
   return `
+    <section class="admin-section">
+      <h2>🎯 Вызов дня</h2>
+      <p class="admin-section__hint">Отметьте игры, которые ученик должен пройти. После всех — код с планетой.</p>
+      <form id="challenge-form" class="admin-challenge-form">
+        <div class="admin-check-list">${checks}</div>
+        <button type="submit" class="admin-btn">Сохранить вызов</button>
+      </form>
+      <p class="admin-verify-result hidden" id="challenge-result"></p>
+    </section>
+
     <section class="admin-section">
       <h2>📐 Столбик</h2>
       <p class="admin-section__hint">Сколько правильных примеров нужно решить для завершения серии</p>
@@ -298,20 +325,14 @@ function renderVerifyTab(stages: StageCompletion[]): string {
     `<option value="${p.id}">${p.name}</option>`
   ).join('');
 
+  const challengeStages = stages.filter(s => s.gameId === 'daily-challenge');
+
   return `
     <section class="admin-section">
-      <h2>🔍 Проверка кода</h2>
-      <p class="admin-section__hint">Спросите у ребёнка планету и двузначную цифру с экрана награды</p>
+      <h2>🔍 Проверка кода вызова дня</h2>
+      <p class="admin-section__hint">Спросите у ребёнка планету и двузначную цифру после прохождения всех игр вызова</p>
       <form id="verify-form" class="admin-verify-form">
         <input type="text" id="verify-login" placeholder="Логин пользователя" required>
-        <select id="verify-game">
-          <option value="math-columns">📐 Столбик</option>
-        </select>
-        <select id="verify-stage">
-          <option value="1">1 класс</option>
-          <option value="2">2 класс</option>
-          <option value="3">3 класс</option>
-        </select>
         <select id="verify-planet" required>
           <option value="">Планета</option>
           ${planetOptions}
@@ -323,8 +344,8 @@ function renderVerifyTab(stages: StageCompletion[]): string {
     </section>
 
     <section class="admin-section">
-      <h2>🪐 Пройденные этапы</h2>
-      ${renderStagesTable(stages)}
+      <h2>🪐 Награды за вызов дня</h2>
+      ${renderStagesTable(challengeStages)}
     </section>
   `;
 }
@@ -335,6 +356,7 @@ function renderDashboard(
   stages: StageCompletion[],
   mathSettings: GameSettings | null,
   fillTexts: FillBlankText[],
+  challenge: DailyChallengeAdmin | null,
   loadError?: string,
   loading = false,
 ): void {
@@ -360,7 +382,7 @@ function renderDashboard(
     <nav class="admin-tabs">${tabButtons}</nav>
 
     <div class="admin-tab-panel${activeTab === 'settings' ? ' admin-tab-panel--active' : ''}" data-panel="settings">
-      ${renderSettingsTab(mathSettings, fillTexts)}
+      ${renderSettingsTab(mathSettings, fillTexts, challenge)}
     </div>
 
     <div class="admin-tab-panel${activeTab === 'verify' ? ' admin-tab-panel--active' : ''}" data-panel="verify">
@@ -400,13 +422,17 @@ function renderDashboard(
     e.preventDefault();
     const resultEl = appEl.querySelector<HTMLParagraphElement>('#verify-result')!;
     const userLogin = (appEl.querySelector('#verify-login') as HTMLInputElement).value.trim();
-    const gameId = (appEl.querySelector('#verify-game') as HTMLSelectElement).value;
-    const stage = Number((appEl.querySelector('#verify-stage') as HTMLSelectElement).value);
     const planet = (appEl.querySelector('#verify-planet') as HTMLSelectElement).value;
     const code = Number((appEl.querySelector('#verify-code') as HTMLInputElement).value);
 
     try {
-      const result = await adminVerify(token, { userLogin, gameId, stage, planet, code });
+      const result = await adminVerify(token, {
+        userLogin,
+        gameId: 'daily-challenge',
+        stage: 0,
+        planet,
+        code,
+      });
       resultEl.textContent = result.message;
       resultEl.className = `admin-verify-result ${result.verified ? 'admin-verify-result--ok' : 'admin-verify-result--fail'}`;
       if (result.verified) {
@@ -415,6 +441,21 @@ function renderDashboard(
       }
     } catch (err) {
       resultEl.textContent = err instanceof Error ? err.message : 'Ошибка проверки';
+      resultEl.className = 'admin-verify-result admin-verify-result--fail';
+    }
+  });
+
+  appEl.querySelector<HTMLFormElement>('#challenge-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const resultEl = appEl.querySelector<HTMLParagraphElement>('#challenge-result')!;
+    const gameIds = [...appEl.querySelectorAll<HTMLInputElement>('input[name="challenge-game"]:checked')]
+      .map(el => el.value);
+    try {
+      const saved = await updateAdminChallenge(token, gameIds);
+      resultEl.textContent = `Вызов сохранён: ${saved.games.length} игр`;
+      resultEl.className = 'admin-verify-result admin-verify-result--ok';
+    } catch (err) {
+      resultEl.textContent = err instanceof Error ? err.message : 'Ошибка сохранения';
       resultEl.className = 'admin-verify-result admin-verify-result--fail';
     }
   });
@@ -567,17 +608,18 @@ function renderDashboard(
 
 async function loadDashboard(token: string): Promise<void> {
   const activeTab = getActiveTab();
-  renderDashboard(token, [], [], null, [], undefined, true);
+  renderDashboard(token, [], [], null, [], null, undefined, true);
   setActiveTab(activeTab);
 
-  const [statsResult, stagesResult, settingsResult, fillTextsResult] = await Promise.allSettled([
+  const [statsResult, stagesResult, settingsResult, fillTextsResult, challengeResult] = await Promise.allSettled([
     fetchAdminStats(token),
     fetchAdminStages(token),
     fetchAdminMathColumnsSettings(token),
     fetchAdminFillBlankTexts(token),
+    fetchAdminChallenge(token),
   ]);
 
-  const unauthorized = [statsResult, stagesResult, settingsResult, fillTextsResult].some(
+  const unauthorized = [statsResult, stagesResult, settingsResult, fillTextsResult, challengeResult].some(
     r => r.status === 'rejected' && r.reason instanceof Error && r.reason.message.toLowerCase().includes('unauthorized'),
   );
   if (unauthorized) {
@@ -590,6 +632,7 @@ async function loadDashboard(token: string): Promise<void> {
   const stages = stagesResult.status === 'fulfilled' ? stagesResult.value : [];
   const mathSettings = settingsResult.status === 'fulfilled' ? settingsResult.value : null;
   const fillTexts = fillTextsResult.status === 'fulfilled' ? fillTextsResult.value : [];
+  const challenge = challengeResult.status === 'fulfilled' ? challengeResult.value : null;
 
   const errors: string[] = [];
   if (statsResult.status === 'rejected') {
@@ -608,8 +651,20 @@ async function loadDashboard(token: string): Promise<void> {
     const msg = fillTextsResult.reason instanceof Error ? fillTextsResult.reason.message : 'не удалось загрузить тексты';
     errors.push(msg);
   }
+  if (challengeResult.status === 'rejected') {
+    const msg = challengeResult.reason instanceof Error ? challengeResult.reason.message : 'не удалось загрузить вызов дня';
+    errors.push(msg);
+  }
 
-  renderDashboard(token, rows, stages, mathSettings, fillTexts, errors.length ? `⚠️ ${errors.join('; ')}` : undefined);
+  renderDashboard(
+    token,
+    rows,
+    stages,
+    mathSettings,
+    fillTexts,
+    challenge,
+    errors.length ? `⚠️ ${errors.join('; ')}` : undefined,
+  );
 }
 
 async function init(): Promise<void> {

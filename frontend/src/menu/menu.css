@@ -202,6 +202,93 @@ body {
   cursor: not-allowed;
 }
 
+.challenge-panel {
+  max-width: 1100px;
+  margin: 0 auto 28px;
+  padding: 0 24px;
+}
+
+.challenge-panel.hidden {
+  display: none;
+}
+
+.challenge-card {
+  padding: 20px 22px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.challenge-title {
+  font-size: 1.25rem;
+  margin-bottom: 6px;
+}
+
+.challenge-progress {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.65);
+  margin-bottom: 14px;
+}
+
+.challenge-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.challenge-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.challenge-item--done {
+  opacity: 0.75;
+}
+
+.challenge-item__n {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.12);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.challenge-item__title {
+  flex: 1;
+  font-weight: 600;
+}
+
+.challenge-item__mark {
+  font-size: 1.1rem;
+  color: #86efac;
+}
+
+.challenge-hint,
+.challenge-done {
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.challenge-reward-btn {
+  margin-top: 12px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: none;
+  background: #7c3aed;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .menu-footer {
   margin-top: 56px;
   text-align: center;

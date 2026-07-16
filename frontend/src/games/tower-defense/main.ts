@@ -2,6 +2,7 @@ import './style.css';
 import type { PlantType } from '../../types';
 import { finishTowerDefense, startTowerDefense } from '../../api/client';
 import { ensureUserLogin } from '../../shared/login';
+import { showChallengeReward } from '../../shared/solar-reward';
 import { getUser } from '../../shared/user';
 import { CONFIG } from './config';
 import { Game } from './Game';
@@ -53,9 +54,13 @@ function reportResult(result: 'won' | 'lost'): void {
   if (!sessionId) return;
   const id = sessionId;
   sessionId = null;
-  void finishTowerDefense(id, result).catch(() => {
-    // best-effort; invalid/early sessions are rejected by server
-  });
+  void finishTowerDefense(id, result)
+    .then(res => {
+      if (res.challengeReward) showChallengeReward(res.challengeReward);
+    })
+    .catch(() => {
+      // best-effort; invalid/early sessions are rejected by server
+    });
 }
 
 function updateUI(): void {

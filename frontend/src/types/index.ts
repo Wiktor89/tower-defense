@@ -117,6 +117,29 @@ export interface FillBlanksPuzzle {
 
 export interface FillBlanksCheckResult {
   correct: boolean;
+  challengeReward?: StageCompletion;
+}
+
+export interface ChallengeGameItem {
+  gameId: string;
+  title?: string;
+  position: number;
+  done: boolean;
+}
+
+export interface ChallengeStatus {
+  challenge?: { id: number; createdAt: string } | null;
+  games: ChallengeGameItem[];
+  completed: number;
+  total: number;
+  allDone: boolean;
+  reward?: StageCompletion;
+}
+
+export interface DailyChallengeAdmin {
+  id?: number;
+  games: ChallengeGameItem[];
+  createdAt?: string;
 }
 
 export interface FillBlankText {

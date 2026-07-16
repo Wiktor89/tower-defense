@@ -2,9 +2,9 @@ import './style.css';
 import { checkMathAnswer, fetchMathColumnsSettings, fetchMathProblem } from '../../api/client';
 import type { MathProblem, OpMode } from '../../types';
 import { ensureUserLogin } from '../../shared/login';
+import { showChallengeReward } from '../../shared/solar-reward';
 import { getUser } from '../../shared/user';
 import { DEFAULT_SESSION_SIZE, createBrainSvg, updateBrainProgress } from './brain';
-import { showSolarSystemReward } from './solar-system';
 import { splitDigits } from './utils';
 
 const columnEl = document.getElementById('column');
@@ -203,13 +203,9 @@ async function checkAnswer(): Promise<void> {
       if (done) {
         sessionSolved = sessionSize;
         finishSessionUI();
-        if (result.stageCompletion) {
-          showSolarSystemReward(result.stageCompletion, () => {
-            showFeedback(`Серия из ${sessionSize} примеров завершена! Мозг вырос! 🧠`, 'correct');
-          });
-        } else {
-          showFeedback(`Серия из ${sessionSize} примеров завершена! Мозг вырос! 🧠`, 'correct');
-        }
+        showFeedback(`Серия из ${sessionSize} примеров завершена! Мозг вырос! 🧠`, 'correct');
+        // Награда с планетой — только если закрыт весь «Вызов дня».
+        if (result.stageCompletion) showChallengeReward(result.stageCompletion);
         updateScore();
         return;
       }

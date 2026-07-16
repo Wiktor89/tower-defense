@@ -1,5 +1,8 @@
 import './style.css';
+import { reportDisassembleComplete } from '../../api/client';
 import { ensureUserLogin } from '../../shared/login';
+import { showChallengeReward } from '../../shared/solar-reward';
+import { getUser } from '../../shared/user';
 import { AssemblyGame, type GameMode } from './AssemblyGame';
 import { PARTS, type PartId } from './parts';
 
@@ -18,6 +21,7 @@ if (!canvas || !statusText || !hintText || !winBanner || !disassembleBtn || !cle
 const ui = { canvas, statusText, hintText, winBanner, disassembleBtn, clearBtn, legend };
 
 const game = new AssemblyGame(ui.canvas);
+let winReported = false;
 
 let audioCtx: AudioContext | null = null;
 
@@ -67,6 +71,7 @@ function syncUi(mode: GameMode, selected: PartId | null): void {
   renderLegend(selected, mode);
 
   if (mode === 'assembled') {
+    winReported = false;
     ui.statusText.textContent = 'Покрутите ручку, затем нажмите «Разобрать»';
     ui.hintText.textContent = 'ЛКМ по фону или колёсико — осмотреть предмет';
     ui.disassembleBtn.disabled = false;
@@ -74,6 +79,7 @@ function syncUi(mode: GameMode, selected: PartId | null): void {
     ui.clearBtn.classList.add('hidden');
     ui.winBanner.classList.add('hidden');
   } else if (mode === 'exploded') {
+    winReported = false;
     ui.statusText.textContent = selected
       ? `Взято: ${PARTS.find(p => p.id === selected)?.name}. Перетащите стрелкой к нужной детали`
       : 'Перетащите деталь к той, на которую указывает стрелка';
@@ -89,6 +95,15 @@ function syncUi(mode: GameMode, selected: PartId | null): void {
     ui.disassembleBtn.textContent = 'Разобрать';
     ui.clearBtn.classList.add('hidden');
     ui.winBanner.classList.remove('hidden');
+    if (!winReported) {
+      winReported = true;
+      const user = getUser();
+      if (user) {
+        void reportDisassembleComplete(user.id).then(res => {
+          if (res.challengeReward) showChallengeReward(res.challengeReward);
+        }).catch(() => undefined);
+      }
+    }
   }
 }
 
