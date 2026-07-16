@@ -71,6 +71,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/admin/settings/fill-blanks", h.adminAddFillText)
 	mux.HandleFunc("PUT /api/admin/settings/fill-blanks/{id}", h.adminSetFillBlankPercent)
 	mux.HandleFunc("DELETE /api/admin/settings/fill-blanks/{id}", h.adminDeleteFillText)
+	mux.HandleFunc("PUT /api/admin/users/{id}/grade", h.adminSetUserGrade)
 	mux.HandleFunc("DELETE /api/admin/users/{id}", h.adminDeleteUser)
 }
 
@@ -94,8 +95,39 @@ func (h *Handler) checkCaptcha(w http.ResponseWriter, id string, answer int) boo
 	return true
 }
 
-func (h *Handler) listGames(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, games.Catalog())
+func (h *Handler) listGames(w http.ResponseWriter, r *http.Request) {
+	userIDStr := r.URL.Query().Get("userId")
+	if userIDStr == "" {
+		writeJSON(w, http.StatusOK, games.Catalog())
+		return
+	}
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil || userID <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid userId")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	user, err := h.db.GetUser(ctx, userID)
+	if err != nil {
+		if errors.Is(err, store.ErrUserNotFound) {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to load user")
+		return
+	}
+	if user.Role == store.RoleAdmin {
+		writeJSON(w, http.StatusOK, games.Catalog())
+		return
+	}
+	if user.Grade == nil {
+		writeJSON(w, http.StatusOK, []games.Game{})
+		return
+	}
+	writeJSON(w, http.StatusOK, games.SuitableForGrade(*user.Grade))
 }
 
 type mathProblemRequest struct {
@@ -230,6 +262,8 @@ func (h *Handler) userLogin(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, store.ErrPasswordRequired):
 			writeError(w, http.StatusUnauthorized, "password required")
+		case errors.Is(err, store.ErrPasswordTooShort):
+			writeError(w, http.StatusBadRequest, "password must be at least 4 characters")
 		case errors.Is(err, store.ErrInvalidPassword):
 			writeError(w, http.StatusUnauthorized, "invalid password")
 		default:
@@ -237,7 +271,19 @@ func (h *Handler) userLogin(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	writeJSON(w, http.StatusOK, user)
+
+	resp := map[string]any{
+		"id":          user.ID,
+		"login":       user.Login,
+		"role":        user.Role,
+		"grade":       user.Grade,
+		"hasPassword": user.HasPassword,
+		"createdAt":   user.CreatedAt,
+	}
+	if user.Role == store.RoleAdmin {
+		resp["adminToken"] = h.adminAuth.IssueToken()
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 type setUserPasswordRequest struct {
@@ -594,12 +640,21 @@ func (h *Handler) adminLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, ok := h.adminAuth.Login(req.Login, req.Password)
-	if !ok {
-		writeError(w, http.StatusUnauthorized, "invalid credentials")
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if _, err := h.db.AuthenticateAdmin(ctx, req.Login, req.Password); err != nil {
+		switch {
+		case errors.Is(err, store.ErrNotAdmin):
+			writeError(w, http.StatusForbidden, "admin role required")
+		case errors.Is(err, store.ErrPasswordTooShort):
+			writeError(w, http.StatusBadRequest, "password must be at least 4 characters")
+		default:
+			writeError(w, http.StatusUnauthorized, "invalid credentials")
+		}
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"token": token})
+	writeJSON(w, http.StatusOK, map[string]string{"token": h.adminAuth.IssueToken()})
 }
 
 func (h *Handler) adminStats(w http.ResponseWriter, r *http.Request) {
@@ -740,6 +795,42 @@ func (h *Handler) adminSetMathColumnsSettings(w http.ResponseWriter, r *http.Req
 		return
 	}
 	writeJSON(w, http.StatusOK, gs)
+}
+
+func (h *Handler) adminSetUserGrade(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	userID, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || userID <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+
+	var req struct {
+		Grade int `json:"grade"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	user, err := h.db.SetUserGrade(ctx, userID, req.Grade)
+	if err != nil {
+		if errors.Is(err, store.ErrUserNotFound) {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, user)
 }
 
 func (h *Handler) adminDeleteUser(w http.ResponseWriter, r *http.Request) {

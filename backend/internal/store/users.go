@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"time"
 
@@ -10,17 +11,25 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const (
+	RoleUser  = "user"
+	RoleAdmin = "admin"
+)
+
 var (
-	ErrUserNotFound      = errors.New("user not found")
-	ErrPasswordRequired  = errors.New("password required")
-	ErrInvalidPassword   = errors.New("invalid password")
-	ErrPasswordTooShort  = errors.New("password must be at least 4 characters")
-	ErrPasswordMismatch  = errors.New("current password is incorrect")
+	ErrUserNotFound     = errors.New("user not found")
+	ErrPasswordRequired = errors.New("password required")
+	ErrInvalidPassword  = errors.New("invalid password")
+	ErrPasswordTooShort = errors.New("password must be at least 4 characters")
+	ErrPasswordMismatch = errors.New("current password is incorrect")
+	ErrNotAdmin         = errors.New("admin role required")
 )
 
 type User struct {
 	ID          int       `json:"id"`
 	Login       string    `json:"login"`
+	Role        string    `json:"role"`
+	Grade       *int      `json:"grade"`
 	HasPassword bool      `json:"hasPassword"`
 	CreatedAt   time.Time `json:"createdAt"`
 }
@@ -51,68 +60,158 @@ func checkPassword(password, hash string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil
 }
 
+func (s *Store) EnsureAdminUser(ctx context.Context, login, password string) error {
+	login, err := normalizeLogin(login)
+	if err != nil {
+		return err
+	}
+	if password == "" {
+		password = "admin"
+	}
+	hash, err := hashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.pool.Exec(ctx, `
+		INSERT INTO users (login, password_hash, role)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (login) DO UPDATE SET
+			password_hash = EXCLUDED.password_hash,
+			role = $3
+	`, login, hash, RoleAdmin)
+	return err
+}
+
 func (s *Store) LoginUser(ctx context.Context, login, password string) (User, error) {
 	login, err := normalizeLogin(login)
 	if err != nil {
 		return User{}, err
 	}
+	if strings.TrimSpace(password) == "" {
+		return User{}, ErrPasswordRequired
+	}
+	if len(password) < 4 {
+		return User{}, ErrPasswordTooShort
+	}
 
 	var user User
 	var passwordHash *string
 	err = s.pool.QueryRow(ctx, `
-		SELECT id, login, password_hash, created_at FROM users WHERE login = $1
-	`, login).Scan(&user.ID, &user.Login, &passwordHash, &user.CreatedAt)
+		SELECT id, login, role, grade, password_hash, created_at FROM users WHERE login = $1
+	`, login).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &passwordHash, &user.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return s.createUser(ctx, login)
+		return s.createUser(ctx, login, password, RoleUser)
 	}
 	if err != nil {
 		return User{}, err
 	}
-
-	user.HasPassword = passwordHash != nil && *passwordHash != ""
-	if user.HasPassword {
-		if password == "" {
-			return User{}, ErrPasswordRequired
-		}
-		if !checkPassword(password, *passwordHash) {
-			return User{}, ErrInvalidPassword
-		}
+	if user.Role == "" {
+		user.Role = RoleUser
 	}
 
+	hasPassword := passwordHash != nil && *passwordHash != ""
+	if !hasPassword {
+		return s.SetUserPassword(ctx, user.ID, password, "")
+	}
+	if !checkPassword(password, *passwordHash) {
+		return User{}, ErrInvalidPassword
+	}
+	user.HasPassword = true
 	return user, nil
 }
 
-func (s *Store) createUser(ctx context.Context, login string) (User, error) {
+func (s *Store) AuthenticateAdmin(ctx context.Context, login, password string) (User, error) {
+	login, err := normalizeLogin(login)
+	if err != nil {
+		return User{}, err
+	}
+	if strings.TrimSpace(password) == "" {
+		return User{}, ErrPasswordRequired
+	}
+
 	var user User
-	err := s.pool.QueryRow(ctx, `
-		INSERT INTO users (login) VALUES ($1)
-		RETURNING id, login, created_at
-	`, login).Scan(&user.ID, &user.Login, &user.CreatedAt)
+	var passwordHash *string
+	err = s.pool.QueryRow(ctx, `
+		SELECT id, login, role, grade, password_hash, created_at FROM users WHERE login = $1
+	`, login).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &passwordHash, &user.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return User{}, ErrInvalidPassword
+	}
 	if err != nil {
 		return User{}, err
 	}
-	user.HasPassword = false
+	if user.Role != RoleAdmin {
+		return User{}, ErrNotAdmin
+	}
+	if passwordHash == nil || *passwordHash == "" || !checkPassword(password, *passwordHash) {
+		return User{}, ErrInvalidPassword
+	}
+	user.HasPassword = true
 	return user, nil
 }
 
-func (s *Store) GetOrCreateUser(ctx context.Context, login string) (User, error) {
-	return s.LoginUser(ctx, login, "")
+func (s *Store) createUser(ctx context.Context, login, password, role string) (User, error) {
+	hash, err := hashPassword(password)
+	if err != nil {
+		return User{}, err
+	}
+	if role == "" {
+		role = RoleUser
+	}
+
+	var user User
+	err = s.pool.QueryRow(ctx, `
+		INSERT INTO users (login, password_hash, role) VALUES ($1, $2, $3)
+		RETURNING id, login, role, grade, created_at
+	`, login, hash, role).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &user.CreatedAt)
+	if err != nil {
+		return User{}, err
+	}
+	user.HasPassword = true
+	return user, nil
 }
 
 func (s *Store) GetUser(ctx context.Context, id int) (User, error) {
 	var user User
 	var passwordHash *string
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, login, password_hash, created_at FROM users WHERE id = $1
-	`, id).Scan(&user.ID, &user.Login, &passwordHash, &user.CreatedAt)
+		SELECT id, login, role, grade, password_hash, created_at FROM users WHERE id = $1
+	`, id).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &passwordHash, &user.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrUserNotFound
 	}
 	if err != nil {
 		return User{}, err
 	}
+	if user.Role == "" {
+		user.Role = RoleUser
+	}
 	user.HasPassword = passwordHash != nil && *passwordHash != ""
 	return user, err
+}
+
+func (s *Store) SetUserGrade(ctx context.Context, userID int, grade int) (User, error) {
+	if grade < 1 || grade > 11 {
+		return User{}, errors.New("grade must be between 1 and 11")
+	}
+	var user User
+	var passwordHash *string
+	err := s.pool.QueryRow(ctx, `
+		UPDATE users SET grade = $2 WHERE id = $1
+		RETURNING id, login, role, grade, password_hash, created_at
+	`, userID, grade).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &passwordHash, &user.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return User{}, ErrUserNotFound
+	}
+	if err != nil {
+		return User{}, err
+	}
+	if user.Role == "" {
+		user.Role = RoleUser
+	}
+	user.HasPassword = passwordHash != nil && *passwordHash != ""
+	return user, nil
 }
 
 func (s *Store) SetUserPassword(ctx context.Context, userID int, newPassword, currentPassword string) (User, error) {
@@ -123,13 +222,16 @@ func (s *Store) SetUserPassword(ctx context.Context, userID int, newPassword, cu
 	var passwordHash *string
 	var user User
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, login, password_hash, created_at FROM users WHERE id = $1
-	`, userID).Scan(&user.ID, &user.Login, &passwordHash, &user.CreatedAt)
+		SELECT id, login, role, grade, password_hash, created_at FROM users WHERE id = $1
+	`, userID).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &passwordHash, &user.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return User{}, ErrUserNotFound
 	}
 	if err != nil {
 		return User{}, err
+	}
+	if user.Role == "" {
+		user.Role = RoleUser
 	}
 
 	hasPassword := passwordHash != nil && *passwordHash != ""
@@ -149,8 +251,8 @@ func (s *Store) SetUserPassword(ctx context.Context, userID int, newPassword, cu
 
 	err = s.pool.QueryRow(ctx, `
 		UPDATE users SET password_hash = $2 WHERE id = $1
-		RETURNING id, login, created_at
-	`, userID, hash).Scan(&user.ID, &user.Login, &user.CreatedAt)
+		RETURNING id, login, role, grade, created_at
+	`, userID, hash).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &user.CreatedAt)
 	if err != nil {
 		return User{}, err
 	}
@@ -167,4 +269,16 @@ func (s *Store) DeleteUser(ctx context.Context, userID int) error {
 		return ErrUserNotFound
 	}
 	return nil
+}
+
+func AdminBootstrapFromEnv() (login, password string) {
+	login = os.Getenv("ADMIN_LOGIN")
+	if login == "" {
+		login = "admin"
+	}
+	password = os.Getenv("ADMIN_PASSWORD")
+	if password == "" {
+		password = "admin"
+	}
+	return login, password
 }

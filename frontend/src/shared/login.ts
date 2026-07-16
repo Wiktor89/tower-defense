@@ -1,12 +1,13 @@
 import { loginUser, setUserPassword } from '../api/client';
 import type { User } from '../types';
 import { captchaFieldHtml, setupCaptcha } from './captcha';
-import { getUser, setUser } from './user';
+import { clearUser, getUser, setUser } from './user';
 import './modal.css';
 
 export async function ensureUserLogin(): Promise<User> {
   const existing = getUser();
-  if (existing) return existing;
+  if (existing?.hasPassword && existing.role) return existing;
+  if (existing) clearUser();
   return promptUserLogin();
 }
 
@@ -17,11 +18,10 @@ export function promptUserLogin(): Promise<User> {
     overlay.innerHTML = `
       <div class="modal">
         <h2>Добро пожаловать!</h2>
-        <p>Введите логин, чтобы сохранять прогресс</p>
+        <p>Введите логин и пароль. Новый логин создаст аккаунт.</p>
         <form id="user-login-form">
           <input type="text" id="user-login-input" placeholder="Ваш логин" maxlength="64" required autofocus>
-          <input type="password" id="user-password-input" class="hidden" placeholder="Пароль">
-          <p class="modal-hint hidden" id="user-password-hint">У этого пользователя задан пароль</p>
+          <input type="password" id="user-password-input" placeholder="Пароль (мин. 4 символа)" minlength="4" required>
           ${captchaFieldHtml()}
           <button type="submit" class="modal-btn modal-btn--primary">Войти</button>
         </form>
@@ -33,38 +33,31 @@ export function promptUserLogin(): Promise<User> {
     const form = overlay.querySelector<HTMLFormElement>('#user-login-form')!;
     const input = overlay.querySelector<HTMLInputElement>('#user-login-input')!;
     const passwordInput = overlay.querySelector<HTMLInputElement>('#user-password-input')!;
-    const passwordHint = overlay.querySelector<HTMLParagraphElement>('#user-password-hint')!;
     const errorEl = overlay.querySelector<HTMLParagraphElement>('#user-login-error')!;
 
     let captchaCtrl: Awaited<ReturnType<typeof setupCaptcha>> | null = null;
     void setupCaptcha(overlay).then(ctrl => { captchaCtrl = ctrl; });
 
-    const showPasswordField = () => {
-      passwordInput.classList.remove('hidden');
-      passwordHint.classList.remove('hidden');
-      passwordInput.required = true;
-      passwordInput.focus();
-    };
-
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const login = input.value.trim();
+      const password = passwordInput.value;
       if (!login || !captchaCtrl) return;
 
       errorEl.classList.add('hidden');
       try {
-        const user = await loginUser(login, passwordInput.value, captchaCtrl.getValues());
+        const user = await loginUser(login, password, captchaCtrl.getValues());
         setUser(user);
         overlay.remove();
-        resolve(user);
+        resolve(getUser() ?? user);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Ошибка входа';
         await captchaCtrl.refresh();
         if (message.toLowerCase().includes('password required')) {
-          showPasswordField();
-          errorEl.textContent = 'Введите пароль для этого пользователя';
+          errorEl.textContent = 'Пароль обязателен';
+        } else if (message.toLowerCase().includes('at least 4')) {
+          errorEl.textContent = 'Пароль должен быть не короче 4 символов';
         } else if (message.toLowerCase().includes('invalid password')) {
-          showPasswordField();
           errorEl.textContent = 'Неверный пароль';
         } else if (message.toLowerCase().includes('invalid captcha') || message.toLowerCase().includes('captcha')) {
           errorEl.textContent = 'Фигурка не совпала — сдвиньте точнее';
@@ -78,17 +71,14 @@ export function promptUserLogin(): Promise<User> {
 }
 
 export function showSetPasswordModal(user: User, onSuccess?: (user: User) => void): void {
-  const hasPassword = !!user.hasPassword;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal">
-      <h2>${hasPassword ? 'Сменить пароль' : 'Задать пароль'}</h2>
-      <p>${hasPassword
-        ? 'Введите текущий и новый пароль для защиты аккаунта'
-        : 'Пароль не обязателен, но защитит ваш прогресс от других'}</p>
+      <h2>Сменить пароль</h2>
+      <p>Введите текущий и новый пароль</p>
       <form id="user-password-form">
-        ${hasPassword ? '<input type="password" id="current-password" placeholder="Текущий пароль" required>' : ''}
+        <input type="password" id="current-password" placeholder="Текущий пароль" required>
         <input type="password" id="new-password" placeholder="Новый пароль (мин. 4 символа)" minlength="4" required>
         <input type="password" id="confirm-password" placeholder="Повторите пароль" minlength="4" required>
         <div class="modal-actions">
@@ -110,9 +100,7 @@ export function showSetPasswordModal(user: User, onSuccess?: (user: User) => voi
     e.preventDefault();
     const newPassword = (overlay.querySelector('#new-password') as HTMLInputElement).value;
     const confirmPassword = (overlay.querySelector('#confirm-password') as HTMLInputElement).value;
-    const currentPassword = hasPassword
-      ? (overlay.querySelector('#current-password') as HTMLInputElement).value
-      : undefined;
+    const currentPassword = (overlay.querySelector('#current-password') as HTMLInputElement).value;
 
     if (newPassword !== confirmPassword) {
       errorEl.textContent = 'Пароли не совпадают';

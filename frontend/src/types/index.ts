@@ -6,6 +6,8 @@ export interface GameCatalogItem {
   url: string;
   available: boolean;
   tags: string[];
+  minGrade?: number;
+  maxGrade?: number;
 }
 
 export interface MathProblem {
@@ -16,11 +18,16 @@ export interface MathProblem {
   width: number;
 }
 
+export type UserRole = 'user' | 'admin';
+
 export interface User {
   id: number;
   login: string;
+  role?: UserRole;
+  grade?: number | null;
   hasPassword?: boolean;
   createdAt: string;
+  adminToken?: string;
 }
 
 export interface CaptchaChallenge {
@@ -51,6 +58,8 @@ export interface GameStats {
 export interface UserStatsRow {
   userId: number;
   login: string;
+  role?: string;
+  grade?: number | null;
   createdAt: string;
   games: GameStats[];
 }

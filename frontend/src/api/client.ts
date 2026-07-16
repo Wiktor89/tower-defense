@@ -29,8 +29,9 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   }
 }
 
-export function fetchGames(): Promise<GameCatalogItem[]> {
-  return request<GameCatalogItem[]>('/api/games');
+export function fetchGames(userId?: number): Promise<GameCatalogItem[]> {
+  const q = userId && userId > 0 ? `?userId=${userId}` : '';
+  return request<GameCatalogItem[]>(`/api/games${q}`);
 }
 
 export function fetchCaptcha(): Promise<CaptchaChallenge> {
@@ -196,6 +197,14 @@ export function updateMathColumnsSettings(token: string, sessionSize: number): P
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ sessionSize }),
+  });
+}
+
+export function adminSetUserGrade(token: string, userId: number, grade: number): Promise<User> {
+  return request<User>(`/api/admin/users/${userId}/grade`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ grade }),
   });
 }
 

@@ -42,6 +42,11 @@ func Connect(ctx context.Context) (*Store, error) {
 		pool.Close()
 		return nil, err
 	}
+	login, password := AdminBootstrapFromEnv()
+	if err := s.EnsureAdminUser(ctx, login, password); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("ensure admin user: %w", err)
+	}
 	return s, nil
 }
 
@@ -55,10 +60,15 @@ func (s *Store) migrate(ctx context.Context) error {
 			id SERIAL PRIMARY KEY,
 			login VARCHAR(64) UNIQUE NOT NULL,
 			password_hash VARCHAR(255),
+			role VARCHAR(16) NOT NULL DEFAULT 'user',
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
 
 		ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
+		ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(16) NOT NULL DEFAULT 'user';
+		ALTER TABLE users ADD COLUMN IF NOT EXISTS grade INTEGER
+			CHECK (grade IS NULL OR (grade >= 1 AND grade <= 11));
+		UPDATE users SET role = 'user' WHERE role IS NULL OR role = '';
 
 		CREATE TABLE IF NOT EXISTS user_game_stats (
 			id SERIAL PRIMARY KEY,

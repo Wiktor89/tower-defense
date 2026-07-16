@@ -46,7 +46,8 @@ make install
   - **Tower Defense**: победа/поражение — через одноразовую сессию `start` → `finish` с минимальной длительностью партии
   - **Заполни пропуски**: тексты из админки; сервер случайно убирает слова и проверяет ответ
 - Открытого `POST /api/stats` нет: клиент не может сам накрутить счётчики
-- Кнопка **Администратор** (справа вверху) → логин `admin` / пароль `admin`
+- Войдите как `admin` / `admin` (роль администратора) — справа появится **Администрирование**
+- В статистике админ назначает ученику **класс (1–11)** — в меню видны только игры этого диапазона
 - Страница админа: [http://localhost:8089/admin/](http://localhost:8089/admin/)
 
 ## API
@@ -56,7 +57,7 @@ make install
 | GET | `/api/health` | Проверка сервера |
 | GET | `/api/captcha` | Puzzle-captcha |
 | GET | `/api/games` | Каталог игр |
-| POST | `/api/users/login` | Вход пользователя `{ login, password?, captchaId, captchaAnswer }` |
+| POST | `/api/users/login` | Вход / регистрация `{ login, password, captchaId, captchaAnswer }` (пароль обязателен, мин. 4) |
 | PUT | `/api/users/password` | Установить пароль |
 | POST | `/api/math/problem` | Сгенерировать пример |
 | POST | `/api/math/check` | Проверить ответ; при `userId` пишет статы и может вернуть `stageCompletion` |

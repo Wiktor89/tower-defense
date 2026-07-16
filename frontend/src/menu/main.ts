@@ -2,23 +2,24 @@ import './menu.css';
 import '../shared/modal.css';
 import { fetchGames } from '../api/client';
 import type { GameCatalogItem } from '../types';
-import { ensureUserLogin, promptUserLogin, showSetPasswordModal } from '../shared/login';
-import { clearUser, getUser } from '../shared/user';
+import { ensureUserLogin, promptUserLogin } from '../shared/login';
+import { clearUser, getUser, isAdminUser } from '../shared/user';
 
 const grid = document.getElementById('games-grid');
 const userLabel = document.getElementById('user-label');
 const switchUserBtn = document.getElementById('switch-user-btn');
-const passwordBtn = document.getElementById('password-btn');
 const adminBtn = document.getElementById('admin-btn');
+const logoutBtn = document.getElementById('logout-btn');
 
-if (!grid || !userLabel || !switchUserBtn || !passwordBtn || !adminBtn) {
+if (!grid || !userLabel || !switchUserBtn || !adminBtn || !logoutBtn) {
   throw new Error('Missing DOM elements');
 }
 
 const gamesGrid = grid;
 const userLabelEl = userLabel;
 const switchUserBtnEl = switchUserBtn;
-const passwordBtnEl = passwordBtn;
+const adminBtnEl = adminBtn;
+const logoutBtnEl = logoutBtn;
 
 function createGameCard(game: GameCatalogItem): HTMLElement {
   const card = document.createElement('article');
@@ -54,15 +55,21 @@ function createGameCard(game: GameCatalogItem): HTMLElement {
 function updateUserLabel(): void {
   const user = getUser();
   if (user) {
-    const lock = user.hasPassword ? ' 🔒' : '';
-    userLabelEl.textContent = `👤 ${user.login}${lock}`;
+    const gradeLabel = user.grade ? ` · ${user.grade} кл.` : '';
+    userLabelEl.textContent = `👤 ${user.login}${gradeLabel}`;
     switchUserBtnEl.classList.remove('hidden');
-    passwordBtnEl.classList.remove('hidden');
-    passwordBtnEl.textContent = user.hasPassword ? 'Сменить пароль' : 'Задать пароль';
+    logoutBtnEl.classList.remove('hidden');
   } else {
     userLabelEl.textContent = '';
     switchUserBtnEl.classList.add('hidden');
-    passwordBtnEl.classList.add('hidden');
+    logoutBtnEl.classList.add('hidden');
+  }
+
+  if (isAdminUser(user)) {
+    adminBtnEl.textContent = 'Администрирование';
+    adminBtnEl.classList.remove('hidden');
+  } else {
+    adminBtnEl.classList.add('hidden');
   }
 }
 
@@ -72,22 +79,28 @@ switchUserBtnEl.addEventListener('click', () => {
   void promptUserLogin().then(() => updateUserLabel());
 });
 
-passwordBtnEl.addEventListener('click', () => {
-  const user = getUser();
-  if (!user) return;
-  showSetPasswordModal(user, () => updateUserLabel());
+logoutBtnEl.addEventListener('click', () => {
+  clearUser();
+  updateUserLabel();
+  void promptUserLogin().then(() => updateUserLabel());
 });
 
-adminBtn.addEventListener('click', () => {
+adminBtnEl.addEventListener('click', () => {
   window.location.href = '/admin/';
 });
 
 async function init() {
-  await ensureUserLogin();
+  const user = await ensureUserLogin();
   updateUserLabel();
 
   try {
-    const games = await fetchGames();
+    const games = await fetchGames(user.id);
+    if (games.length === 0) {
+      gamesGrid.innerHTML = isAdminUser(user)
+        ? '<p class="menu-error">Список игр пуст.</p>'
+        : '<p class="menu-error">Администратор ещё не назначил ваш класс — игры появятся после этого.</p>';
+      return;
+    }
     games.forEach(game => gamesGrid.appendChild(createGameCard(game)));
   } catch {
     gamesGrid.innerHTML = '<p class="menu-error">Не удалось загрузить список игр. Запустите backend.</p>';

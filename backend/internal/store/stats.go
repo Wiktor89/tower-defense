@@ -26,6 +26,8 @@ type StatsDelta struct {
 type UserStatsRow struct {
 	UserID    int         `json:"userId"`
 	Login     string      `json:"login"`
+	Role      string      `json:"role"`
+	Grade     *int        `json:"grade"`
 	CreatedAt time.Time   `json:"createdAt"`
 	Games     []GameStats `json:"games"`
 }
@@ -48,7 +50,7 @@ func (s *Store) AddStats(ctx context.Context, userID int, gameID string, delta S
 
 func (s *Store) ListAllUserStats(ctx context.Context) ([]UserStatsRow, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT u.id, u.login, u.created_at,
+		SELECT u.id, u.login, u.role, u.grade, u.created_at,
 		       COALESCE(s.game_id, ''),
 		       COALESCE(s.correct, 0),
 		       COALESCE(s.wrong, 0),
@@ -71,12 +73,14 @@ func (s *Store) ListAllUserStats(ctx context.Context) ([]UserStatsRow, error) {
 	for rows.Next() {
 		var userID int
 		var login string
+		var role string
+		var grade *int
 		var createdAt time.Time
 		var gameID string
 		var gs GameStats
 
 		if err := rows.Scan(
-			&userID, &login, &createdAt,
+			&userID, &login, &role, &grade, &createdAt,
 			&gameID, &gs.Correct, &gs.Wrong, &gs.SessionsCompleted, &gs.GamesWon, &gs.GamesLost, &gs.UpdatedAt,
 		); err != nil {
 			return nil, err
@@ -84,7 +88,10 @@ func (s *Store) ListAllUserStats(ctx context.Context) ([]UserStatsRow, error) {
 
 		row, ok := byUser[userID]
 		if !ok {
-			row = &UserStatsRow{UserID: userID, Login: login, CreatedAt: createdAt, Games: []GameStats{}}
+			if role == "" {
+				role = RoleUser
+			}
+			row = &UserStatsRow{UserID: userID, Login: login, Role: role, Grade: grade, CreatedAt: createdAt, Games: []GameStats{}}
 			byUser[userID] = row
 			order = append(order, userID)
 		}

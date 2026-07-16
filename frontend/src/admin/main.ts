@@ -1,6 +1,6 @@
 import './admin.css';
 import '../shared/modal.css';
-import { adminDeleteUser, adminLogin, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminFillBlankTexts, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateAdminFillBlankPercent, updateAdminFillBlankText, updateMathColumnsSettings } from '../api/client';
+import { adminDeleteUser, adminLogin, adminSetUserGrade, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminFillBlankTexts, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateAdminFillBlankPercent, updateAdminFillBlankText, updateMathColumnsSettings } from '../api/client';
 import type { FillBlankText, GameSettings, StageCompletion, UserStatsRow } from '../types';
 import { PLANETS } from '../games/math-columns/planets';
 import { captchaFieldHtml, setupCaptcha } from '../shared/captcha';
@@ -79,11 +79,32 @@ function renderLogin(): void {
   });
 }
 
-function renderDeleteButton(userId: number, login: string, rowspan: number): string {
+function gradeSelectHtml(userId: number, grade: number | null | undefined): string {
+  const options = Array.from({ length: 11 }, (_, i) => {
+    const g = i + 1;
+    const selected = grade === g ? ' selected' : '';
+    return `<option value="${g}"${selected}>${g}</option>`;
+  }).join('');
+  const emptySelected = grade == null ? ' selected' : '';
+  return `
+    <select class="admin-grade-select" data-user-id="${userId}">
+      <option value=""${emptySelected}>—</option>
+      ${options}
+    </select>
+  `;
+}
+
+function renderUserActions(userId: number, login: string, grade: number | null | undefined, rowspan: number): string {
   return `
     <td rowspan="${rowspan}" class="admin-actions-cell">
-      <button type="button" class="admin-btn admin-btn--danger admin-delete-btn"
-        data-user-id="${userId}" data-user-login="${login}">Удалить</button>
+      <div class="admin-user-controls">
+        <label class="admin-grade-label">
+          Класс
+          ${gradeSelectHtml(userId, grade)}
+        </label>
+        <button type="button" class="admin-btn admin-btn--danger admin-delete-btn"
+          data-user-id="${userId}" data-user-login="${login}">Удалить</button>
+      </div>
     </td>
   `;
 }
@@ -96,7 +117,7 @@ function renderStatsTable(rows: UserStatsRow[]): string {
         <tr>
           <td>${user.login}</td>
           <td colspan="6" class="admin-empty">Ещё не играл</td>
-          ${renderDeleteButton(user.userId, user.login, 1)}
+          ${renderUserActions(user.userId, user.login, user.grade, 1)}
         </tr>
       `;
     }
@@ -109,7 +130,7 @@ function renderStatsTable(rows: UserStatsRow[]): string {
         <td>${g.sessionsCompleted}</td>
         <td>${g.gamesWon}</td>
         <td>${g.gamesLost}</td>
-        ${i === 0 ? renderDeleteButton(user.userId, user.login, rowSpan) : ''}
+        ${i === 0 ? renderUserActions(user.userId, user.login, user.grade, rowSpan) : ''}
       </tr>
     `).join('');
   }).join('');
@@ -126,7 +147,7 @@ function renderStatsTable(rows: UserStatsRow[]): string {
             <th>Серии</th>
             <th>Победы</th>
             <th>Поражения</th>
-            <th></th>
+            <th>Класс / действия</th>
           </tr>
         </thead>
         <tbody>
@@ -502,6 +523,27 @@ function renderDashboard(
         });
       }, 200);
       percentTimers.set(id, timer);
+    });
+  });
+
+  appEl.querySelectorAll<HTMLSelectElement>('.admin-grade-select').forEach(select => {
+    select.addEventListener('change', () => {
+      const userId = Number(select.dataset.userId);
+      const grade = Number(select.value);
+      if (!userId || !grade) {
+        select.value = '';
+        return;
+      }
+      select.disabled = true;
+      void adminSetUserGrade(token, userId, grade)
+        .then(() => {
+          select.disabled = false;
+        })
+        .catch(err => {
+          select.disabled = false;
+          alert(err instanceof Error ? err.message : 'Не удалось сохранить класс');
+          void loadDashboard(token);
+        });
     });
   });
 

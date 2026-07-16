@@ -8,6 +8,8 @@ type Game struct {
 	URL         string   `json:"url"`
 	Available   bool     `json:"available"`
 	Tags        []string `json:"tags"`
+	MinGrade    int      `json:"minGrade"`
+	MaxGrade    int      `json:"maxGrade"`
 }
 
 func Catalog() []Game {
@@ -20,6 +22,8 @@ func Catalog() []Game {
 			URL:         "/games/tower-defense/",
 			Available:   true,
 			Tags:        []string{"стратегия", "tower defense"},
+			MinGrade:    5,
+			MaxGrade:    11,
 		},
 		{
 			ID:          "math-columns",
@@ -29,6 +33,8 @@ func Catalog() []Game {
 			URL:         "/games/math-columns/",
 			Available:   true,
 			Tags:        []string{"математика", "обучение"},
+			MinGrade:    1,
+			MaxGrade:    4,
 		},
 		{
 			ID:          "fill-blanks",
@@ -38,6 +44,8 @@ func Catalog() []Game {
 			URL:         "/games/fill-blanks/",
 			Available:   true,
 			Tags:        []string{"слова", "скороговорка"},
+			MinGrade:    2,
+			MaxGrade:    6,
 		},
 		{
 			ID:          "disassemble",
@@ -47,6 +55,8 @@ func Catalog() []Game {
 			URL:         "/games/disassemble/",
 			Available:   true,
 			Tags:        []string{"3D", "логика"},
+			MinGrade:    5,
+			MaxGrade:    11,
 		},
 		{
 			ID:          "snake",
@@ -56,6 +66,8 @@ func Catalog() []Game {
 			URL:         "/games/snake/",
 			Available:   false,
 			Tags:        []string{"аркада", "классика"},
+			MinGrade:    1,
+			MaxGrade:    6,
 		},
 		{
 			ID:          "breakout",
@@ -65,6 +77,8 @@ func Catalog() []Game {
 			URL:         "/games/breakout/",
 			Available:   false,
 			Tags:        []string{"аркада"},
+			MinGrade:    2,
+			MaxGrade:    8,
 		},
 		{
 			ID:          "memory",
@@ -74,6 +88,22 @@ func Catalog() []Game {
 			URL:         "/games/memory/",
 			Available:   false,
 			Tags:        []string{"головоломка"},
+			MinGrade:    1,
+			MaxGrade:    4,
 		},
 	}
+}
+
+func SuitableForGrade(grade int) []Game {
+	all := Catalog()
+	if grade < 1 || grade > 11 {
+		return nil
+	}
+	out := make([]Game, 0, len(all))
+	for _, g := range all {
+		if grade >= g.MinGrade && grade <= g.MaxGrade {
+			out = append(out, g)
+		}
+	}
+	return out
 }

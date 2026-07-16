@@ -3,44 +3,26 @@ package admin
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"os"
 	"sync"
 	"time"
 )
 
 type Auth struct {
-	login    string
-	password string
-	mu       sync.RWMutex
-	tokens   map[string]time.Time
+	mu     sync.RWMutex
+	tokens map[string]time.Time
 }
 
 func NewAuth() *Auth {
-	login := os.Getenv("ADMIN_LOGIN")
-	if login == "" {
-		login = "admin"
-	}
-	password := os.Getenv("ADMIN_PASSWORD")
-	if password == "" {
-		password = "admin"
-	}
-	return &Auth{
-		login:    login,
-		password: password,
-		tokens:   make(map[string]time.Time),
-	}
+	return &Auth{tokens: make(map[string]time.Time)}
 }
 
-func (a *Auth) Login(login, password string) (string, bool) {
-	if login != a.login || password != a.password {
-		return "", false
-	}
+func (a *Auth) IssueToken() string {
 	token := randomToken()
 	a.mu.Lock()
 	a.tokens[token] = time.Now().Add(24 * time.Hour)
 	a.cleanupLocked()
 	a.mu.Unlock()
-	return token, true
+	return token
 }
 
 func (a *Auth) Valid(token string) bool {

@@ -269,6 +269,14 @@
   background: rgba(255, 255, 255, 0.15);
 }
 
+.topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .topbar__admin {
   padding: 8px 16px;
   background: rgba(255, 255, 255, 0.08);
@@ -283,4 +291,8 @@
 
 .topbar__admin:hover {
   background: rgba(255, 255, 255, 0.15);
+}
+
+.topbar__admin.hidden {
+  display: none;
 }
