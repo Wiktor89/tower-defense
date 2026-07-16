@@ -24,12 +24,13 @@ type StatsDelta struct {
 }
 
 type UserStatsRow struct {
-	UserID    int         `json:"userId"`
-	Login     string      `json:"login"`
-	Role      string      `json:"role"`
-	Grade     *int        `json:"grade"`
-	CreatedAt time.Time   `json:"createdAt"`
-	Games     []GameStats `json:"games"`
+	UserID                  int         `json:"userId"`
+	Login                   string      `json:"login"`
+	Role                    string      `json:"role"`
+	Grade                   *int        `json:"grade"`
+	CreatedAt               time.Time   `json:"createdAt"`
+	FractionsTutorialDone   bool        `json:"fractionsTutorialDone"`
+	Games                   []GameStats `json:"games"`
 }
 
 func (s *Store) AddStats(ctx context.Context, userID int, gameID string, delta StatsDelta) error {
@@ -66,6 +67,10 @@ func (s *Store) GetGameStats(ctx context.Context, userID int, gameID string) (Ga
 func (s *Store) ListAllUserStats(ctx context.Context) ([]UserStatsRow, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT u.id, u.login, u.role, u.grade, u.created_at,
+		       EXISTS(
+		         SELECT 1 FROM user_game_unlocks ul
+		         WHERE ul.user_id = u.id AND ul.game_id = $1
+		       ),
 		       COALESCE(s.game_id, ''),
 		       COALESCE(s.correct, 0),
 		       COALESCE(s.wrong, 0),
@@ -76,7 +81,7 @@ func (s *Store) ListAllUserStats(ctx context.Context) ([]UserStatsRow, error) {
 		FROM users u
 		LEFT JOIN user_game_stats s ON s.user_id = u.id
 		ORDER BY u.login, s.game_id
-	`)
+	`, FractionsGameID)
 	if err != nil {
 		return nil, err
 	}
@@ -91,11 +96,12 @@ func (s *Store) ListAllUserStats(ctx context.Context) ([]UserStatsRow, error) {
 		var role string
 		var grade *int
 		var createdAt time.Time
+		var tutorialDone bool
 		var gameID string
 		var gs GameStats
 
 		if err := rows.Scan(
-			&userID, &login, &role, &grade, &createdAt,
+			&userID, &login, &role, &grade, &createdAt, &tutorialDone,
 			&gameID, &gs.Correct, &gs.Wrong, &gs.SessionsCompleted, &gs.GamesWon, &gs.GamesLost, &gs.UpdatedAt,
 		); err != nil {
 			return nil, err
@@ -106,7 +112,15 @@ func (s *Store) ListAllUserStats(ctx context.Context) ([]UserStatsRow, error) {
 			if role == "" {
 				role = RoleUser
 			}
-			row = &UserStatsRow{UserID: userID, Login: login, Role: role, Grade: grade, CreatedAt: createdAt, Games: []GameStats{}}
+			row = &UserStatsRow{
+				UserID:                userID,
+				Login:                 login,
+				Role:                  role,
+				Grade:                 grade,
+				CreatedAt:             createdAt,
+				FractionsTutorialDone: tutorialDone,
+				Games:                 []GameStats{},
+			}
 			byUser[userID] = row
 			order = append(order, userID)
 		}

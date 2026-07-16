@@ -1,11 +1,16 @@
 import './style.css';
-import { checkFractionAnswer, fetchFractionProblem } from '../../api/client';
+import {
+  checkFractionAnswer,
+  completeFractionsTutorial,
+  fetchFractionProblem,
+  fetchFractionsTutorial,
+} from '../../api/client';
 import type { FractionProblem, FractionVisualHint } from '../../types';
 import { ensureUserLogin } from '../../shared/login';
 import { showChallengeReward } from '../../shared/solar-reward';
 import { setupLab } from './lab';
 import { countSelected, renderPie } from './pie';
-import { createTutorialController, isTutorialDone, markTutorialDone } from './tutorial';
+import { clearLegacyTutorialFlag, createTutorialController, hadLegacyTutorialFlag } from './tutorial';
 
 const gateEl = document.getElementById('gate');
 const playEl = document.getElementById('play');
@@ -130,7 +135,7 @@ function renderGate(): void {
     ui.gateEyebrow.textContent = 'Обязательное обучение';
     ui.gateHeading.textContent = 'Что такое дроби?';
     ui.gateDesc.textContent =
-      'Перед квестами пройди короткое обучение по Колесникову: равные части, половина, четверть и запись дроби. Затем сдашь мини-тест из 3 вопросов — только после этого откроется «Деление и дроби».';
+      'Перед квестами пройди короткое обучение: равные части, половина, четверть и запись дроби. Затем сдашь мини-тест из 3 вопросов — только после этого откроется «Деление и дроби».';
     ui.gatePhase.textContent = 'Квесты заблокированы, пока не сдан мини-тест';
     ui.learnBtn.classList.remove('hidden');
     ui.startBtn.classList.add('hidden');
@@ -381,10 +386,16 @@ const tutorial = createTutorialController(
     quizPane,
   },
   () => {
-    markTutorialDone(userId);
-    unlocked = true;
-    tutorial.hide();
-    renderGate();
+    void completeFractionsTutorial(userId)
+      .then(() => {
+        clearLegacyTutorialFlag(userId);
+        unlocked = true;
+        tutorial.hide();
+        renderGate();
+      })
+      .catch(() => {
+        alert('Не удалось сохранить прохождение обучения. Проверьте backend.');
+      });
   },
 );
 
@@ -417,7 +428,17 @@ async function boot(): Promise<void> {
   const user = await ensureUserLogin();
   userId = user.id;
   userGrade = user.grade ?? null;
-  unlocked = isTutorialDone(userId);
+  try {
+    const status = await fetchFractionsTutorial(userId);
+    unlocked = status.done;
+    if (!unlocked && hadLegacyTutorialFlag(userId)) {
+      await completeFractionsTutorial(userId);
+      unlocked = true;
+    }
+    clearLegacyTutorialFlag(userId);
+  } catch {
+    unlocked = false;
+  }
   renderGate();
   updateScore();
 }

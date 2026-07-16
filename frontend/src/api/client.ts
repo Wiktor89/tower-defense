@@ -89,6 +89,18 @@ export function loginUser(login: string, password: string | undefined, captcha: 
   });
 }
 
+export function registerUser(login: string, password: string, captcha: CaptchaPayload): Promise<User> {
+  return request<User>('/api/users/register', {
+    method: 'POST',
+    body: JSON.stringify({
+      login,
+      password,
+      captchaId: captcha.captchaId,
+      captchaAnswer: captcha.captchaAnswer,
+    }),
+  });
+}
+
 export function setUserPassword(userId: number, password: string, currentPassword?: string): Promise<User> {
   return request<User>('/api/users/password', {
     method: 'PUT',
@@ -156,6 +168,24 @@ export function checkFractionAnswer(
   return request<FractionCheckResult>('/api/fractions/check', {
     method: 'POST',
     body: JSON.stringify({ id, answer, userId: userId ?? 0 }),
+  });
+}
+
+export function fetchFractionsTutorial(userId: number): Promise<{ done: boolean }> {
+  return request<{ done: boolean }>(`/api/fractions/tutorial?userId=${userId}`);
+}
+
+export function completeFractionsTutorial(userId: number): Promise<{ done: boolean }> {
+  return request<{ done: boolean }>('/api/fractions/tutorial/complete', {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  });
+}
+
+export function adminResetFractionsTutorial(token: string, userId: number): Promise<{ done: boolean }> {
+  return request<{ done: boolean }>(`/api/admin/users/${userId}/fractions-tutorial`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
   });
 }
 

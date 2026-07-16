@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -155,9 +156,71 @@ func (s *Store) migrate(ctx context.Context) error {
 			max_grade INTEGER NOT NULL CHECK (max_grade >= 1 AND max_grade <= 11),
 			CHECK (min_grade <= max_grade)
 		);
+
+		CREATE TABLE IF NOT EXISTS user_game_unlocks (
+			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			game_id VARCHAR(64) NOT NULL,
+			unlocked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (user_id, game_id)
+		);
 	`)
 	if err != nil {
 		return err
 	}
+	if err := s.normalizeLoginCase(ctx); err != nil {
+		return err
+	}
 	return s.ensureGameGrades(ctx)
+}
+
+func (s *Store) normalizeLoginCase(ctx context.Context) error {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, login FROM users ORDER BY id
+	`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	type row struct {
+		id    int
+		login string
+	}
+	var all []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.id, &r.login); err != nil {
+			return err
+		}
+		all = append(all, r)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	keep := make(map[string]int)
+	for _, r := range all {
+		canon := strings.ToLower(strings.TrimSpace(r.login))
+		if canon == "" {
+			continue
+		}
+		if first, ok := keep[canon]; ok {
+			if _, err := s.pool.Exec(ctx, `DELETE FROM users WHERE id = $1`, r.id); err != nil {
+				return err
+			}
+			_ = first
+			continue
+		}
+		keep[canon] = r.id
+		if r.login != canon {
+			if _, err := s.pool.Exec(ctx, `UPDATE users SET login = $2 WHERE id = $1`, r.id, canon); err != nil {
+				return err
+			}
+		}
+	}
+
+	_, err = s.pool.Exec(ctx, `
+		CREATE UNIQUE INDEX IF NOT EXISTS users_login_lower_uidx ON users (lower(login))
+	`)
+	return err
 }

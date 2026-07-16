@@ -1,6 +1,6 @@
 import './admin.css';
 import '../shared/modal.css';
-import { adminDeleteUser, adminLogin, adminSetUserGrade, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminChallenge, fetchAdminFillBlankTexts, fetchAdminGameGrades, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateAdminChallenge, updateAdminFillBlankPercent, updateAdminFillBlankText, updateAdminGameGrade, updateMathColumnsSettings } from '../api/client';
+import { adminDeleteUser, adminLogin, adminResetFractionsTutorial, adminSetUserGrade, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminChallenge, fetchAdminFillBlankTexts, fetchAdminGameGrades, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateAdminChallenge, updateAdminFillBlankPercent, updateAdminFillBlankText, updateAdminGameGrade, updateMathColumnsSettings } from '../api/client';
 import type { DailyChallengeAdmin, FillBlankText, GameGrade, GameSettings, StageCompletion, UserStatsRow } from '../types';
 import { PLANETS } from '../shared/planets';
 import { captchaFieldHtml, setupCaptcha } from '../shared/captcha';
@@ -95,7 +95,14 @@ function gradeSelectHtml(userId: number, grade: number | null | undefined): stri
   `;
 }
 
-function renderUserActions(userId: number, login: string, grade: number | null | undefined, rowspan: number): string {
+function renderUserActions(
+  userId: number,
+  login: string,
+  grade: number | null | undefined,
+  rowspan: number,
+  fractionsTutorialDone = false,
+): string {
+  const tutorialLabel = fractionsTutorialDone ? 'Обучение пройдено' : 'Обучение не пройдено';
   return `
     <td rowspan="${rowspan}" class="admin-actions-cell">
       <div class="admin-user-controls">
@@ -103,6 +110,10 @@ function renderUserActions(userId: number, login: string, grade: number | null |
           Класс
           ${gradeSelectHtml(userId, grade)}
         </label>
+        <p class="admin-tutorial-status">${tutorialLabel}</p>
+        <button type="button" class="admin-btn admin-reset-tutorial-btn"
+          data-user-id="${userId}" data-user-login="${login}"
+          ${fractionsTutorialDone ? '' : 'disabled'}>Сбросить обучение</button>
         <button type="button" class="admin-btn admin-btn--danger admin-delete-btn"
           data-user-id="${userId}" data-user-login="${login}">Удалить</button>
       </div>
@@ -118,7 +129,7 @@ function renderStatsTable(rows: UserStatsRow[]): string {
         <tr>
           <td>${user.login}</td>
           <td colspan="6" class="admin-empty">Ещё не играл</td>
-          ${renderUserActions(user.userId, user.login, user.grade, 1)}
+          ${renderUserActions(user.userId, user.login, user.grade, 1, !!user.fractionsTutorialDone)}
         </tr>
       `;
     }
@@ -131,7 +142,7 @@ function renderStatsTable(rows: UserStatsRow[]): string {
         <td>${g.sessionsCompleted}</td>
         <td>${g.gamesWon}</td>
         <td>${g.gamesLost}</td>
-        ${i === 0 ? renderUserActions(user.userId, user.login, user.grade, rowSpan) : ''}
+        ${i === 0 ? renderUserActions(user.userId, user.login, user.grade, rowSpan, !!user.fractionsTutorialDone) : ''}
       </tr>
     `).join('');
   }).join('');
@@ -772,6 +783,25 @@ function renderDashboard(
           select.disabled = false;
           alert(err instanceof Error ? err.message : 'Не удалось сохранить класс');
           void loadDashboard(token);
+        });
+    });
+  });
+
+  appEl.querySelectorAll<HTMLButtonElement>('.admin-reset-tutorial-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const userId = Number(btn.dataset.userId);
+      const login = btn.dataset.userLogin ?? '';
+      if (!userId) return;
+      if (!confirm(`Сбросить обучение «Деление и дроби» для ${login}?`)) return;
+      btn.disabled = true;
+      void adminResetFractionsTutorial(token, userId)
+        .then(() => {
+          setActiveTab('stats');
+          void loadDashboard(token);
+        })
+        .catch(err => {
+          btn.disabled = false;
+          alert(err instanceof Error ? err.message : 'Не удалось сбросить обучение');
         });
     });
   });

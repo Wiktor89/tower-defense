@@ -61,7 +61,7 @@ func Catalog() []Game {
 		{
 			ID:          "fractions",
 			Title:       "Деление и дроби",
-			Description: "Мир долей по Колесникову: от половинок и пиццы до алгебраических дробей.",
+			Description: "От половинок и пиццы до алгебраических дробей — учимся долям визуально.",
 			Icon:        "🍕",
 			URL:         "/games/fractions/",
 			Available:   true,

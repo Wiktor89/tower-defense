@@ -1,8 +1,24 @@
-import { loginUser, setUserPassword } from '../api/client';
+import { loginUser, registerUser, setUserPassword } from '../api/client';
 import type { User } from '../types';
 import { captchaFieldHtml, setupCaptcha } from './captcha';
 import { clearUser, getUser, setUser } from './user';
 import './modal.css';
+
+function authErrorMessage(message: string, mode: 'login' | 'register'): string {
+  const lower = message.toLowerCase();
+  if (lower.includes('password required')) return 'Пароль обязателен';
+  if (lower.includes('at least 4')) return 'Пароль должен быть не короче 4 символов';
+  if (lower.includes('invalid password')) return 'Неверный пароль';
+  if (lower.includes('user not found')) return 'Такого логина нет. Зарегистрируйтесь.';
+  if (lower.includes('login already taken') || lower.includes('already taken')) {
+    return 'Такой логин уже занят';
+  }
+  if (lower.includes('invalid captcha') || lower.includes('captcha')) {
+    return 'Фигурка не совпала — сдвиньте точнее';
+  }
+  if (mode === 'register' && lower.includes('login is required')) return 'Введите логин';
+  return message;
+}
 
 export async function ensureUserLogin(): Promise<User> {
   const existing = getUser();
@@ -18,12 +34,15 @@ export function promptUserLogin(): Promise<User> {
     overlay.innerHTML = `
       <div class="modal">
         <h2>Добро пожаловать!</h2>
-        <p>Введите логин и пароль. Новый логин создаст аккаунт.</p>
+        <p id="auth-hint">Введите логин и пароль, чтобы войти.</p>
         <form id="user-login-form">
           <input type="text" id="user-login-input" placeholder="Ваш логин" maxlength="64" required autofocus>
           <input type="password" id="user-password-input" placeholder="Пароль (мин. 4 символа)" minlength="4" required>
           ${captchaFieldHtml()}
-          <button type="submit" class="modal-btn modal-btn--primary">Войти</button>
+          <div class="modal-actions modal-actions--stack">
+            <button type="submit" class="modal-btn modal-btn--primary" id="auth-submit">Войти</button>
+            <button type="button" class="modal-btn modal-btn--ghost" id="auth-toggle">Зарегистрироваться</button>
+          </div>
         </form>
         <p class="modal-error hidden" id="user-login-error"></p>
       </div>
@@ -34,9 +53,31 @@ export function promptUserLogin(): Promise<User> {
     const input = overlay.querySelector<HTMLInputElement>('#user-login-input')!;
     const passwordInput = overlay.querySelector<HTMLInputElement>('#user-password-input')!;
     const errorEl = overlay.querySelector<HTMLParagraphElement>('#user-login-error')!;
+    const hintEl = overlay.querySelector<HTMLParagraphElement>('#auth-hint')!;
+    const submitBtn = overlay.querySelector<HTMLButtonElement>('#auth-submit')!;
+    const toggleBtn = overlay.querySelector<HTMLButtonElement>('#auth-toggle')!;
 
+    let mode: 'login' | 'register' = 'login';
     let captchaCtrl: Awaited<ReturnType<typeof setupCaptcha>> | null = null;
     void setupCaptcha(overlay).then(ctrl => { captchaCtrl = ctrl; });
+
+    const setMode = (next: 'login' | 'register'): void => {
+      mode = next;
+      errorEl.classList.add('hidden');
+      if (mode === 'login') {
+        hintEl.textContent = 'Введите логин и пароль, чтобы войти.';
+        submitBtn.textContent = 'Войти';
+        toggleBtn.textContent = 'Зарегистрироваться';
+      } else {
+        hintEl.textContent = 'Создайте логин и пароль. Регистр букв не важен: Арина и аРиНа — один логин.';
+        submitBtn.textContent = 'Создать аккаунт';
+        toggleBtn.textContent = 'Уже есть аккаунт? Войти';
+      }
+    };
+
+    toggleBtn.addEventListener('click', () => {
+      setMode(mode === 'login' ? 'register' : 'login');
+    });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -46,24 +87,16 @@ export function promptUserLogin(): Promise<User> {
 
       errorEl.classList.add('hidden');
       try {
-        const user = await loginUser(login, password, captchaCtrl.getValues());
+        const user = mode === 'register'
+          ? await registerUser(login, password, captchaCtrl.getValues())
+          : await loginUser(login, password, captchaCtrl.getValues());
         setUser(user);
         overlay.remove();
         resolve(getUser() ?? user);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Ошибка входа';
         await captchaCtrl.refresh();
-        if (message.toLowerCase().includes('password required')) {
-          errorEl.textContent = 'Пароль обязателен';
-        } else if (message.toLowerCase().includes('at least 4')) {
-          errorEl.textContent = 'Пароль должен быть не короче 4 символов';
-        } else if (message.toLowerCase().includes('invalid password')) {
-          errorEl.textContent = 'Неверный пароль';
-        } else if (message.toLowerCase().includes('invalid captcha') || message.toLowerCase().includes('captcha')) {
-          errorEl.textContent = 'Фигурка не совпала — сдвиньте точнее';
-        } else {
-          errorEl.textContent = message;
-        }
+        errorEl.textContent = authErrorMessage(message, mode);
         errorEl.classList.remove('hidden');
       }
     });

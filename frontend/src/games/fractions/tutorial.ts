@@ -1,13 +1,13 @@
 import { countSelected, renderPie } from './pie';
 
-export const TUTORIAL_KEY_PREFIX = 'fractions_tutorial_done_';
+const LEGACY_KEY_PREFIX = 'fractions_tutorial_done_';
 
-export function isTutorialDone(userId: number): boolean {
-  return localStorage.getItem(`${TUTORIAL_KEY_PREFIX}${userId}`) === '1';
+export function clearLegacyTutorialFlag(userId: number): void {
+  localStorage.removeItem(`${LEGACY_KEY_PREFIX}${userId}`);
 }
 
-export function markTutorialDone(userId: number): void {
-  localStorage.setItem(`${TUTORIAL_KEY_PREFIX}${userId}`, '1');
+export function hadLegacyTutorialFlag(userId: number): boolean {
+  return localStorage.getItem(`${LEGACY_KEY_PREFIX}${userId}`) === '1';
 }
 
 export interface LessonStep {
@@ -24,7 +24,7 @@ export const LESSONS: LessonStep[] = [
     id: 'equal',
     title: 'Равные части',
     body: 'Дробь появляется, когда целое делят на равные куски. Пирог, шоколадка, яблоко — неважно: части должны быть одинаковыми, иначе деление несправедливое.',
-    tip: 'По Колесникову сначала видим доли глазами, и только потом пишем цифры.',
+    tip: 'Сначала видим доли глазами, и только потом пишем цифры.',
     pieParts: 2,
     pieTake: 0,
   },
@@ -86,7 +86,7 @@ export const QUIZ: QuizItem[] = [
   {
     id: 'q3',
     kind: 'compare',
-    prompt: 'Какая доля больше — мост из золота?',
+    prompt: 'Какая доля больше: 1/4 или 3/4?',
     aLabel: '1/4',
     bLabel: '3/4',
     answer: 'b',

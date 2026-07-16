@@ -97,6 +97,19 @@ body {
   font-size: 0.85rem;
 }
 
+.admin-tutorial-status {
+  margin: 0;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: left;
+  line-height: 1.3;
+}
+
+.admin-reset-tutorial-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .admin-challenge-form {
   display: flex;
   flex-direction: column;

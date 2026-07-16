@@ -62,6 +62,7 @@ export interface UserStatsRow {
   role?: string;
   grade?: number | null;
   createdAt: string;
+  fractionsTutorialDone?: boolean;
   games: GameStats[];
 }
 

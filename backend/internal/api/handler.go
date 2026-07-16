@@ -60,6 +60,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/math/problem", h.createMathProblem)
 	mux.HandleFunc("POST /api/math/check", h.checkMathAnswer)
 	mux.HandleFunc("POST /api/users/login", h.userLogin)
+	mux.HandleFunc("POST /api/users/register", h.userRegister)
 	mux.HandleFunc("PUT /api/users/password", h.setUserPassword)
 	mux.HandleFunc("PUT /api/users/avatar", h.setUserAvatar)
 	mux.HandleFunc("POST /api/tower-defense/start", h.tdStart)
@@ -69,6 +70,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/disassemble/complete", h.disassembleComplete)
 	mux.HandleFunc("POST /api/fractions/problem", h.createFractionProblem)
 	mux.HandleFunc("POST /api/fractions/check", h.checkFractionAnswer)
+	mux.HandleFunc("GET /api/fractions/tutorial", h.getFractionsTutorial)
+	mux.HandleFunc("POST /api/fractions/tutorial/complete", h.completeFractionsTutorial)
 	mux.HandleFunc("GET /api/settings/math-columns", h.mathColumnsSettings)
 	mux.HandleFunc("POST /api/admin/login", h.adminLogin)
 	mux.HandleFunc("GET /api/admin/stats", h.adminStats)
@@ -85,6 +88,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/settings/game-grades", h.adminListGameGrades)
 	mux.HandleFunc("PUT /api/admin/settings/game-grades", h.adminSetGameGrade)
 	mux.HandleFunc("PUT /api/admin/users/{id}/grade", h.adminSetUserGrade)
+	mux.HandleFunc("DELETE /api/admin/users/{id}/fractions-tutorial", h.adminResetFractionsTutorial)
 	mux.HandleFunc("DELETE /api/admin/users/{id}", h.adminDeleteUser)
 }
 
@@ -307,6 +311,22 @@ type userLoginRequest struct {
 	CaptchaAnswer int    `json:"captchaAnswer"`
 }
 
+func writeUserJSON(w http.ResponseWriter, status int, user store.User, adminToken string) {
+	resp := map[string]any{
+		"id":          user.ID,
+		"login":       user.Login,
+		"role":        user.Role,
+		"grade":       user.Grade,
+		"avatar":      user.Avatar,
+		"hasPassword": user.HasPassword,
+		"createdAt":   user.CreatedAt,
+	}
+	if adminToken != "" {
+		resp["adminToken"] = adminToken
+	}
+	writeJSON(w, status, resp)
+}
+
 func (h *Handler) userLogin(w http.ResponseWriter, r *http.Request) {
 	var req userLoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -323,6 +343,8 @@ func (h *Handler) userLogin(w http.ResponseWriter, r *http.Request) {
 	user, err := h.db.LoginUser(ctx, req.Login, req.Password)
 	if err != nil {
 		switch {
+		case errors.Is(err, store.ErrUserNotFound):
+			writeError(w, http.StatusNotFound, "user not found")
 		case errors.Is(err, store.ErrPasswordRequired):
 			writeError(w, http.StatusUnauthorized, "password required")
 		case errors.Is(err, store.ErrPasswordTooShort):
@@ -335,19 +357,42 @@ func (h *Handler) userLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := map[string]any{
-		"id":          user.ID,
-		"login":       user.Login,
-		"role":        user.Role,
-		"grade":       user.Grade,
-		"avatar":      user.Avatar,
-		"hasPassword": user.HasPassword,
-		"createdAt":   user.CreatedAt,
-	}
+	adminToken := ""
 	if user.Role == store.RoleAdmin {
-		resp["adminToken"] = h.adminAuth.IssueToken()
+		adminToken = h.adminAuth.IssueToken()
 	}
-	writeJSON(w, http.StatusOK, resp)
+	writeUserJSON(w, http.StatusOK, user, adminToken)
+}
+
+func (h *Handler) userRegister(w http.ResponseWriter, r *http.Request) {
+	var req userLoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if !h.checkCaptcha(w, req.CaptchaID, req.CaptchaAnswer) {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	user, err := h.db.RegisterUser(ctx, req.Login, req.Password)
+	if err != nil {
+		switch {
+		case errors.Is(err, store.ErrLoginTaken):
+			writeError(w, http.StatusConflict, "login already taken")
+		case errors.Is(err, store.ErrPasswordRequired):
+			writeError(w, http.StatusBadRequest, "password required")
+		case errors.Is(err, store.ErrPasswordTooShort):
+			writeError(w, http.StatusBadRequest, "password must be at least 4 characters")
+		default:
+			writeError(w, http.StatusBadRequest, err.Error())
+		}
+		return
+	}
+
+	writeUserJSON(w, http.StatusCreated, user, "")
 }
 
 type setUserAvatarRequest struct {
@@ -647,6 +692,15 @@ func (h *Handler) createFractionProblem(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "failed to load user")
 		return
 	}
+	done, err := h.db.FractionsTutorialDone(ctx, req.UserID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to check tutorial")
+		return
+	}
+	if !done {
+		writeError(w, http.StatusForbidden, "fractions tutorial is not completed")
+		return
+	}
 	if user.Grade == nil {
 		writeError(w, http.StatusBadRequest, "user grade is not set")
 		return
@@ -659,6 +713,56 @@ func (h *Handler) createFractionProblem(w http.ResponseWriter, r *http.Request) 
 	problem := fractions.Generate(grade)
 	h.fracStore.Save(problem)
 	writeJSON(w, http.StatusOK, fractions.PublicView(problem))
+}
+
+func (h *Handler) getFractionsTutorial(w http.ResponseWriter, r *http.Request) {
+	userID, err := strconv.Atoi(r.URL.Query().Get("userId"))
+	if err != nil || userID <= 0 {
+		writeError(w, http.StatusBadRequest, "userId is required")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if _, err := h.db.GetUser(ctx, userID); err != nil {
+		if errors.Is(err, store.ErrUserNotFound) {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to load user")
+		return
+	}
+
+	done, err := h.db.FractionsTutorialDone(ctx, userID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to check tutorial")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"done": done})
+}
+
+func (h *Handler) completeFractionsTutorial(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UserID int `json:"userId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.UserID <= 0 {
+		writeError(w, http.StatusBadRequest, "userId is required")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := h.db.CompleteFractionsTutorial(ctx, req.UserID); err != nil {
+		if errors.Is(err, store.ErrUserNotFound) {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to save tutorial")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"done": true})
 }
 
 type fractionCheckRequest struct {
@@ -1252,6 +1356,33 @@ func (h *Handler) adminDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) adminResetFractionsTutorial(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	userID, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || userID <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := h.db.ResetFractionsTutorial(ctx, userID); err != nil {
+		if errors.Is(err, store.ErrUserNotFound) {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to reset tutorial")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"done": false})
 }
 
 func bearerToken(r *http.Request) string {

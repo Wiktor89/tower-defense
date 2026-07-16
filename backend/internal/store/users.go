@@ -18,6 +18,7 @@ const (
 
 var (
 	ErrUserNotFound     = errors.New("user not found")
+	ErrLoginTaken       = errors.New("login already taken")
 	ErrPasswordRequired = errors.New("password required")
 	ErrInvalidPassword  = errors.New("invalid password")
 	ErrPasswordTooShort = errors.New("password must be at least 4 characters")
@@ -43,14 +44,34 @@ func finalizeUser(user *User, passwordHash *string) {
 }
 
 func normalizeLogin(login string) (string, error) {
-	login = strings.TrimSpace(login)
+	login = strings.ToLower(strings.TrimSpace(login))
 	if login == "" {
 		return "", errors.New("login is required")
 	}
-	if len(login) > 64 {
+	if len([]rune(login)) > 64 {
 		return "", errors.New("login too long")
 	}
 	return login, nil
+}
+
+func (s *Store) findUserByLogin(ctx context.Context, login string) (User, *string, error) {
+	var user User
+	var passwordHash *string
+	err := s.pool.QueryRow(ctx, `
+		SELECT id, login, role, grade, avatar, password_hash, created_at
+		FROM users
+		WHERE lower(login) = $1
+		ORDER BY id
+		LIMIT 1
+	`, login).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &user.Avatar, &passwordHash, &user.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return User{}, nil, ErrUserNotFound
+	}
+	if err != nil {
+		return User{}, nil, err
+	}
+	finalizeUser(&user, passwordHash)
+	return user, passwordHash, nil
 }
 
 func hashPassword(password string) (string, error) {
@@ -103,26 +124,42 @@ func (s *Store) LoginUser(ctx context.Context, login, password string) (User, er
 		return User{}, ErrPasswordTooShort
 	}
 
-	var user User
-	var passwordHash *string
-	err = s.pool.QueryRow(ctx, `
-		SELECT id, login, role, grade, avatar, password_hash, created_at FROM users WHERE login = $1
-	`, login).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &user.Avatar, &passwordHash, &user.CreatedAt)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return s.createUser(ctx, login, password, RoleUser)
+	user, passwordHash, err := s.findUserByLogin(ctx, login)
+	if errors.Is(err, ErrUserNotFound) {
+		return User{}, ErrUserNotFound
 	}
 	if err != nil {
 		return User{}, err
 	}
-	finalizeUser(&user, passwordHash)
 
 	if !user.HasPassword {
 		return s.SetUserPassword(ctx, user.ID, password, "")
 	}
-	if !checkPassword(password, *passwordHash) {
+	if passwordHash == nil || !checkPassword(password, *passwordHash) {
 		return User{}, ErrInvalidPassword
 	}
 	return user, nil
+}
+
+func (s *Store) RegisterUser(ctx context.Context, login, password string) (User, error) {
+	login, err := normalizeLogin(login)
+	if err != nil {
+		return User{}, err
+	}
+	if strings.TrimSpace(password) == "" {
+		return User{}, ErrPasswordRequired
+	}
+	if len(password) < 4 {
+		return User{}, ErrPasswordTooShort
+	}
+
+	if _, _, err := s.findUserByLogin(ctx, login); err == nil {
+		return User{}, ErrLoginTaken
+	} else if !errors.Is(err, ErrUserNotFound) {
+		return User{}, err
+	}
+
+	return s.createUser(ctx, login, password, RoleUser)
 }
 
 func (s *Store) AuthenticateAdmin(ctx context.Context, login, password string) (User, error) {
@@ -134,12 +171,8 @@ func (s *Store) AuthenticateAdmin(ctx context.Context, login, password string) (
 		return User{}, ErrPasswordRequired
 	}
 
-	var user User
-	var passwordHash *string
-	err = s.pool.QueryRow(ctx, `
-		SELECT id, login, role, grade, avatar, password_hash, created_at FROM users WHERE login = $1
-	`, login).Scan(&user.ID, &user.Login, &user.Role, &user.Grade, &user.Avatar, &passwordHash, &user.CreatedAt)
-	if errors.Is(err, pgx.ErrNoRows) {
+	user, passwordHash, err := s.findUserByLogin(ctx, login)
+	if errors.Is(err, ErrUserNotFound) {
 		return User{}, ErrInvalidPassword
 	}
 	if err != nil {
@@ -151,7 +184,6 @@ func (s *Store) AuthenticateAdmin(ctx context.Context, login, password string) (
 	if passwordHash == nil || *passwordHash == "" || !checkPassword(password, *passwordHash) {
 		return User{}, ErrInvalidPassword
 	}
-	finalizeUser(&user, passwordHash)
 	return user, nil
 }
 
