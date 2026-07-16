@@ -130,8 +130,6 @@ func (s *Store) migrate(ctx context.Context) error {
 		ALTER TABLE daily_challenges
 			ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
 
-		UPDATE daily_challenges SET active = FALSE WHERE user_id IS NULL AND active = TRUE;
-
 		CREATE UNIQUE INDEX IF NOT EXISTS daily_challenges_one_active_per_user
 			ON daily_challenges (user_id)
 			WHERE active = TRUE AND user_id IS NOT NULL;
