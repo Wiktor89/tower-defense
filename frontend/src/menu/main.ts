@@ -7,6 +7,7 @@ import { getAvatar } from '../shared/avatars';
 import { ensureUserLogin, promptUserLogin } from '../shared/login';
 import { showChallengeReward } from '../shared/solar-reward';
 import { clearUser, getUser, isAdminUser } from '../shared/user';
+import { gameIconHtml } from './game-icons';
 import { startMoneyRain } from './money-rain';
 
 const grid = document.getElementById('games-grid');
@@ -36,9 +37,11 @@ function createGameCard(game: GameCatalogItem): HTMLElement {
     .map(tag => `<span class="game-card__tag">${tag}</span>`)
     .join('');
 
+  const icon = gameIconHtml(game.id);
+
   if (game.available) {
     card.innerHTML = `
-      <div class="game-card__icon">${game.icon}</div>
+      <div class="game-card__icon">${icon}</div>
       <h2 class="game-card__title">${game.title}</h2>
       <p class="game-card__desc">${game.description}</p>
       <div class="game-card__tags">${tags}</div>
@@ -46,7 +49,7 @@ function createGameCard(game: GameCatalogItem): HTMLElement {
     `;
   } else {
     card.innerHTML = `
-      <div class="game-card__icon">${game.icon}</div>
+      <div class="game-card__icon">${icon}</div>
       <span class="game-card__badge">Скоро</span>
       <h2 class="game-card__title">${game.title}</h2>
       <p class="game-card__desc">${game.description}</p>
@@ -107,7 +110,7 @@ function renderChallenge(status: ChallengeStatus): void {
 
   challengePanelEl.innerHTML = `
     <div class="challenge-card">
-      <h2 class="challenge-title">🎯 Вызов дня</h2>
+      <h2 class="challenge-title">Вызов дня</h2>
       <p class="challenge-progress">Пройдено ${status.completed} из ${status.total}</p>
       ${renderWeekProgress(status.week)}
       <ol class="challenge-list">${items}</ol>
