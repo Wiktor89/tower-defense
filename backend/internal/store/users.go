@@ -17,13 +17,14 @@ const (
 )
 
 var (
-	ErrUserNotFound     = errors.New("user not found")
-	ErrLoginTaken       = errors.New("login already taken")
-	ErrPasswordRequired = errors.New("password required")
-	ErrInvalidPassword  = errors.New("invalid password")
-	ErrPasswordTooShort = errors.New("password must be at least 4 characters")
-	ErrPasswordMismatch = errors.New("current password is incorrect")
-	ErrNotAdmin         = errors.New("admin role required")
+	ErrUserNotFound       = errors.New("user not found")
+	ErrLoginTaken         = errors.New("login already taken")
+	ErrPasswordRequired   = errors.New("password required")
+	ErrInvalidPassword    = errors.New("invalid password")
+	ErrPasswordTooShort   = errors.New("password must be at least 4 characters")
+	ErrPasswordMismatch   = errors.New("current password is incorrect")
+	ErrNotAdmin           = errors.New("admin role required")
+	ErrCannotDeleteAdmin  = errors.New("cannot delete admin user")
 )
 
 type User struct {
@@ -313,7 +314,14 @@ func (s *Store) SetUserPassword(ctx context.Context, userID int, newPassword, cu
 }
 
 func (s *Store) DeleteUser(ctx context.Context, userID int) error {
-	tag, err := s.pool.Exec(ctx, `DELETE FROM users WHERE id = $1`, userID)
+	user, err := s.GetUser(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if user.Role == RoleAdmin {
+		return ErrCannotDeleteAdmin
+	}
+	tag, err := s.pool.Exec(ctx, `DELETE FROM users WHERE id = $1 AND role <> $2`, userID, RoleAdmin)
 	if err != nil {
 		return err
 	}

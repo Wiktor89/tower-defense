@@ -101,8 +101,13 @@ function renderUserActions(
   grade: number | null | undefined,
   rowspan: number,
   fractionsTutorialDone = false,
+  isAdmin = false,
 ): string {
   const tutorialLabel = fractionsTutorialDone ? 'Обучение пройдено' : 'Обучение не пройдено';
+  const deleteBtn = isAdmin
+    ? `<p class="admin-tutorial-status">Админа удалить нельзя</p>`
+    : `<button type="button" class="admin-btn admin-btn--danger admin-delete-btn"
+          data-user-id="${userId}" data-user-login="${login}">Удалить</button>`;
   return `
     <td rowspan="${rowspan}" class="admin-actions-cell">
       <div class="admin-user-controls">
@@ -114,8 +119,7 @@ function renderUserActions(
         <button type="button" class="admin-btn admin-reset-tutorial-btn"
           data-user-id="${userId}" data-user-login="${login}"
           ${fractionsTutorialDone ? '' : 'disabled'}>Сбросить обучение</button>
-        <button type="button" class="admin-btn admin-btn--danger admin-delete-btn"
-          data-user-id="${userId}" data-user-login="${login}">Удалить</button>
+        ${deleteBtn}
       </div>
     </td>
   `;
@@ -129,7 +133,7 @@ function renderStatsTable(rows: UserStatsRow[]): string {
         <tr>
           <td>${user.login}</td>
           <td colspan="6" class="admin-empty">Ещё не играл</td>
-          ${renderUserActions(user.userId, user.login, user.grade, 1, !!user.fractionsTutorialDone)}
+          ${renderUserActions(user.userId, user.login, user.grade, 1, !!user.fractionsTutorialDone, user.role === 'admin')}
         </tr>
       `;
     }
@@ -142,7 +146,7 @@ function renderStatsTable(rows: UserStatsRow[]): string {
         <td>${g.sessionsCompleted}</td>
         <td>${g.gamesWon}</td>
         <td>${g.gamesLost}</td>
-        ${i === 0 ? renderUserActions(user.userId, user.login, user.grade, rowSpan, !!user.fractionsTutorialDone) : ''}
+        ${i === 0 ? renderUserActions(user.userId, user.login, user.grade, rowSpan, !!user.fractionsTutorialDone, user.role === 'admin') : ''}
       </tr>
     `).join('');
   }).join('');

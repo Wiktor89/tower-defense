@@ -1348,11 +1348,14 @@ func (h *Handler) adminDeleteUser(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	if err := h.db.DeleteUser(ctx, userID); err != nil {
-		if errors.Is(err, store.ErrUserNotFound) {
+		switch {
+		case errors.Is(err, store.ErrUserNotFound):
 			writeError(w, http.StatusNotFound, "user not found")
-			return
+		case errors.Is(err, store.ErrCannotDeleteAdmin):
+			writeError(w, http.StatusForbidden, "cannot delete admin user")
+		default:
+			writeError(w, http.StatusInternalServerError, "failed to delete user")
 		}
-		writeError(w, http.StatusInternalServerError, "failed to delete user")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
