@@ -13,12 +13,15 @@ const ChallengeGameID = "daily-challenge"
 type ChallengeGame struct {
 	GameID   string `json:"gameId"`
 	Title    string `json:"title,omitempty"`
+	URL      string `json:"url,omitempty"`
 	Position int    `json:"position"`
 	Done     bool   `json:"done"`
 }
 
 type DailyChallenge struct {
 	ID        int             `json:"id"`
+	UserID    int             `json:"userId,omitempty"`
+	UserLogin string          `json:"userLogin,omitempty"`
 	Games     []ChallengeGame `json:"games"`
 	CreatedAt time.Time       `json:"createdAt"`
 }
@@ -124,14 +127,39 @@ func (s *Store) GetChallengeWeekProgress(ctx context.Context, userID int) (*Chal
 	}, nil
 }
 
-func (s *Store) GetActiveChallenge(ctx context.Context) (*DailyChallenge, error) {
+func (s *Store) loadChallengeGames(ctx context.Context, challengeID int) ([]ChallengeGame, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT game_id, position FROM daily_challenge_games
+		WHERE challenge_id = $1
+		ORDER BY position, game_id
+	`, challengeID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []ChallengeGame
+	for rows.Next() {
+		var g ChallengeGame
+		if err := rows.Scan(&g.GameID, &g.Position); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) GetActiveChallenge(ctx context.Context, userID int) (*DailyChallenge, error) {
+	if userID <= 0 {
+		return nil, nil
+	}
 	var ch DailyChallenge
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, created_at FROM daily_challenges
-		WHERE active = TRUE
+		SELECT id, user_id, created_at FROM daily_challenges
+		WHERE active = TRUE AND user_id = $1
 		ORDER BY id DESC
 		LIMIT 1
-	`).Scan(&ch.ID, &ch.CreatedAt)
+	`, userID).Scan(&ch.ID, &ch.UserID, &ch.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -139,30 +167,51 @@ func (s *Store) GetActiveChallenge(ctx context.Context) (*DailyChallenge, error)
 		return nil, err
 	}
 
+	games, err := s.loadChallengeGames(ctx, ch.ID)
+	if err != nil {
+		return nil, err
+	}
+	ch.Games = games
+	return &ch, nil
+}
+
+func (s *Store) ListActiveUserChallenges(ctx context.Context) ([]DailyChallenge, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT game_id, position FROM daily_challenge_games
-		WHERE challenge_id = $1
-		ORDER BY position, game_id
-	`, ch.ID)
+		SELECT c.id, c.user_id, u.login, c.created_at
+		FROM daily_challenges c
+		JOIN users u ON u.id = c.user_id
+		WHERE c.active = TRUE AND c.user_id IS NOT NULL
+		ORDER BY u.login
+	`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
+	var list []DailyChallenge
 	for rows.Next() {
-		var g ChallengeGame
-		if err := rows.Scan(&g.GameID, &g.Position); err != nil {
+		var ch DailyChallenge
+		if err := rows.Scan(&ch.ID, &ch.UserID, &ch.UserLogin, &ch.CreatedAt); err != nil {
 			return nil, err
 		}
-		ch.Games = append(ch.Games, g)
+		games, err := s.loadChallengeGames(ctx, ch.ID)
+		if err != nil {
+			return nil, err
+		}
+		ch.Games = games
+		list = append(list, ch)
 	}
-	return &ch, rows.Err()
+	return list, rows.Err()
 }
 
-func (s *Store) SetActiveChallenge(ctx context.Context, gameIDs []string) (*DailyChallenge, error) {
-	if len(gameIDs) == 0 {
-		return nil, errors.New("at least one game is required")
+func (s *Store) SetActiveChallenge(ctx context.Context, userID int, gameIDs []string) (*DailyChallenge, error) {
+	if userID <= 0 {
+		return nil, errors.New("userId is required")
 	}
+	if _, err := s.GetUser(ctx, userID); err != nil {
+		return nil, err
+	}
+
 	seen := make(map[string]bool, len(gameIDs))
 	clean := make([]string, 0, len(gameIDs))
 	for _, id := range gameIDs {
@@ -172,9 +221,6 @@ func (s *Store) SetActiveChallenge(ctx context.Context, gameIDs []string) (*Dail
 		seen[id] = true
 		clean = append(clean, id)
 	}
-	if len(clean) == 0 {
-		return nil, errors.New("at least one game is required")
-	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -182,15 +228,25 @@ func (s *Store) SetActiveChallenge(ctx context.Context, gameIDs []string) (*Dail
 	}
 	defer tx.Rollback(ctx)
 
-	if _, err := tx.Exec(ctx, `UPDATE daily_challenges SET active = FALSE WHERE active = TRUE`); err != nil {
+	if _, err := tx.Exec(ctx, `
+		UPDATE daily_challenges SET active = FALSE
+		WHERE active = TRUE AND user_id = $1
+	`, userID); err != nil {
 		return nil, err
+	}
+
+	if len(clean) == 0 {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
+		return &DailyChallenge{UserID: userID, Games: []ChallengeGame{}}, nil
 	}
 
 	var ch DailyChallenge
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO daily_challenges (active) VALUES (TRUE)
-		RETURNING id, created_at
-	`).Scan(&ch.ID, &ch.CreatedAt); err != nil {
+		INSERT INTO daily_challenges (active, user_id) VALUES (TRUE, $1)
+		RETURNING id, user_id, created_at
+	`, userID).Scan(&ch.ID, &ch.UserID, &ch.CreatedAt); err != nil {
 		return nil, err
 	}
 
@@ -211,7 +267,7 @@ func (s *Store) SetActiveChallenge(ctx context.Context, gameIDs []string) (*Dail
 }
 
 func (s *Store) MarkChallengeGameDone(ctx context.Context, userID int, gameID string) (*StageCompletion, error) {
-	ch, err := s.GetActiveChallenge(ctx)
+	ch, err := s.GetActiveChallenge(ctx, userID)
 	if err != nil || ch == nil {
 		return nil, err
 	}
@@ -278,7 +334,7 @@ func (s *Store) grantChallengeReward(ctx context.Context, userID, challengeID in
 }
 
 func (s *Store) GetChallengeStatus(ctx context.Context, userID int) (*ChallengeStatus, error) {
-	ch, err := s.GetActiveChallenge(ctx)
+	ch, err := s.GetActiveChallenge(ctx, userID)
 	if err != nil {
 		return nil, err
 	}

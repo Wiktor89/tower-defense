@@ -87,13 +87,18 @@ function renderChallenge(status: ChallengeStatus): void {
     return;
   }
 
-  const items = status.games.map((g, i) => `
-    <li class="challenge-item${g.done ? ' challenge-item--done' : ''}">
+  const items = status.games.map((g, i) => {
+    const title = g.title ?? g.gameId;
+    const inner = `
       <span class="challenge-item__n">${i + 1}</span>
-      <span class="challenge-item__title">${g.title ?? g.gameId}</span>
+      <span class="challenge-item__title">${title}</span>
       <span class="challenge-item__mark">${g.done ? '✓' : '○'}</span>
-    </li>
-  `).join('');
+    `;
+    if (g.url && !g.done) {
+      return `<li><a class="challenge-item" href="${g.url}">${inner}</a></li>`;
+    }
+    return `<li class="challenge-item${g.done ? ' challenge-item--done' : ''}">${inner}</li>`;
+  }).join('');
 
   const rewardBtn = status.allDone && status.reward
     ? `<button type="button" class="challenge-reward-btn" id="challenge-reward-btn">Показать код награды</button>`

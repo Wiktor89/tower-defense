@@ -134,13 +134,26 @@ func (h *Handler) listGames(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var challengeIDs []string
-	if ch, err := h.db.GetActiveChallenge(ctx); err == nil && ch != nil {
+	if ch, err := h.db.GetActiveChallenge(ctx, userID); err == nil && ch != nil {
 		challengeIDs = make([]string, 0, len(ch.Games))
 		for _, g := range ch.Games {
 			challengeIDs = append(challengeIDs, g.GameID)
 		}
 	}
 	writeJSON(w, http.StatusOK, games.SuitableForGradeOrIDs(*user.Grade, challengeIDs))
+}
+
+func enrichChallengeGames(list []store.ChallengeGame) {
+	meta := map[string]games.Game{}
+	for _, g := range games.Catalog() {
+		meta[g.ID] = g
+	}
+	for i := range list {
+		if g, ok := meta[list[i].GameID]; ok {
+			list[i].Title = g.Title
+			list[i].URL = g.URL
+		}
+	}
 }
 
 type mathProblemRequest struct {
@@ -607,13 +620,7 @@ func (h *Handler) getChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if status != nil {
-		titles := map[string]string{}
-		for _, g := range games.Catalog() {
-			titles[g.ID] = g.Title
-		}
-		for i := range status.Games {
-			status.Games[i].Title = titles[status.Games[i].GameID]
-		}
+		enrichChallengeGames(status.Games)
 	}
 	writeJSON(w, http.StatusOK, status)
 }
@@ -627,23 +634,35 @@ func (h *Handler) adminGetChallenge(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	ch, err := h.db.GetActiveChallenge(ctx)
+	if userIDStr := r.URL.Query().Get("userId"); userIDStr != "" {
+		userID, err := strconv.Atoi(userIDStr)
+		if err != nil || userID <= 0 {
+			writeError(w, http.StatusBadRequest, "invalid userId")
+			return
+		}
+		ch, err := h.db.GetActiveChallenge(ctx, userID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to load challenge")
+			return
+		}
+		if ch == nil {
+			writeJSON(w, http.StatusOK, store.DailyChallenge{UserID: userID, Games: []store.ChallengeGame{}})
+			return
+		}
+		enrichChallengeGames(ch.Games)
+		writeJSON(w, http.StatusOK, ch)
+		return
+	}
+
+	list, err := h.db.ListActiveUserChallenges(ctx)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to load challenge")
+		writeError(w, http.StatusInternalServerError, "failed to load challenges")
 		return
 	}
-	if ch == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"games": []store.ChallengeGame{}})
-		return
+	for i := range list {
+		enrichChallengeGames(list[i].Games)
 	}
-	titles := map[string]string{}
-	for _, g := range games.Catalog() {
-		titles[g.ID] = g.Title
-	}
-	for i := range ch.Games {
-		ch.Games[i].Title = titles[ch.Games[i].GameID]
-	}
-	writeJSON(w, http.StatusOK, ch)
+	writeJSON(w, http.StatusOK, map[string]any{"assignments": list})
 }
 
 func (h *Handler) adminSetChallenge(w http.ResponseWriter, r *http.Request) {
@@ -653,10 +672,15 @@ func (h *Handler) adminSetChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
+		UserID  int      `json:"userId"`
 		GameIDs []string `json:"gameIds"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.UserID <= 0 {
+		writeError(w, http.StatusBadRequest, "userId is required")
 		return
 	}
 
@@ -676,18 +700,16 @@ func (h *Handler) adminSetChallenge(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	ch, err := h.db.SetActiveChallenge(ctx, req.GameIDs)
+	ch, err := h.db.SetActiveChallenge(ctx, req.UserID, req.GameIDs)
 	if err != nil {
+		if errors.Is(err, store.ErrUserNotFound) {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	titles := map[string]string{}
-	for _, g := range games.Catalog() {
-		titles[g.ID] = g.Title
-	}
-	for i := range ch.Games {
-		ch.Games[i].Title = titles[ch.Games[i].GameID]
-	}
+	enrichChallengeGames(ch.Games)
 	writeJSON(w, http.StatusOK, ch)
 }
 

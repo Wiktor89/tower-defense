@@ -125,6 +125,7 @@ export interface FillBlanksCheckResult {
 export interface ChallengeGameItem {
   gameId: string;
   title?: string;
+  url?: string;
   position: number;
   done: boolean;
 }
@@ -153,8 +154,14 @@ export interface ChallengeStatus {
 
 export interface DailyChallengeAdmin {
   id?: number;
+  userId?: number;
+  userLogin?: string;
   games: ChallengeGameItem[];
   createdAt?: string;
+}
+
+export interface DailyChallengeAssignments {
+  assignments: DailyChallengeAdmin[];
 }
 
 export interface FillBlankText {

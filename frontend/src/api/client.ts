@@ -1,4 +1,4 @@
-import type { CaptchaChallenge, CaptchaPayload, ChallengeStatus, DailyChallengeAdmin, FillBlankText, FillBlanksCheckResult, FillBlanksPuzzle, GameCatalogItem, GameSettings, MathCheckResult, MathProblem, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
+import type { CaptchaChallenge, CaptchaPayload, ChallengeStatus, DailyChallengeAdmin, DailyChallengeAssignments, FillBlankText, FillBlanksCheckResult, FillBlanksPuzzle, GameCatalogItem, GameSettings, MathCheckResult, MathProblem, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -45,17 +45,21 @@ export function reportDisassembleComplete(userId: number): Promise<{ status: str
   });
 }
 
-export function fetchAdminChallenge(token: string): Promise<DailyChallengeAdmin> {
-  return request<DailyChallengeAdmin>('/api/admin/settings/daily-challenge', {
+export function fetchAdminChallenge(token: string): Promise<DailyChallengeAssignments> {
+  return request<DailyChallengeAssignments>('/api/admin/settings/daily-challenge', {
     headers: { Authorization: `Bearer ${token}` },
   });
 }
 
-export function updateAdminChallenge(token: string, gameIds: string[]): Promise<DailyChallengeAdmin> {
+export function updateAdminChallenge(
+  token: string,
+  userId: number,
+  gameIds: string[],
+): Promise<DailyChallengeAdmin> {
   return request<DailyChallengeAdmin>('/api/admin/settings/daily-challenge', {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ gameIds }),
+    body: JSON.stringify({ userId, gameIds }),
   });
 }
 
