@@ -18,8 +18,9 @@
     margin-inline: auto;
   }
 
-  body.tv-ready .action-btn,
-  body.tv-ready .modal-btn,
+  /* Не трогаем .modal-btn — вход/регистрация и прочие модалки остаются в обычном размере */
+  body.tv-ready #app .action-btn,
+  body.tv-ready .game-shell .action-btn,
   body.tv-ready .gate-actions .action-btn,
   body.tv-ready .tutorial-card .action-btn {
     flex: 1 1 160px;
@@ -73,13 +74,17 @@
     border-radius: 12px;
   }
 
-  body.tv-ready input[type="text"],
-  body.tv-ready input[type="number"],
-  body.tv-ready input[type="password"],
+  body.tv-ready #app input[type="text"],
+  body.tv-ready #app input[type="number"],
+  body.tv-ready #app input[type="password"],
+  body.tv-ready #app select,
+  body.tv-ready .game-shell input[type="text"],
+  body.tv-ready .game-shell input[type="number"],
+  body.tv-ready .game-shell input[type="password"],
+  body.tv-ready .game-shell select,
   body.tv-ready .digit-input,
   body.tv-ready .frac-inputs input,
-  body.tv-ready .answer-row input,
-  body.tv-ready select {
+  body.tv-ready .answer-row input {
     min-height: 52px;
     font-size: clamp(1.2rem, 1.8vw, 1.5rem);
     padding: 10px 14px;

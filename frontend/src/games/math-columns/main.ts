@@ -136,15 +136,17 @@ async function renderColumn(): Promise<void> {
   const choices = options?.length === 4 ? options : [0, 1, 2, 3];
 
   ui.columnEl.innerHTML = `
-    <div class="column-row">
-      <span class="column-sign"></span>
-      ${aDigits.map(d => `<span class="column-digit">${d === ' ' ? '' : d}</span>`).join('')}
+    <div class="column-sum">
+      <div class="column-row">
+        <span class="column-sign"></span>
+        ${aDigits.map(d => `<span class="column-digit">${d === ' ' ? '' : d}</span>`).join('')}
+      </div>
+      <div class="column-row">
+        <span class="column-sign">${op}</span>
+        ${bDigits.map(d => `<span class="column-digit">${d === ' ' ? '' : d}</span>`).join('')}
+      </div>
+      <div class="column-line"></div>
     </div>
-    <div class="column-row">
-      <span class="column-sign">${op}</span>
-      ${bDigits.map(d => `<span class="column-digit">${d === ' ' ? '' : d}</span>`).join('')}
-    </div>
-    <div class="column-line"></div>
     <div class="choices" id="choices" role="group" aria-label="Варианты ответа">
       ${choices.map(v => `
         <button type="button" class="choice-btn" data-value="${v}">${v}</button>
