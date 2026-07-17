@@ -318,7 +318,18 @@ func Check(p Problem, answer any) (bool, map[string]any) {
 		want, _ := p.Answer.(string)
 		got, _ := answer.(string)
 		return want == got, hint
-	case "pie", "simplify", "add", "boss":
+	case "simplify", "boss":
+		want := asFrac(p.Answer)
+		got := asFrac(answer)
+		if want == nil || got == nil {
+			return false, hint
+		}
+		// Нужна именно несократимая запись, не просто равная доля.
+		if gcd(got["num"], got["den"]) != 1 {
+			return false, hint
+		}
+		return got["num"] == want["num"] && got["den"] == want["den"], hint
+	case "pie", "add":
 		want := asFrac(p.Answer)
 		got := asFrac(answer)
 		if want == nil || got == nil {
