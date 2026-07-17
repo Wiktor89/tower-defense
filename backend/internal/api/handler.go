@@ -898,7 +898,6 @@ func (h *Handler) checkFractionAnswer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "problem not found or expired")
 		return
 	}
-	defer h.fracStore.Delete(req.ID)
 
 	correct, hint := fractions.Check(problem, req.Answer)
 	resp := fractionCheckResponse{Correct: correct}
@@ -906,52 +905,51 @@ func (h *Handler) checkFractionAnswer(w http.ResponseWriter, r *http.Request) {
 		resp.VisualHint = hint
 	}
 
+	// Результат проверки важнее статистики: при сбое БД всё равно отвечаем,
+	// иначе верный ответ (например 20÷4=5) выглядит как ошибка.
 	if req.UserID > 0 {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
 		if _, err := h.db.GetUser(ctx, req.UserID); err != nil {
-			writeError(w, http.StatusNotFound, "user not found")
-			return
-		}
-
-		delta := store.StatsDelta{}
-		if correct {
-			delta.Correct = 1
-			delta.SessionsCompleted = 1
+			log.Printf("fractions check: user %d: %v (answer correct=%v)", req.UserID, err, correct)
 		} else {
-			delta.Wrong = 1
-		}
-		if err := h.db.AddStats(ctx, req.UserID, "fractions", delta); err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to save stats")
-			return
-		}
-
-		var prog store.DailyGameProgress
-		var err error
-		if correct {
-			prog, _, err = h.db.RecordDailyCorrect(ctx, req.UserID, "fractions", 0)
-		} else {
-			prog, err = h.db.RecordDailyWrong(ctx, req.UserID, "fractions")
-		}
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to save progress")
-			return
-		}
-		resp.DayCorrect = prog.Correct
-		resp.DayWrong = prog.Wrong
-		resp.RankTitle = fractions.RankTitle(prog.Correct)
-
-		if correct {
-			if reward, err := h.db.MarkChallengeGameDone(ctx, req.UserID, "fractions"); err != nil {
-				writeError(w, http.StatusInternalServerError, "failed to update challenge")
-				return
-			} else if reward != nil {
-				resp.ChallengeReward = reward
+			delta := store.StatsDelta{}
+			if correct {
+				delta.Correct = 1
+				delta.SessionsCompleted = 1
+			} else {
+				delta.Wrong = 1
+			}
+			if err := h.db.AddStats(ctx, req.UserID, "fractions", delta); err != nil {
+				log.Printf("fractions check: save stats user=%d: %v", req.UserID, err)
+			} else {
+				var prog store.DailyGameProgress
+				var err error
+				if correct {
+					prog, _, err = h.db.RecordDailyCorrect(ctx, req.UserID, "fractions", 0)
+				} else {
+					prog, err = h.db.RecordDailyWrong(ctx, req.UserID, "fractions")
+				}
+				if err != nil {
+					log.Printf("fractions check: save progress user=%d: %v", req.UserID, err)
+				} else {
+					resp.DayCorrect = prog.Correct
+					resp.DayWrong = prog.Wrong
+					resp.RankTitle = fractions.RankTitle(prog.Correct)
+				}
+				if correct {
+					if reward, err := h.db.MarkChallengeGameDone(ctx, req.UserID, "fractions"); err != nil {
+						log.Printf("fractions check: challenge user=%d: %v", req.UserID, err)
+					} else if reward != nil {
+						resp.ChallengeReward = reward
+					}
+				}
 			}
 		}
 	}
 
+	h.fracStore.Delete(req.ID)
 	writeJSON(w, http.StatusOK, resp)
 }
 

@@ -301,7 +301,13 @@ function renderStage(): void {
     case 'simplify':
     case 'add':
     case 'boss':
-      renderFracInputs(problem.kind === 'boss' ? 'Несократимая дробь урона' : 'Запиши дробь');
+      renderFracInputs(
+        problem.kind === 'boss'
+          ? 'Запиши несократимую дробь'
+          : problem.kind === 'simplify'
+            ? 'Сократи до несократимой дроби'
+            : 'Запиши дробь смеси',
+      );
       break;
     case 'percent':
       renderIntAnswer('Сколько монет составит скидка?');
@@ -314,6 +320,13 @@ function renderStage(): void {
   }
 }
 
+function readNumberInput(id: string): number | null {
+  const raw = ui.stageEl.querySelector<HTMLInputElement>(`#${id}`)?.value;
+  if (raw === undefined || raw.trim() === '') return null;
+  const v = Number(raw);
+  return Number.isFinite(v) ? v : null;
+}
+
 function readAnswer(): number | string | { num: number; den: number } | null {
   if (!problem) return null;
   switch (problem.kind) {
@@ -323,15 +336,13 @@ function readAnswer(): number | string | { num: number; den: number } | null {
     case 'simplify':
     case 'add':
     case 'boss': {
-      const n = Number(ui.stageEl.querySelector<HTMLInputElement>('#ans-num')?.value);
-      const d = Number(ui.stageEl.querySelector<HTMLInputElement>('#ans-den')?.value);
-      if (!Number.isFinite(n) || !Number.isFinite(d) || d === 0) return null;
+      const n = readNumberInput('ans-num');
+      const d = readNumberInput('ans-den');
+      if (n === null || d === null || d === 0) return null;
       return { num: n, den: d };
     }
-    default: {
-      const v = Number(ui.stageEl.querySelector<HTMLInputElement>('#ans-int')?.value);
-      return Number.isFinite(v) ? v : null;
-    }
+    default:
+      return readNumberInput('ans-int');
   }
 }
 
@@ -380,8 +391,14 @@ async function onCheck(): Promise<void> {
       showFeedback('Пока мимо. Смотри визуальную подсказку — это откат к долям.', 'wrong');
       showVisualHint(result.visualHint);
     }
-  } catch {
-    showFeedback('Ошибка проверки. Попробуй ещё раз.', 'wrong');
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '';
+    if (msg.toLowerCase().includes('expired') || msg.toLowerCase().includes('not found')) {
+      showFeedback('Квест устарел (сервер перезапускали). Нажми «Следующий квест».', 'hint');
+      ui.nextBtn.classList.remove('hidden');
+      return;
+    }
+    showFeedback(msg ? `Ошибка проверки: ${msg}` : 'Ошибка проверки. Попробуй ещё раз.', 'wrong');
   }
 }
 

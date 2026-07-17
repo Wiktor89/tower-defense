@@ -3,8 +3,11 @@ package fractions
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/big"
+	"strconv"
+	"strings"
 )
 
 type Problem struct {
@@ -242,6 +245,24 @@ func genPercent(grade int) Problem {
 	}
 }
 
+func formatXPlus(shift int) string {
+	if shift >= 0 {
+		return fmt.Sprintf("x+%d", shift)
+	}
+	return fmt.Sprintf("x−%d", -shift)
+}
+
+// formatXMinusRoot — запись (x − root) без «x−−3».
+func formatXMinusRoot(root int) string {
+	if root > 0 {
+		return fmt.Sprintf("x−%d", root)
+	}
+	if root < 0 {
+		return fmt.Sprintf("x+%d", -root)
+	}
+	return "x"
+}
+
 func genODZ(grade int) Problem {
 	trap := randInt(-5, 5)
 	for trap == 0 {
@@ -258,8 +279,8 @@ func genODZ(grade int) Problem {
 		Payload: map[string]any{
 			"numShift": shift,
 			"denRoot":  trap,
-			"numExpr":  fmt.Sprintf("x+%d", shift),
-			"denExpr":  fmt.Sprintf("x−%d", trap),
+			"numExpr":  formatXPlus(shift),
+			"denExpr":  formatXMinusRoot(trap),
 		},
 		Answer:  trap,
 		HintPie: map[string]any{"parts": 4, "take": 0, "label": "снизу не может быть нуля"},
@@ -350,10 +371,26 @@ func asInt(v any) (int, bool) {
 	switch n := v.(type) {
 	case int:
 		return n, true
-	case float64:
+	case int32:
 		return int(n), true
 	case int64:
 		return int(n), true
+	case float32:
+		return int(n), true
+	case float64:
+		return int(n), true
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return 0, false
+		}
+		return int(i), true
+	case string:
+		i, err := strconv.Atoi(strings.TrimSpace(n))
+		if err != nil {
+			return 0, false
+		}
+		return i, true
 	default:
 		return 0, false
 	}
