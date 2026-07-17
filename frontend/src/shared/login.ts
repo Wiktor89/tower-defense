@@ -1,6 +1,7 @@
 import { loginUser, registerUser, setUserPassword } from '../api/client';
 import type { User } from '../types';
 import { captchaFieldHtml, setupCaptcha } from './captcha';
+import { startIdleLogout, touchActivity } from './idle-logout';
 import { clearUser, getUser, setUser } from './user';
 import './modal.css';
 
@@ -22,7 +23,10 @@ function authErrorMessage(message: string, mode: 'login' | 'register'): string {
 
 export async function ensureUserLogin(): Promise<User> {
   const existing = getUser();
-  if (existing?.hasPassword && existing.role) return existing;
+  if (existing?.hasPassword && existing.role) {
+    startIdleLogout(); // сначала проверка простоя, потом активность
+    return existing;
+  }
   if (existing) clearUser();
   return promptUserLogin();
 }
@@ -91,6 +95,8 @@ export function promptUserLogin(): Promise<User> {
           ? await registerUser(login, password, captchaCtrl.getValues())
           : await loginUser(login, password, captchaCtrl.getValues());
         setUser(user);
+        touchActivity();
+        startIdleLogout();
         overlay.remove();
         resolve(getUser() ?? user);
       } catch (err) {

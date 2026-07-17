@@ -27,7 +27,9 @@ make install
 
 `run.sh` сам поднимет PostgreSQL через Docker (если установлен) и соберёт фронт.
 
-Откройте [http://localhost:8089](http://localhost:8089)
+Откройте [https://localhost:8089](https://localhost:8089) (self-signed; браузер один раз спросит подтверждение).
+
+Для обычного HTTP: `HTTPS=0 ./run.sh`.
 
 ### Переменные окружения
 
@@ -37,6 +39,9 @@ make install
 | `ADMIN_LOGIN` | `admin` |
 | `ADMIN_PASSWORD` | `admin` |
 | `PORT` | `8089` |
+| `HTTPS` | `1` (self-signed в `certs/`; `0` — HTTP) |
+| `TLS_CERT` / `TLS_KEY` | пути к своим сертификатам |
+| `CORS_ORIGINS` | доп. origins через запятую (например `https://192.168.1.10:8089`) |
 
 ## Пользователи и статистика
 
@@ -49,7 +54,7 @@ make install
 - Войдите как `admin` / `admin` (роль администратора) — справа появится **Администрирование**
 - В статистике админ назначает ученику **класс (1–11)** — в меню видны только игры этого диапазона
 - **Вызов дня**: в настройках админ выбирает список игр; после прохождения всех — код с планетой
-- Страница админа: [http://localhost:8089/admin/](http://localhost:8089/admin/)
+- Страница админа: [https://localhost:8089/admin/](https://localhost:8089/admin/)
 
 ## API
 

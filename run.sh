@@ -101,25 +101,53 @@ ensure_postgres() {
   fi
 }
 
+ensure_tls() {
+  # HTTPS=1 (по умолчанию) — self-signed в certs/; HTTPS=0 — обычный HTTP
+  if [ "${HTTPS:-1}" = "0" ] || [ "${HTTPS:-1}" = "false" ]; then
+    TLS_CERT=""
+    TLS_KEY=""
+    return 0
+  fi
+
+  TLS_CERT="${TLS_CERT:-$ROOT/certs/cert.pem}"
+  TLS_KEY="${TLS_KEY:-$ROOT/certs/key.pem}"
+  export TLS_CERT TLS_KEY
+
+  if [ ! -f "$TLS_CERT" ] || [ ! -f "$TLS_KEY" ]; then
+    bash "$ROOT/scripts/gen-certs.sh"
+  fi
+}
+
 run_server() {
   local log_file="$ROOT/server.log"
+  local scheme="http"
+  local extra_args=()
+
+  ensure_tls
+  if [ -n "${TLS_CERT:-}" ] && [ -n "${TLS_KEY:-}" ]; then
+    scheme="https"
+    extra_args+=(-tls-cert "$TLS_CERT" -tls-key "$TLS_KEY")
+  fi
 
   echo "→ Остановка предыдущего сервера (если запущен)..."
   pkill -f "bin/server" 2>/dev/null || true
   sleep 1
 
-  echo "→ Запуск сервера на порту ${PORT} (фоновый режим)"
-  echo "   Локально:  http://localhost:${PORT}"
+  echo "→ Запуск сервера на порту ${PORT} (фоновый режим, ${scheme})"
+  echo "   Локально:  ${scheme}://localhost:${PORT}"
   if command -v hostname >/dev/null 2>&1; then
     local ip
     ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
     if [ -n "$ip" ]; then
-      echo "   По сети:   http://${ip}:${PORT}"
+      echo "   По сети:   ${scheme}://${ip}:${PORT}"
     fi
+  fi
+  if [ "$scheme" = "https" ]; then
+    echo "   Сертификат self-signed — в браузере/на ТВ один раз примите предупреждение."
   fi
 
   cd "$ROOT/backend"
-  nohup "$BINARY" -port "$PORT" -static "$DIST_DIR" > "$log_file" 2>&1 &
+  nohup "$BINARY" -port "$PORT" -static "$DIST_DIR" "${extra_args[@]}" > "$log_file" 2>&1 &
   local pid=$!
   echo "   PID:       ${pid}"
   echo "   Лог:       ${log_file}"
