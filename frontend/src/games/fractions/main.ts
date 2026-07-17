@@ -10,6 +10,7 @@ import {
 import type { FractionProblem, FractionVisualHint } from '../../types';
 import { ensureUserLogin } from '../../shared/login';
 import { showChallengeReward } from '../../shared/solar-reward';
+import { fracDisplayHtml, fracInputsHtml } from './fraction-ui';
 import { setupLab } from './lab';
 import { countSelected, renderPie } from './pie';
 import { clearLegacyTutorialFlag, createTutorialController, hadLegacyTutorialFlag } from './tutorial';
@@ -185,11 +186,7 @@ function renderPieQuest(): void {
   pieSelected = Array.from({ length: parts }, () => false);
   ui.stageEl.innerHTML = `
     <div id="pie-canvas"></div>
-    <div class="frac-inputs">
-      <input id="ans-num" type="number" min="0" step="1" inputmode="numeric" placeholder="числ.">
-      <span>/</span>
-      <input id="ans-den" type="number" min="1" step="1" inputmode="numeric" placeholder="знам.">
-    </div>
+    ${fracInputsHtml('ans-num', 'ans-den')}
     <p class="odz-warn">Кликай кусочки пиццы, затем запиши дробь.</p>
   `;
   const canvas = ui.stageEl.querySelector<HTMLElement>('#pie-canvas')!;
@@ -219,8 +216,8 @@ function renderCompare(): void {
   const bDen = num(problem?.payload.bDen);
   ui.stageEl.innerHTML = `
     <div class="compare-btns">
-      <button type="button" class="action-btn" data-pick="a">Мост ${aNum}/${aDen}</button>
-      <button type="button" class="action-btn" data-pick="b">Мост ${bNum}/${bDen}</button>
+      <button type="button" class="action-btn" data-pick="a">Мост ${fracDisplayHtml(aNum, aDen)}</button>
+      <button type="button" class="action-btn" data-pick="b">Мост ${fracDisplayHtml(bNum, bDen)}</button>
     </div>
     <p class="odz-warn">Выбери более длинный мост (большую долю).</p>
   `;
@@ -236,11 +233,7 @@ function renderCompare(): void {
 
 function renderFracInputs(withLabel = 'Сокращённая дробь'): void {
   ui.stageEl.innerHTML = `
-    <div class="frac-inputs">
-      <input id="ans-num" type="number" step="1" inputmode="numeric" placeholder="числ.">
-      <span>/</span>
-      <input id="ans-den" type="number" min="1" step="1" inputmode="numeric" placeholder="знам.">
-    </div>
+    ${fracInputsHtml('ans-num', 'ans-den')}
     <p class="odz-warn">${withLabel}</p>
   `;
 }

@@ -91,13 +91,17 @@
   }
 
   body.tv-ready .frac-inputs {
-    gap: 12px;
+    gap: 4px;
     font-size: clamp(1.6rem, 2.4vw, 2rem);
   }
 
   body.tv-ready .frac-inputs input {
-    width: clamp(88px, 10vw, 120px);
-    min-width: 80px;
+    width: clamp(96px, 11vw, 128px);
+    min-width: 88px;
+  }
+
+  body.tv-ready .frac-bar {
+    min-width: clamp(96px, 11vw, 128px);
   }
 
   body.tv-ready .plant-btn,

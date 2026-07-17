@@ -1,3 +1,4 @@
+import { fracDisplayHtml, fracInputsHtml } from './fraction-ui';
 import { countSelected, renderPie } from './pie';
 
 const LEGACY_KEY_PREFIX = 'fractions_tutorial_done_';
@@ -87,8 +88,8 @@ export const QUIZ: QuizItem[] = [
     id: 'q3',
     kind: 'compare',
     prompt: 'Какая доля больше: 1/4 или 3/4?',
-    aLabel: '1/4',
-    bLabel: '3/4',
+    aLabel: fracDisplayHtml(1, 4),
+    bLabel: fracDisplayHtml(3, 4),
     answer: 'b',
   },
 ];
@@ -186,11 +187,7 @@ export function createTutorialController(
     if (q.kind === 'write-frac') {
       ui.quizStage.innerHTML = `
         <div id="quiz-pie"></div>
-        <div class="frac-inputs">
-          <input id="quiz-num" type="number" min="0" step="1" inputmode="numeric" placeholder="числ.">
-          <span>/</span>
-          <input id="quiz-den" type="number" min="1" step="1" inputmode="numeric" placeholder="знам.">
-        </div>
+        ${fracInputsHtml('quiz-num', 'quiz-den')}
       `;
       renderPie(ui.quizStage.querySelector<HTMLElement>('#quiz-pie')!, {
         parts: q.parts ?? 4,

@@ -1,3 +1,4 @@
+import { fracDisplayHtml } from './fraction-ui';
 import { countSelected, renderPie } from './pie';
 
 export function setupLab(root: {
@@ -10,6 +11,10 @@ export function setupLab(root: {
   closeBtn: HTMLElement;
 }): void {
   let selected: boolean[] = [];
+
+  const showFrac = (parts: number): void => {
+    root.frac.innerHTML = fracDisplayHtml(countSelected(selected), parts);
+  };
 
   const sync = (): void => {
     const parts = Number(root.partsInput.value);
@@ -24,10 +29,10 @@ export function setupLab(root: {
       size: 200,
       onToggle: (_i, next) => {
         selected = next;
-        root.frac.textContent = `${countSelected(selected)}/${parts}`;
+        showFrac(parts);
       },
     });
-    root.frac.textContent = `${countSelected(selected)}/${parts}`;
+    showFrac(parts);
   };
 
   const open = (): void => {
