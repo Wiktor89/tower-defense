@@ -1,4 +1,4 @@
-import { fracDisplayHtml, fracInputsHtml } from './fraction-ui';
+import { fracDisplayHtml, fracInputsHtml, withFracMarks } from './fraction-ui';
 import { countSelected, renderPie } from './pie';
 
 const LEGACY_KEY_PREFIX = 'fractions_tutorial_done_';
@@ -32,24 +32,24 @@ export const LESSONS: LessonStep[] = [
   {
     id: 'half',
     title: 'Половина',
-    body: 'Если целое разрезали на 2 равные части и взяли одну — это половина. Запись: 1/2. Нижняя цифра — на сколько разрезали, верхняя — сколько взяли.',
-    tip: 'Знаменатель (снизу) = «на сколько частей». Числитель (сверху) = «сколько взяли».',
+    body: 'Если целое разрезали на 2 равные части и взяли одну — это половина. Запись: {{1|2}}. Сверху — сколько взяли, снизу — на сколько разрезали.',
+    tip: 'Знаменатель снизу = «на сколько частей». Числитель сверху = «сколько взяли».',
     pieParts: 2,
     pieTake: 1,
   },
   {
     id: 'quarter',
     title: 'Четверть',
-    body: 'Разрезали на 4 равные части и взяли одну — это четверть, 1/4. Взяли три кусочка из четырёх — уже 3/4.',
-    tip: 'Чем больше знаменатель при одном кусочке, тем меньше доля: 1/8 меньше, чем 1/4.',
+    body: 'Разрезали на 4 равные части и взяли одну — это четверть, {{1|4}}. Взяли три кусочка из четырёх — уже {{3|4}}.',
+    tip: 'Чем больше число снизу при одном кусочке сверху, тем меньше доля: {{1|8}} меньше, чем {{1|4}}.',
     pieParts: 4,
     pieTake: 1,
   },
   {
     id: 'write',
     title: 'Как записывают дробь',
-    body: 'Пиццу разрезали на 6 частей, отметили 2. Это дробь 2/6. Её можно упростить до 1/3 — те же доли, другая запись. Смысл доли не меняется.',
-    tip: 'Дробь — это не «две цифры», а ответ на вопрос: какую часть целого мы взяли?',
+    body: 'Пиццу разрезали на 6 частей, отметили 2. Это дробь {{2|6}}. Её можно упростить до {{1|3}} — те же доли, другая запись. Смысл доли не меняется.',
+    tip: 'Дробь пишут столчкой: сверху числитель, снизу знаменатель.',
     pieParts: 6,
     pieTake: 2,
   },
@@ -79,7 +79,7 @@ export const QUIZ: QuizItem[] = [
   {
     id: 'q2',
     kind: 'write-frac',
-    prompt: 'Пиццу разрезали на 4 равные части. Отметили 3 кусочка. Запиши дробь.',
+    prompt: 'Пиццу разрезали на 4 равные части. Отметили 3 кусочка. Запиши дробь: числитель сверху, знаменатель снизу.',
     parts: 4,
     take: 3,
     answer: { num: 3, den: 4 },
@@ -87,7 +87,7 @@ export const QUIZ: QuizItem[] = [
   {
     id: 'q3',
     kind: 'compare',
-    prompt: 'Какая доля больше: 1/4 или 3/4?',
+    prompt: 'Какая доля больше?',
     aLabel: fracDisplayHtml(1, 4),
     bLabel: fracDisplayHtml(3, 4),
     answer: 'b',
@@ -144,8 +144,8 @@ export function createTutorialController(
     const lesson = LESSONS[step]!;
     ui.progress.textContent = `Урок ${step + 1} из ${LESSONS.length}`;
     ui.title.textContent = lesson.title;
-    ui.body.textContent = lesson.body;
-    ui.tip.textContent = lesson.tip;
+    ui.body.innerHTML = withFracMarks(lesson.body);
+    ui.tip.innerHTML = withFracMarks(lesson.tip);
     renderPie(ui.pie, { parts: lesson.pieParts, take: lesson.pieTake, size: 200 });
     ui.prevBtn.classList.toggle('hidden', step === 0);
     ui.nextBtn.textContent = step === LESSONS.length - 1 ? 'К мини-тесту' : 'Дальше';
@@ -265,7 +265,7 @@ export function createTutorialController(
       const n = ui.quizStage.querySelector<HTMLInputElement>('#quiz-num')?.value;
       const d = ui.quizStage.querySelector<HTMLInputElement>('#quiz-den')?.value;
       if (!n || !d) {
-        setFeedback('Запиши числитель и знаменатель.', 'hint');
+        setFeedback('Запиши числитель сверху и знаменатель снизу.', 'hint');
         return;
       }
     }

@@ -151,7 +151,7 @@ func genPie(grade int) Problem {
 		HintPie: map[string]any{
 			"parts": den,
 			"take":  num,
-			"label": "знаменатель — на сколько разрезали, числитель — сколько взяли",
+			"label": "снизу — на сколько разрезали, сверху — сколько взяли",
 		},
 	}
 }
@@ -172,7 +172,7 @@ func genCompare(grade int) Problem {
 		Grade:  grade,
 		Kind:   "compare",
 		Title:  "Какой мост длиннее?",
-		Prompt: fmt.Sprintf("Какая доля больше: %d/%d или %d/%d?", a, den, b, den),
+		Prompt: "Какая доля больше? Выбери более длинный мост.",
 		Payload: map[string]any{
 			"aNum": a, "aDen": den,
 			"bNum": b, "bDen": den,
@@ -193,7 +193,7 @@ func genSimplify(grade int) Problem {
 		Grade:  grade,
 		Kind:   "simplify",
 		Title:  "Алхимия дробей",
-		Prompt: fmt.Sprintf("Сократи дробь %d/%d до несократимой.", num, den),
+		Prompt: "Сократи дробь до несократимой (числитель сверху, знаменатель снизу).",
 		Payload: map[string]any{
 			"num": num,
 			"den": den,
@@ -212,7 +212,7 @@ func genOps(grade int) Problem {
 		Grade:  grade,
 		Kind:   "add",
 		Title:  "Крафт зелья",
-		Prompt: fmt.Sprintf("Смешай %d/%d синего и %d/%d красного зелья. Какая доля смеси?", a, den, b, den),
+		Prompt: "Смешай синее и красное зелье. Какая доля смеси?",
 		Payload: map[string]any{
 			"aNum": a, "aDen": den,
 			"bNum": b, "bDen": den,
@@ -254,14 +254,15 @@ func genODZ(grade int) Problem {
 		Grade:  grade,
 		Kind:   "odz",
 		Title:  "Разминирование ловушки",
-		Prompt: fmt.Sprintf("Дробь (x + %d) / (x − %d). При каком x сработает ловушка (знаменатель = 0)?", shift, trap),
+		Prompt: "При каком x сработает ловушка (нижняя часть дроби станет 0)?",
 		Payload: map[string]any{
 			"numShift": shift,
 			"denRoot":  trap,
-			"latex":    fmt.Sprintf("(x+%d)/(x-%d)", shift, trap),
+			"numExpr":  fmt.Sprintf("x+%d", shift),
+			"denExpr":  fmt.Sprintf("x−%d", trap),
 		},
 		Answer:  trap,
-		HintPie: map[string]any{"parts": 4, "take": 0, "label": "знаменатель не может быть нулём"},
+		HintPie: map[string]any{"parts": 4, "take": 0, "label": "снизу не может быть нуля"},
 	}
 }
 
@@ -280,9 +281,11 @@ func genBoss(grade int) Problem {
 		Grade:  grade,
 		Kind:   "boss",
 		Title:  "Удар Магистра",
-		Prompt: fmt.Sprintf("Урон босса: значение (x+2)/(x-1) при x = %d. Запиши несократимую дробь.", x),
+		Prompt: fmt.Sprintf("Урон босса: значение дроби при x = %d. Запиши несократимую дробь.", x),
 		Payload: map[string]any{
-			"x": x,
+			"x":       x,
+			"numExpr": "x+2",
+			"denExpr": "x−1",
 		},
 		Answer:  map[string]int{"num": num / g, "den": den / g},
 		HintPie: map[string]any{"parts": den / g, "take": num / g},

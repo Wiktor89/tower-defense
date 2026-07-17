@@ -176,7 +176,7 @@ header {
 }
 
 .tutorial-body {
-  line-height: 1.5;
+  line-height: 1.7;
   color: #5a3518;
 }
 
@@ -187,7 +187,7 @@ header {
   border: 1px dashed #e8c89a;
   color: #8a4b22;
   font-size: 0.92rem;
-  line-height: 1.4;
+  line-height: 1.7;
 }
 
 .tutorial-pie {
@@ -230,6 +230,42 @@ header {
 .prompt {
   font-size: 1.05rem;
   line-height: 1.45;
+}
+
+.tutorial-body .frac-display,
+.tutorial-tip .frac-display,
+.prompt .frac-display,
+.frac-display--inline {
+  margin: 0 0.2em;
+  vertical-align: middle;
+  font-size: 1.05em;
+}
+
+.stage-frac {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.stage-frac--row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+}
+
+.stage-op {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #b45309;
+}
+
+.stage-frac .frac-display {
+  font-size: 1.7rem;
+  color: #1e293b;
 }
 
 .stage {

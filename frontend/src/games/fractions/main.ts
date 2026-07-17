@@ -90,7 +90,7 @@ let userGrade: number | null = null;
 const PHASES: Record<number, string> = {
   1: 'Фаза «Знакомство с долями» — половины и равные части',
   2: 'Фаза «Знакомство с долями» — деление как обратное умножению',
-  3: 'Фаза «Знакомство с долями» — числитель и знаменатель',
+  3: 'Фаза «Знакомство с долями» — числитель сверху, знаменатель снизу',
   4: 'Фаза «Знакомство с долями» — сравнение дробей',
   5: 'Фаза «Мастера Дробей» — сокращение и смешанные числа',
   6: 'Фаза «Мастера Дробей» — операции с дробями',
@@ -128,7 +128,7 @@ function showVisualHint(hint?: FractionVisualHint): void {
   const label = ui.hintPieEl.querySelector('p')!;
   renderPie(canvas, { parts: hint.parts, take: hint.take ?? 0, size: 160 });
   label.textContent = hint.label
-    ?? `Вспомни пирог: ${hint.take ?? 0} из ${hint.parts} частей`;
+    ?? `Вспомни пирог: сверху ${hint.take ?? 0}, снизу ${hint.parts}`;
 }
 
 function renderGate(): void {
@@ -232,7 +232,22 @@ function renderCompare(): void {
 }
 
 function renderFracInputs(withLabel = 'Сокращённая дробь'): void {
+  const shown = problem?.kind === 'simplify'
+    ? `<div class="stage-frac">${fracDisplayHtml(num(problem.payload.num), num(problem.payload.den))}</div>`
+    : problem?.kind === 'add'
+      ? `<div class="stage-frac stage-frac--row">
+          ${fracDisplayHtml(num(problem.payload.aNum), num(problem.payload.aDen))}
+          <span class="stage-op">+</span>
+          ${fracDisplayHtml(num(problem.payload.bNum), num(problem.payload.bDen))}
+        </div>`
+      : problem?.kind === 'boss'
+        ? `<div class="stage-frac">
+            ${fracDisplayHtml(String(problem.payload.numExpr ?? 'x+2'), String(problem.payload.denExpr ?? 'x−1'))}
+            <p class="odz-warn">при x = ${num(problem.payload.x)}</p>
+          </div>`
+        : '';
   ui.stageEl.innerHTML = `
+    ${shown}
     ${fracInputsHtml('ans-num', 'ans-den')}
     <p class="odz-warn">${withLabel}</p>
   `;
@@ -248,13 +263,14 @@ function renderIntAnswer(warn: string): void {
 }
 
 function renderODZ(): void {
-  const latex = String(problem?.payload.latex ?? '');
+  const numExpr = String(problem?.payload.numExpr ?? 'x');
+  const denExpr = String(problem?.payload.denExpr ?? 'x');
   ui.stageEl.innerHTML = `
-    <p style="font-size:1.4rem;font-weight:800">${latex}</p>
+    <div class="stage-frac">${fracDisplayHtml(numExpr, denExpr)}</div>
     <div class="answer-row">
       <label>x = <input id="ans-int" type="number" step="1" inputmode="numeric"></label>
     </div>
-    <p class="odz-warn">Осторожно: если знаменатель станет 0 — ловушка сработает.</p>
+    <p class="odz-warn">Осторожно: если снизу станет 0 — ловушка сработает.</p>
   `;
 }
 
@@ -262,7 +278,7 @@ function renderStage(): void {
   if (!problem) return;
   ui.questGrade.textContent = `${problem.grade} класс`;
   ui.questTitle.textContent = problem.title;
-  ui.promptEl.textContent = problem.prompt;
+  ui.promptEl.textContent = problem.prompt; // без записи «числ./знам.» — дроби рисуются в stage
   ui.hintPieEl.classList.add('hidden');
   hideFeedback();
   locked = false;
