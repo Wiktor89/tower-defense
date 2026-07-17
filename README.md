@@ -27,9 +27,9 @@ make install
 
 `run.sh` сам поднимет PostgreSQL через Docker (если установлен) и соберёт фронт.
 
-Откройте [https://localhost:8089](https://localhost:8089) (self-signed; браузер один раз спросит подтверждение).
+Откройте [http://localhost:8089](http://localhost:8089)
 
-Для обычного HTTP: `HTTPS=0 ./run.sh`.
+HTTPS (self-signed) по желанию: `HTTPS=1 ./run.sh` — в браузере нужно принять предупреждение о сертификате; на части ТВ вход иначе не работает (`tls: unknown certificate`). Обновить сертификат под новый IP: `HTTPS=1 TLS_REGEN=1 ./run.sh`.
 
 ### Переменные окружения
 
@@ -39,9 +39,9 @@ make install
 | `ADMIN_LOGIN` | `admin` |
 | `ADMIN_PASSWORD` | `admin` |
 | `PORT` | `8089` |
-| `HTTPS` | `1` (self-signed в `certs/`; `0` — HTTP) |
+| `HTTPS` | `0` (HTTP; `1` — self-signed в `certs/`) |
 | `TLS_CERT` / `TLS_KEY` | пути к своим сертификатам |
-| `CORS_ORIGINS` | доп. origins через запятую (например `https://192.168.1.10:8089`) |
+| `CORS_ORIGINS` | доп. origins через запятую (например `http://192.168.1.10:8089`) |
 
 ## Пользователи и статистика
 

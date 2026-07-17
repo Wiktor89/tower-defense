@@ -102,8 +102,9 @@ ensure_postgres() {
 }
 
 ensure_tls() {
-  # HTTPS=1 (по умолчанию) — self-signed в certs/; HTTPS=0 — обычный HTTP
-  if [ "${HTTPS:-1}" = "0" ] || [ "${HTTPS:-1}" = "false" ]; then
+  # По умолчанию HTTP: self-signed HTTPS ломает вход в браузере/на ТВ
+  # (tls: unknown certificate). HTTPS включается явно: HTTPS=1 ./run.sh
+  if [ "${HTTPS:-0}" != "1" ] && [ "${HTTPS:-0}" != "true" ]; then
     TLS_CERT=""
     TLS_KEY=""
     return 0
@@ -112,6 +113,11 @@ ensure_tls() {
   TLS_CERT="${TLS_CERT:-$ROOT/certs/cert.pem}"
   TLS_KEY="${TLS_KEY:-$ROOT/certs/key.pem}"
   export TLS_CERT TLS_KEY
+
+  # Пересоздать SAN под текущий IP (иначе старый cert мешает входу по сети)
+  if [ "${TLS_REGEN:-0}" = "1" ]; then
+    rm -f "$TLS_CERT" "$TLS_KEY"
+  fi
 
   if [ ! -f "$TLS_CERT" ] || [ ! -f "$TLS_KEY" ]; then
     bash "$ROOT/scripts/gen-certs.sh"
