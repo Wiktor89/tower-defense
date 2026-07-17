@@ -1,4 +1,5 @@
 import './style.css';
+import '../../shared/tv-controls.css';
 import {
   checkFractionAnswer,
   completeFractionsTutorial,
@@ -11,6 +12,8 @@ import { showChallengeReward } from '../../shared/solar-reward';
 import { setupLab } from './lab';
 import { countSelected, renderPie } from './pie';
 import { clearLegacyTutorialFlag, createTutorialController, hadLegacyTutorialFlag } from './tutorial';
+
+document.body.classList.add('tv-ready');
 
 const gateEl = document.getElementById('gate');
 const playEl = document.getElementById('play');

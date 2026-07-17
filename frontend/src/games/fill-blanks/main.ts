@@ -1,9 +1,12 @@
 import './style.css';
+import '../../shared/tv-controls.css';
 import { checkFillBlanks, fetchFillBlanksPuzzle } from '../../api/client';
 import { showChallengeReward } from '../../shared/solar-reward';
 import type { FillBlanksParagraph, FillBlanksPuzzle, FillBlanksToken } from '../../types';
 import { ensureUserLogin } from '../../shared/login';
 import { getUser } from '../../shared/user';
+
+document.body.classList.add('tv-ready');
 
 const paragraphsEl = document.getElementById('paragraphs');
 const feedbackEl = document.getElementById('feedback');

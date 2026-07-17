@@ -1,4 +1,5 @@
 import './style.css';
+import '../../shared/tv-controls.css';
 import { checkMathAnswer, fetchMathColumnsSettings, fetchMathProblem } from '../../api/client';
 import type { MathProblem } from '../../types';
 import { ensureUserLogin } from '../../shared/login';
@@ -6,6 +7,8 @@ import { showChallengeReward } from '../../shared/solar-reward';
 import { getUser } from '../../shared/user';
 import { DEFAULT_SESSION_SIZE, createBrainSvg, updateBrainProgress } from './brain';
 import { splitDigits } from './utils';
+
+document.body.classList.add('tv-ready');
 
 const columnEl = document.getElementById('column');
 const feedbackEl = document.getElementById('feedback');
@@ -163,32 +166,36 @@ async function checkAnswer(userAnswer: number): Promise<void> {
         sessionSolved++;
       }
       updateProgress();
-      showFeedback('Верно! 🎉', 'correct');
+      updateScore();
+      showFeedback('Верно!', 'correct');
 
       const done = result.sessionComplete || sessionSolved >= sessionSize;
       if (done) {
         sessionSolved = sessionSize;
         finishSessionUI();
-        showFeedback(`Серия из ${sessionSize} примеров завершена! Мозг вырос! 🧠`, 'correct');
+        showFeedback(`Серия из ${sessionSize} примеров завершена! Мозг вырос!`, 'correct');
         if (result.stageCompletion) showChallengeReward(result.stageCompletion);
-        updateScore();
         return;
       }
-    } else {
-      wrong++;
-      showFeedback(`Неверно. Правильный ответ: ${result.correctAnswer ?? '?'}`, 'wrong');
+
+      // Верный клик = ответ, сразу следующий пример.
+      window.setTimeout(() => {
+        if (!sessionComplete) void renderColumn();
+      }, 450);
+      return;
     }
+
+    wrong++;
+    updateScore();
+    showFeedback(`Неверно. Правильный ответ: ${result.correctAnswer ?? '?'}`, 'wrong');
+    ui.nextBtn.classList.remove('hidden');
   } catch {
     showFeedback('Ошибка проверки ответа', 'wrong');
     answered = false;
     ui.columnEl.querySelectorAll<HTMLButtonElement>('.choice-btn').forEach(btn => {
       btn.disabled = false;
     });
-    return;
   }
-
-  updateScore();
-  ui.nextBtn.classList.remove('hidden');
 }
 
 function showHint(): void {

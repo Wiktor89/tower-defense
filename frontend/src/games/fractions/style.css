@@ -19,7 +19,7 @@ body {
 
 #app {
   width: 100%;
-  max-width: 920px;
+  max-width: min(96vw, 1200px);
   display: flex;
   flex-direction: column;
   gap: 16px;

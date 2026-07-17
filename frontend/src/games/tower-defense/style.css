@@ -97,7 +97,8 @@ header h1 {
 #plant-bar {
   display: flex;
   gap: 8px;
-  width: 900px;
+  width: min(92vw, 1200px);
+  max-width: 92vw;
   padding: 8px;
   background: rgba(0, 0, 0, 0.3);
   border-radius: 12px;

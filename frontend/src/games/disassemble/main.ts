@@ -1,10 +1,13 @@
 import './style.css';
+import '../../shared/tv-controls.css';
 import { reportDisassembleComplete } from '../../api/client';
 import { ensureUserLogin } from '../../shared/login';
 import { showChallengeReward } from '../../shared/solar-reward';
 import { getUser } from '../../shared/user';
 import { AssemblyGame, type GameMode } from './AssemblyGame';
 import { PARTS, type PartId } from './parts';
+
+document.body.classList.add('tv-ready');
 
 const canvas = document.getElementById('stage') as HTMLCanvasElement | null;
 const statusText = document.getElementById('status-text');

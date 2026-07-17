@@ -1,0 +1,125 @@
+/* Крупные кнопки и поля для ТВ / больших экранов — интерактив ≥ ~75% ширины. */
+
+@media (min-width: 900px) {
+  body.tv-ready #app,
+  body.tv-ready .game-shell {
+    width: min(96vw, 1400px);
+    max-width: 96vw;
+  }
+
+  body.tv-ready .actions,
+  body.tv-ready .gate-actions,
+  body.tv-ready .tutorial-card .actions {
+    width: min(92vw, 1200px);
+    max-width: 92vw;
+    display: flex;
+    flex-wrap: wrap;
+    gap: clamp(12px, 1.5vw, 20px);
+    margin-inline: auto;
+  }
+
+  body.tv-ready .action-btn,
+  body.tv-ready .modal-btn,
+  body.tv-ready .gate-actions .action-btn,
+  body.tv-ready .tutorial-card .action-btn {
+    flex: 1 1 220px;
+    min-height: clamp(64px, 10vh, 96px);
+    padding: clamp(14px, 2vh, 24px) clamp(18px, 2vw, 32px);
+    font-size: clamp(1.25rem, 2.4vw, 2rem);
+    border-radius: 14px;
+  }
+
+  body.tv-ready .choices,
+  body.tv-ready .compare-btns {
+    width: min(92vw, 1100px);
+    max-width: 92vw;
+    margin-inline: auto;
+    gap: clamp(12px, 1.8vw, 24px);
+  }
+
+  body.tv-ready .choice-btn,
+  body.tv-ready .compare-btns .action-btn {
+    min-height: clamp(88px, 18vh, 168px);
+    font-size: clamp(2rem, 5vw, 3.6rem);
+    border-radius: 16px;
+  }
+
+  body.tv-ready input[type="text"],
+  body.tv-ready input[type="number"],
+  body.tv-ready input[type="password"],
+  body.tv-ready .digit-input,
+  body.tv-ready .frac-inputs input,
+  body.tv-ready .answer-row input,
+  body.tv-ready .blank,
+  body.tv-ready .word-chip,
+  body.tv-ready select {
+    min-height: clamp(56px, 8vh, 84px);
+    font-size: clamp(1.35rem, 2.8vw, 2.2rem);
+    padding: clamp(10px, 1.4vh, 18px) clamp(12px, 1.5vw, 20px);
+  }
+
+  body.tv-ready .frac-inputs {
+    gap: clamp(12px, 2vw, 24px);
+    font-size: clamp(2rem, 4vw, 3rem);
+  }
+
+  body.tv-ready .frac-inputs input {
+    width: clamp(100px, 18vw, 180px);
+    min-width: 100px;
+  }
+
+  body.tv-ready .notebook,
+  body.tv-ready .board,
+  body.tv-ready .gate-card,
+  body.tv-ready .tutorial-card {
+    width: min(92vw, 1200px);
+    max-width: 92vw;
+  }
+
+  body.tv-ready .stage,
+  body.tv-ready .column {
+    width: min(92vw, 1100px);
+    max-width: 92vw;
+    margin-inline: auto;
+  }
+
+  body.tv-ready .plant-btn,
+  body.tv-ready .overlay button,
+  body.tv-ready #start-btn,
+  body.tv-ready #restart-btn {
+    min-height: clamp(56px, 9vh, 88px);
+    font-size: clamp(1.2rem, 2.2vw, 1.8rem);
+    padding: clamp(12px, 1.8vh, 20px) clamp(20px, 3vw, 40px);
+  }
+
+  body.tv-ready .bank-word,
+  body.tv-ready .fill-blank,
+  body.tv-ready .blank-slot,
+  body.tv-ready .blank,
+  body.tv-ready .word-chip {
+    min-height: clamp(52px, 8vh, 80px);
+    font-size: clamp(1.25rem, 2.5vw, 1.9rem);
+    padding: clamp(12px, 1.4vh, 18px) clamp(16px, 1.8vw, 24px);
+  }
+
+  body.tv-ready .plant-bar {
+    width: min(92vw, 1200px);
+    max-width: 92vw;
+    gap: clamp(10px, 1.5vw, 18px);
+  }
+
+  body.tv-ready .plant-btn {
+    flex: 1 1 140px;
+    min-width: 120px;
+  }
+
+  body.tv-ready .plant-btn .icon {
+    font-size: clamp(1.8rem, 3.5vw, 2.8rem);
+  }
+}
+
+@media (min-width: 900px) and (min-height: 700px) {
+  body.tv-ready .choices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

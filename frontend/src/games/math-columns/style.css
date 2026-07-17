@@ -18,7 +18,7 @@ body {
 
 #app {
   width: 100%;
-  max-width: 520px;
+  max-width: min(96vw, 1100px);
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -272,6 +272,7 @@ header {
   gap: 10px;
   flex-wrap: wrap;
   justify-content: center;
+  margin-top: 28px;
 }
 
 .action-btn {

@@ -1,4 +1,5 @@
 import './style.css';
+import '../../shared/tv-controls.css';
 import type { PlantType } from '../../types';
 import { finishTowerDefense, startTowerDefense } from '../../api/client';
 import { ensureUserLogin } from '../../shared/login';
@@ -6,6 +7,8 @@ import { showChallengeReward } from '../../shared/solar-reward';
 import { getUser } from '../../shared/user';
 import { CONFIG } from './config';
 import { Game } from './Game';
+
+document.body.classList.add('tv-ready');
 
 const canvas = document.getElementById('game-canvas') as HTMLCanvasElement | null;
 const sunDisplay = document.getElementById('sun-display');
