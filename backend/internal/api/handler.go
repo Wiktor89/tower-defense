@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -63,6 +64,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/math/session/reset", h.resetMathSession)
 	mux.HandleFunc("POST /api/users/login", h.userLogin)
 	mux.HandleFunc("POST /api/users/register", h.userRegister)
+	mux.HandleFunc("GET /api/users/{id}", h.getUserByID)
 	mux.HandleFunc("PUT /api/users/password", h.setUserPassword)
 	mux.HandleFunc("PUT /api/users/avatar", h.setUserAvatar)
 	mux.HandleFunc("POST /api/tower-defense/start", h.tdStart)
@@ -401,6 +403,29 @@ func writeUserJSON(w http.ResponseWriter, status int, user store.User, adminToke
 		resp["adminToken"] = adminToken
 	}
 	writeJSON(w, status, resp)
+}
+
+func (h *Handler) getUserByID(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	user, err := h.db.GetUser(ctx, id)
+	if err != nil {
+		if errors.Is(err, store.ErrUserNotFound) {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		log.Printf("get user %d: %v", id, err)
+		writeError(w, http.StatusInternalServerError, "failed to load user")
+		return
+	}
+	writeUserJSON(w, http.StatusOK, user, "")
 }
 
 func (h *Handler) userLogin(w http.ResponseWriter, r *http.Request) {
@@ -835,6 +860,7 @@ func (h *Handler) completeFractionsTutorial(w http.ResponseWriter, r *http.Reque
 			writeError(w, http.StatusNotFound, "user not found")
 			return
 		}
+		log.Printf("complete fractions tutorial user=%d: %v", req.UserID, err)
 		writeError(w, http.StatusInternalServerError, "failed to save tutorial")
 		return
 	}

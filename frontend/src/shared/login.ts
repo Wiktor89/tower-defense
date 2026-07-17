@@ -1,4 +1,4 @@
-import { loginUser, registerUser, setUserPassword } from '../api/client';
+import { fetchUser, loginUser, registerUser, setUserPassword } from '../api/client';
 import type { User } from '../types';
 import { captchaFieldHtml, setupCaptcha } from './captcha';
 import { startIdleLogout, touchActivity } from './idle-logout';
@@ -23,11 +23,19 @@ function authErrorMessage(message: string, mode: 'login' | 'register'): string {
 
 export async function ensureUserLogin(): Promise<User> {
   const existing = getUser();
-  if (existing?.hasPassword && existing.role) {
-    startIdleLogout(); // сначала проверка простоя, потом активность
-    return existing;
+  if (existing?.hasPassword && existing.role && existing.id > 0) {
+    try {
+      const fresh = await fetchUser(existing.id);
+      setUser(fresh);
+      startIdleLogout();
+      return fresh;
+    } catch {
+      // сессия в localStorage устарела (БД сброшена / пользователь удалён)
+      clearUser();
+    }
+  } else if (existing) {
+    clearUser();
   }
-  if (existing) clearUser();
   return promptUserLogin();
 }
 

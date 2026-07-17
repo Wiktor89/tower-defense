@@ -88,6 +88,10 @@ export function resetMathSession(userId: number): Promise<MathSessionProgress> {
   });
 }
 
+export function fetchUser(userId: number): Promise<User> {
+  return request<User>(`/api/users/${userId}`);
+}
+
 export function loginUser(login: string, password: string | undefined, captcha: CaptchaPayload): Promise<User> {
   return request<User>('/api/users/login', {
     method: 'POST',

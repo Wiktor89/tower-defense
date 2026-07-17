@@ -10,6 +10,7 @@ import {
 import type { FractionProblem, FractionVisualHint } from '../../types';
 import { ensureUserLogin } from '../../shared/login';
 import { showChallengeReward } from '../../shared/solar-reward';
+import { clearUser } from '../../shared/user';
 import { fracDisplayHtml, fracInputsHtml } from './fraction-ui';
 import { setupLab } from './lab';
 import { countSelected, renderPie } from './pie';
@@ -401,16 +402,34 @@ const tutorial = createTutorialController(
     quizPane,
   },
   () => {
-    void completeFractionsTutorial(userId)
-      .then(() => {
-        clearLegacyTutorialFlag(userId);
+    void (async () => {
+      const save = async (id: number): Promise<void> => {
+        await completeFractionsTutorial(id);
+        clearLegacyTutorialFlag(id);
         unlocked = true;
         tutorial.hide();
         renderGate();
-      })
-      .catch(() => {
-        alert('Не удалось сохранить прохождение обучения. Проверьте backend.');
-      });
+      };
+      try {
+        await save(userId);
+      } catch (firstErr) {
+        const msg = firstErr instanceof Error ? firstErr.message : '';
+        // часто: устаревший userId в localStorage после сброса БД
+        try {
+          clearUser();
+          const user = await ensureUserLogin();
+          userId = user.id;
+          userGrade = user.grade ?? null;
+          await save(userId);
+        } catch {
+          alert(
+            msg.includes('not found') || msg.includes('user')
+              ? 'Сессия устарела. Войдите снова и откройте обучение ещё раз — ответы мини-теста нужно повторить.'
+              : 'Не удалось сохранить прохождение обучения. Проверьте, что сервер и PostgreSQL запущены (./run.sh), смотрите server.log.',
+          );
+        }
+      }
+    })();
   },
 );
 
