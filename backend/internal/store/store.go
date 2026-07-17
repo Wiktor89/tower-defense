@@ -163,6 +163,18 @@ func (s *Store) migrate(ctx context.Context) error {
 			unlocked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			PRIMARY KEY (user_id, game_id)
 		);
+
+		CREATE TABLE IF NOT EXISTS daily_game_progress (
+			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			game_id VARCHAR(64) NOT NULL,
+			day DATE NOT NULL,
+			solved INTEGER NOT NULL DEFAULT 0,
+			correct INTEGER NOT NULL DEFAULT 0,
+			wrong INTEGER NOT NULL DEFAULT 0,
+			complete BOOLEAN NOT NULL DEFAULT FALSE,
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			PRIMARY KEY (user_id, game_id, day)
+		);
 	`)
 	if err != nil {
 		return err

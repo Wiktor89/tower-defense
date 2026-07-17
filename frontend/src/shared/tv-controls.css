@@ -1,20 +1,20 @@
-/* Крупные кнопки и поля для ТВ / больших экранов — интерактив ≥ ~75% ширины. */
+/* ТВ / большие экраны: интерактив ~50% ширины, пропорции с примером. */
 
 @media (min-width: 900px) {
   body.tv-ready #app,
   body.tv-ready .game-shell {
-    width: min(96vw, 1400px);
-    max-width: 96vw;
+    width: min(50vw, 720px);
+    max-width: 50vw;
   }
 
   body.tv-ready .actions,
   body.tv-ready .gate-actions,
   body.tv-ready .tutorial-card .actions {
-    width: min(92vw, 1200px);
-    max-width: 92vw;
+    width: 100%;
+    max-width: 100%;
     display: flex;
     flex-wrap: wrap;
-    gap: clamp(12px, 1.5vw, 20px);
+    gap: 12px;
     margin-inline: auto;
   }
 
@@ -22,26 +22,55 @@
   body.tv-ready .modal-btn,
   body.tv-ready .gate-actions .action-btn,
   body.tv-ready .tutorial-card .action-btn {
-    flex: 1 1 220px;
-    min-height: clamp(64px, 10vh, 96px);
-    padding: clamp(14px, 2vh, 24px) clamp(18px, 2vw, 32px);
-    font-size: clamp(1.25rem, 2.4vw, 2rem);
-    border-radius: 14px;
+    flex: 1 1 160px;
+    min-height: 52px;
+    padding: 12px 18px;
+    font-size: clamp(1.05rem, 1.6vw, 1.35rem);
+    border-radius: 12px;
+  }
+
+  body.tv-ready .notebook,
+  body.tv-ready .board,
+  body.tv-ready .gate-card,
+  body.tv-ready .tutorial-card {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  body.tv-ready .stage,
+  body.tv-ready .column {
+    width: 100%;
+    max-width: 100%;
+    margin-inline: auto;
+  }
+
+  /* Столбик: цифры примера и варианты одного масштаба */
+  body.tv-ready .column {
+    font-size: clamp(2.2rem, 3.2vw, 3rem);
+  }
+
+  body.tv-ready .column-digit,
+  body.tv-ready .column-sign {
+    width: clamp(36px, 3.2vw, 48px);
+  }
+
+  body.tv-ready .column-row {
+    min-height: clamp(48px, 5vw, 64px);
   }
 
   body.tv-ready .choices,
   body.tv-ready .compare-btns {
-    width: min(92vw, 1100px);
-    max-width: 92vw;
+    width: 100%;
+    max-width: 100%;
     margin-inline: auto;
-    gap: clamp(12px, 1.8vw, 24px);
+    gap: 12px;
   }
 
   body.tv-ready .choice-btn,
   body.tv-ready .compare-btns .action-btn {
-    min-height: clamp(88px, 18vh, 168px);
-    font-size: clamp(2rem, 5vw, 3.6rem);
-    border-radius: 16px;
+    min-height: clamp(56px, 6.5vw, 72px);
+    font-size: clamp(1.6rem, 2.6vw, 2.2rem);
+    border-radius: 12px;
   }
 
   body.tv-ready input[type="text"],
@@ -50,71 +79,51 @@
   body.tv-ready .digit-input,
   body.tv-ready .frac-inputs input,
   body.tv-ready .answer-row input,
-  body.tv-ready .blank,
-  body.tv-ready .word-chip,
   body.tv-ready select {
-    min-height: clamp(56px, 8vh, 84px);
-    font-size: clamp(1.35rem, 2.8vw, 2.2rem);
-    padding: clamp(10px, 1.4vh, 18px) clamp(12px, 1.5vw, 20px);
+    min-height: 52px;
+    font-size: clamp(1.2rem, 1.8vw, 1.5rem);
+    padding: 10px 14px;
   }
 
   body.tv-ready .frac-inputs {
-    gap: clamp(12px, 2vw, 24px);
-    font-size: clamp(2rem, 4vw, 3rem);
+    gap: 12px;
+    font-size: clamp(1.6rem, 2.4vw, 2rem);
   }
 
   body.tv-ready .frac-inputs input {
-    width: clamp(100px, 18vw, 180px);
-    min-width: 100px;
-  }
-
-  body.tv-ready .notebook,
-  body.tv-ready .board,
-  body.tv-ready .gate-card,
-  body.tv-ready .tutorial-card {
-    width: min(92vw, 1200px);
-    max-width: 92vw;
-  }
-
-  body.tv-ready .stage,
-  body.tv-ready .column {
-    width: min(92vw, 1100px);
-    max-width: 92vw;
-    margin-inline: auto;
+    width: clamp(88px, 10vw, 120px);
+    min-width: 80px;
   }
 
   body.tv-ready .plant-btn,
   body.tv-ready .overlay button,
   body.tv-ready #start-btn,
   body.tv-ready #restart-btn {
-    min-height: clamp(56px, 9vh, 88px);
-    font-size: clamp(1.2rem, 2.2vw, 1.8rem);
-    padding: clamp(12px, 1.8vh, 20px) clamp(20px, 3vw, 40px);
+    min-height: 52px;
+    font-size: clamp(1.05rem, 1.6vw, 1.3rem);
+    padding: 12px 20px;
   }
 
-  body.tv-ready .bank-word,
-  body.tv-ready .fill-blank,
-  body.tv-ready .blank-slot,
   body.tv-ready .blank,
   body.tv-ready .word-chip {
-    min-height: clamp(52px, 8vh, 80px);
-    font-size: clamp(1.25rem, 2.5vw, 1.9rem);
-    padding: clamp(12px, 1.4vh, 18px) clamp(16px, 1.8vw, 24px);
+    min-height: 48px;
+    font-size: clamp(1.1rem, 1.6vw, 1.35rem);
+    padding: 10px 14px;
   }
 
   body.tv-ready .plant-bar {
-    width: min(92vw, 1200px);
-    max-width: 92vw;
-    gap: clamp(10px, 1.5vw, 18px);
+    width: min(50vw, 720px);
+    max-width: 50vw;
+    gap: 10px;
   }
 
   body.tv-ready .plant-btn {
-    flex: 1 1 140px;
-    min-width: 120px;
+    flex: 1 1 110px;
+    min-width: 100px;
   }
 
   body.tv-ready .plant-btn .icon {
-    font-size: clamp(1.8rem, 3.5vw, 2.8rem);
+    font-size: clamp(1.5rem, 2.2vw, 2rem);
   }
 }
 

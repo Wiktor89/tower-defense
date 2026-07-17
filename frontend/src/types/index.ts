@@ -90,6 +90,23 @@ export interface MathCheckResult {
   stageCompletion?: StageCompletion;
 }
 
+export interface MathSessionProgress {
+  solved: number;
+  correct: number;
+  wrong: number;
+  complete: boolean;
+  sessionSize: number;
+  day: string;
+}
+
+export interface FractionsSessionProgress {
+  correct: number;
+  wrong: number;
+  solved: number;
+  day: string;
+  rankTitle: string;
+}
+
 export interface VerifyResult {
   verified: boolean;
   message: string;
@@ -149,6 +166,8 @@ export interface FractionCheckResult {
   correct: boolean;
   visualHint?: FractionVisualHint;
   rankTitle?: string;
+  dayCorrect?: number;
+  dayWrong?: number;
   challengeReward?: StageCompletion;
 }
 

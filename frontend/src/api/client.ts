@@ -1,4 +1,4 @@
-import type { CaptchaChallenge, CaptchaPayload, ChallengeStatus, DailyChallengeAdmin, FillBlankText, FillBlanksCheckResult, FillBlanksPuzzle, FractionCheckResult, FractionProblem, GameCatalogItem, GameGrade, GameSettings, MathCheckResult, MathProblem, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
+import type { CaptchaChallenge, CaptchaPayload, ChallengeStatus, DailyChallengeAdmin, FillBlankText, FillBlanksCheckResult, FillBlanksPuzzle, FractionCheckResult, FractionProblem, FractionsSessionProgress, GameCatalogItem, GameGrade, GameSettings, MathCheckResult, MathProblem, MathSessionProgress, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -74,6 +74,17 @@ export function checkMathAnswer(id: string, answer: number, userId?: number): Pr
   return request<MathCheckResult>('/api/math/check', {
     method: 'POST',
     body: JSON.stringify({ id, answer, userId: userId ?? 0 }),
+  });
+}
+
+export function fetchMathSession(userId: number): Promise<MathSessionProgress> {
+  return request<MathSessionProgress>(`/api/math/session?userId=${userId}`);
+}
+
+export function resetMathSession(userId: number): Promise<MathSessionProgress> {
+  return request<MathSessionProgress>('/api/math/session/reset', {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
   });
 }
 
@@ -180,6 +191,10 @@ export function completeFractionsTutorial(userId: number): Promise<{ done: boole
     method: 'POST',
     body: JSON.stringify({ userId }),
   });
+}
+
+export function fetchFractionsSession(userId: number): Promise<FractionsSessionProgress> {
+  return request<FractionsSessionProgress>(`/api/fractions/session?userId=${userId}`);
 }
 
 export function adminResetFractionsTutorial(token: string, userId: number): Promise<{ done: boolean }> {

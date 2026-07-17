@@ -59,6 +59,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/challenge", h.getChallenge)
 	mux.HandleFunc("POST /api/math/problem", h.createMathProblem)
 	mux.HandleFunc("POST /api/math/check", h.checkMathAnswer)
+	mux.HandleFunc("GET /api/math/session", h.getMathSession)
+	mux.HandleFunc("POST /api/math/session/reset", h.resetMathSession)
 	mux.HandleFunc("POST /api/users/login", h.userLogin)
 	mux.HandleFunc("POST /api/users/register", h.userRegister)
 	mux.HandleFunc("PUT /api/users/password", h.setUserPassword)
@@ -72,6 +74,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/fractions/check", h.checkFractionAnswer)
 	mux.HandleFunc("GET /api/fractions/tutorial", h.getFractionsTutorial)
 	mux.HandleFunc("POST /api/fractions/tutorial/complete", h.completeFractionsTutorial)
+	mux.HandleFunc("GET /api/fractions/session", h.getFractionsSession)
 	mux.HandleFunc("GET /api/settings/math-columns", h.mathColumnsSettings)
 	mux.HandleFunc("POST /api/admin/login", h.adminLogin)
 	mux.HandleFunc("GET /api/admin/stats", h.adminStats)
@@ -278,15 +281,20 @@ func (h *Handler) checkMathAnswer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		sessionSize, err := h.db.GetSessionSize(ctx, "math-columns")
+		if err != nil {
+			sessionSize = store.DefaultSessionSize
+		}
 		if correct {
-			sessionSize, err := h.db.GetSessionSize(ctx, "math-columns")
+			prog, completed, err := h.db.RecordDailyCorrect(ctx, req.UserID, "math-columns", sessionSize)
 			if err != nil {
-				sessionSize = store.DefaultSessionSize
+				writeError(w, http.StatusInternalServerError, "failed to save progress")
+				return
 			}
-			solved, completed := h.mathSessions.RecordCorrect(req.UserID, problem.Level, sessionSize)
-			resp.SessionSolved = solved
+			resp.SessionSolved = prog.Solved
 			if completed {
 				resp.SessionComplete = true
+				_ = h.mathSessions.Reset(req.UserID, problem.Level)
 				if err := h.db.AddStats(ctx, req.UserID, "math-columns", store.StatsDelta{SessionsCompleted: 1}); err != nil {
 					writeError(w, http.StatusInternalServerError, "failed to save stats")
 					return
@@ -298,10 +306,78 @@ func (h *Handler) checkMathAnswer(w http.ResponseWriter, r *http.Request) {
 					resp.StageCompletion = reward
 				}
 			}
+		} else {
+			prog, err := h.db.RecordDailyWrong(ctx, req.UserID, "math-columns")
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to save progress")
+				return
+			}
+			resp.SessionSolved = prog.Solved
 		}
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *Handler) getMathSession(w http.ResponseWriter, r *http.Request) {
+	userID, err := strconv.Atoi(r.URL.Query().Get("userId"))
+	if err != nil || userID <= 0 {
+		writeError(w, http.StatusBadRequest, "userId is required")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if _, err := h.db.GetUser(ctx, userID); err != nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	sessionSize, err := h.db.GetSessionSize(ctx, "math-columns")
+	if err != nil {
+		sessionSize = store.DefaultSessionSize
+	}
+	prog, err := h.db.GetDailyProgress(ctx, userID, "math-columns")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load progress")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"solved":      prog.Solved,
+		"correct":     prog.Correct,
+		"wrong":       prog.Wrong,
+		"complete":    prog.Complete,
+		"sessionSize": sessionSize,
+		"day":         prog.Day,
+	})
+}
+
+func (h *Handler) resetMathSession(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UserID int `json:"userId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.UserID <= 0 {
+		writeError(w, http.StatusBadRequest, "userId is required")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if _, err := h.db.GetUser(ctx, req.UserID); err != nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	prog, err := h.db.ResetDailyProgress(ctx, req.UserID, "math-columns")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to reset progress")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"solved":   prog.Solved,
+		"correct":  prog.Correct,
+		"wrong":    prog.Wrong,
+		"complete": prog.Complete,
+		"day":      prog.Day,
+	})
 }
 
 type userLoginRequest struct {
@@ -775,6 +851,8 @@ type fractionCheckResponse struct {
 	Correct         bool                   `json:"correct"`
 	VisualHint      map[string]any         `json:"visualHint,omitempty"`
 	RankTitle       string                 `json:"rankTitle,omitempty"`
+	DayCorrect      int                    `json:"dayCorrect,omitempty"`
+	DayWrong        int                    `json:"dayWrong,omitempty"`
 	ChallengeReward *store.StageCompletion `json:"challengeReward,omitempty"`
 }
 
@@ -823,11 +901,20 @@ func (h *Handler) checkFractionAnswer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if stats, err := h.db.GetGameStats(ctx, req.UserID, "fractions"); err == nil {
-			resp.RankTitle = fractions.RankTitle(stats.Correct)
-		} else if correct {
-			resp.RankTitle = fractions.RankTitle(1)
+		var prog store.DailyGameProgress
+		var err error
+		if correct {
+			prog, _, err = h.db.RecordDailyCorrect(ctx, req.UserID, "fractions", 0)
+		} else {
+			prog, err = h.db.RecordDailyWrong(ctx, req.UserID, "fractions")
 		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to save progress")
+			return
+		}
+		resp.DayCorrect = prog.Correct
+		resp.DayWrong = prog.Wrong
+		resp.RankTitle = fractions.RankTitle(prog.Correct)
 
 		if correct {
 			if reward, err := h.db.MarkChallengeGameDone(ctx, req.UserID, "fractions"); err != nil {
@@ -840,6 +927,33 @@ func (h *Handler) checkFractionAnswer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *Handler) getFractionsSession(w http.ResponseWriter, r *http.Request) {
+	userID, err := strconv.Atoi(r.URL.Query().Get("userId"))
+	if err != nil || userID <= 0 {
+		writeError(w, http.StatusBadRequest, "userId is required")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if _, err := h.db.GetUser(ctx, userID); err != nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	prog, err := h.db.GetDailyProgress(ctx, userID, "fractions")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load progress")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"correct":   prog.Correct,
+		"wrong":     prog.Wrong,
+		"solved":    prog.Solved,
+		"day":       prog.Day,
+		"rankTitle": fractions.RankTitle(prog.Correct),
+	})
 }
 
 func (h *Handler) getChallenge(w http.ResponseWriter, r *http.Request) {

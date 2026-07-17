@@ -4,6 +4,7 @@ import {
   checkFractionAnswer,
   completeFractionsTutorial,
   fetchFractionProblem,
+  fetchFractionsSession,
   fetchFractionsTutorial,
 } from '../../api/client';
 import type { FractionProblem, FractionVisualHint } from '../../types';
@@ -355,15 +356,17 @@ async function onCheck(): Promise<void> {
     locked = true;
     ui.checkBtn.disabled = true;
     ui.nextBtn.classList.remove('hidden');
+    if (typeof result.dayCorrect === 'number') correctCount = result.dayCorrect;
+    else if (result.correct) correctCount += 1;
+    if (typeof result.dayWrong === 'number') wrongCount = result.dayWrong;
+    else if (!result.correct) wrongCount += 1;
+    updateScore();
+    if (result.rankTitle) ui.rankTitleEl.textContent = result.rankTitle;
+
     if (result.correct) {
-      correctCount += 1;
-      updateScore();
-      if (result.rankTitle) ui.rankTitleEl.textContent = result.rankTitle;
       showFeedback('Верно! Целостность восстановлена.', 'correct');
       if (result.challengeReward) showChallengeReward(result.challengeReward);
     } else {
-      wrongCount += 1;
-      updateScore();
       showFeedback('Пока мимо. Смотри визуальную подсказку — это откат к долям.', 'wrong');
       showVisualHint(result.visualHint);
     }
@@ -441,6 +444,14 @@ async function boot(): Promise<void> {
     clearLegacyTutorialFlag(userId);
   } catch {
     unlocked = false;
+  }
+  try {
+    const day = await fetchFractionsSession(userId);
+    correctCount = day.correct;
+    wrongCount = day.wrong;
+    if (day.rankTitle) ui.rankTitleEl.textContent = day.rankTitle;
+  } catch {
+    /* keep zeros */
   }
   renderGate();
   updateScore();

@@ -1,6 +1,12 @@
 import './style.css';
 import '../../shared/tv-controls.css';
-import { checkMathAnswer, fetchMathColumnsSettings, fetchMathProblem } from '../../api/client';
+import {
+  checkMathAnswer,
+  fetchMathColumnsSettings,
+  fetchMathProblem,
+  fetchMathSession,
+  resetMathSession,
+} from '../../api/client';
 import type { MathProblem } from '../../types';
 import { ensureUserLogin } from '../../shared/login';
 import { showChallengeReward } from '../../shared/solar-reward';
@@ -61,14 +67,46 @@ function updateProgress(): void {
   updateBrainProgress(sessionSolved, sessionSize, progressElements);
 }
 
-function resetSession(): void {
-  sessionSolved = 0;
-  sessionComplete = false;
-  correct = 0;
-  wrong = 0;
+function applySession(p: {
+  solved: number;
+  correct: number;
+  wrong: number;
+  complete: boolean;
+  sessionSize?: number;
+}): void {
+  sessionSolved = p.solved;
+  correct = p.correct;
+  wrong = p.wrong;
+  sessionComplete = p.complete;
+  if (typeof p.sessionSize === 'number' && p.sessionSize > 0) {
+    sessionSize = p.sessionSize;
+  }
   updateScore();
   updateProgress();
-  ui.nextBtn.textContent = 'Следующий пример';
+  if (sessionComplete) {
+    ui.nextBtn.textContent = 'Новая серия';
+    ui.nextBtn.classList.remove('hidden');
+    ui.hintBtn.disabled = true;
+    showFeedback(`Серия из ${sessionSize} примеров уже завершена сегодня.`, 'correct');
+  } else {
+    ui.nextBtn.textContent = 'Следующий пример';
+    ui.hintBtn.disabled = false;
+  }
+}
+
+async function startNewSeries(): Promise<void> {
+  try {
+    const p = await resetMathSession(userId);
+    applySession({ ...p, sessionSize });
+    sessionComplete = false;
+    ui.nextBtn.classList.add('hidden');
+    ui.nextBtn.textContent = 'Следующий пример';
+    ui.hintBtn.disabled = false;
+    hideFeedback();
+    await renderColumn();
+  } catch {
+    showFeedback('Не удалось начать новую серию.', 'wrong');
+  }
 }
 
 async function renderColumn(): Promise<void> {
@@ -158,13 +196,12 @@ async function checkAnswer(userAnswer: number): Promise<void> {
     const isCorrect = result.correct;
     lockChoices(userAnswer, isCorrect, result.correctAnswer);
 
+    if (typeof result.sessionSolved === 'number') {
+      sessionSolved = result.sessionSolved;
+    }
+
     if (isCorrect) {
-      correct++;
-      if (typeof result.sessionSolved === 'number') {
-        sessionSolved = result.sessionSolved;
-      } else {
-        sessionSolved++;
-      }
+      correct += 1;
       updateProgress();
       updateScore();
       showFeedback('Верно!', 'correct');
@@ -178,14 +215,13 @@ async function checkAnswer(userAnswer: number): Promise<void> {
         return;
       }
 
-      // Верный клик = ответ, сразу следующий пример.
       window.setTimeout(() => {
         if (!sessionComplete) void renderColumn();
       }, 450);
       return;
     }
 
-    wrong++;
+    wrong += 1;
     updateScore();
     showFeedback(`Неверно. Правильный ответ: ${result.correctAnswer ?? '?'}`, 'wrong');
     ui.nextBtn.classList.remove('hidden');
@@ -223,8 +259,7 @@ function updateScore(): void {
 
 ui.nextBtn.addEventListener('click', () => {
   if (sessionComplete) {
-    resetSession();
-    void renderColumn();
+    void startNewSeries();
   } else {
     void renderColumn();
   }
@@ -233,16 +268,23 @@ ui.hintBtn.addEventListener('click', showHint);
 
 updateProgress();
 void ensureUserLogin()
-  .then(user => {
+  .then(async user => {
     userId = user.id;
-    return fetchMathColumnsSettings();
-  })
-  .then(settings => {
-    sessionSize = settings.sessionSize;
-    updateProgress();
+    const [settings, session] = await Promise.all([
+      fetchMathColumnsSettings().catch(() => null),
+      fetchMathSession(userId).catch(() => null),
+    ]);
+    if (settings) sessionSize = settings.sessionSize;
+    if (session) {
+      applySession(session);
+    } else {
+      updateProgress();
+    }
+    if (!sessionComplete) {
+      await renderColumn();
+    }
   })
   .catch(() => {
     sessionSize = DEFAULT_SESSION_SIZE;
     updateProgress();
-  })
-  .then(() => renderColumn());
+  });
