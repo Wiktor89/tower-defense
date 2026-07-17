@@ -294,7 +294,7 @@ func (h *Handler) checkMathAnswer(w http.ResponseWriter, r *http.Request) {
 			resp.SessionSolved = prog.Solved
 			if completed {
 				resp.SessionComplete = true
-				_ = h.mathSessions.Reset(req.UserID, problem.Level)
+				h.mathSessions.Reset(req.UserID, problem.Level)
 				if err := h.db.AddStats(ctx, req.UserID, "math-columns", store.StatsDelta{SessionsCompleted: 1}); err != nil {
 					writeError(w, http.StatusInternalServerError, "failed to save stats")
 					return
