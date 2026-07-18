@@ -257,6 +257,12 @@ func (s *Store) challengeGamesForUser(ctx context.Context, userID int, all []Cha
 	return out, nil
 }
 
+// challengeDayStage — уникальный stage награды за календарный день (МСК), YYYYMMDD.
+func challengeDayStage(day time.Time) int {
+	y, m, d := day.Date()
+	return y*10000 + int(m)*100 + d
+}
+
 func (s *Store) MarkChallengeGameDone(ctx context.Context, userID int, gameID string) (*StageCompletion, error) {
 	ch, err := s.GetActiveChallenge(ctx)
 	if err != nil || ch == nil {
@@ -278,11 +284,12 @@ func (s *Store) MarkChallengeGameDone(ctx context.Context, userID int, gameID st
 		return nil, nil
 	}
 
+	day, _ := moscowToday()
 	_, err = s.pool.Exec(ctx, `
-		INSERT INTO daily_challenge_progress (challenge_id, user_id, game_id)
-		VALUES ($1, $2, $3)
-		ON CONFLICT (challenge_id, user_id, game_id) DO NOTHING
-	`, ch.ID, userID, gameID)
+		INSERT INTO daily_challenge_progress (challenge_id, user_id, game_id, day)
+		VALUES ($1, $2, $3, $4::date)
+		ON CONFLICT (challenge_id, user_id, game_id, day) DO NOTHING
+	`, ch.ID, userID, gameID, day)
 	if err != nil {
 		return nil, err
 	}
@@ -294,16 +301,18 @@ func (s *Store) MarkChallengeGameDone(ctx context.Context, userID int, gameID st
 	if status.Reward != nil {
 		return status.Reward, nil
 	}
-	reward, err := s.grantChallengeReward(ctx, userID, ch.ID)
+	reward, err := s.grantChallengeReward(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 	return &reward, nil
 }
 
-func (s *Store) grantChallengeReward(ctx context.Context, userID, challengeID int) (StageCompletion, error) {
+func (s *Store) grantChallengeReward(ctx context.Context, userID int) (StageCompletion, error) {
 	planet := randomPlanet()
 	code := randomCode()
+	day, _ := moscowToday()
+	stage := challengeDayStage(day)
 
 	var sc StageCompletion
 	err := s.pool.QueryRow(ctx, `
@@ -317,7 +326,7 @@ func (s *Store) grantChallengeReward(ctx context.Context, userID, challengeID in
 			verified_at = stage_completions.verified_at,
 			completed_at = stage_completions.completed_at
 		RETURNING id, user_id, game_id, stage, planet, code, reward_rub, verified, completed_at, verified_at
-	`, userID, ChallengeGameID, challengeID, planet, code).Scan(
+	`, userID, ChallengeGameID, stage, planet, code).Scan(
 		&sc.ID, &sc.UserID, &sc.GameID, &sc.Stage, &sc.Planet, &sc.Code, &sc.RewardRub,
 		&sc.Verified, &sc.CompletedAt, &sc.VerifiedAt,
 	)
@@ -350,11 +359,12 @@ func (s *Store) GetChallengeStatus(ctx context.Context, userID int) (*ChallengeS
 		return &ChallengeStatus{Challenge: ch, Games: []ChallengeGame{}, Total: 0, Week: week}, nil
 	}
 
+	day, _ := moscowToday()
 	done := make(map[string]bool)
 	rows, err := s.pool.Query(ctx, `
 		SELECT game_id FROM daily_challenge_progress
-		WHERE challenge_id = $1 AND user_id = $2
-	`, ch.ID, userID)
+		WHERE challenge_id = $1 AND user_id = $2 AND day = $3::date
+	`, ch.ID, userID, day)
 	if err != nil {
 		return nil, err
 	}
@@ -390,12 +400,13 @@ func (s *Store) GetChallengeStatus(ctx context.Context, userID int) (*ChallengeS
 		Week:      week,
 	}
 
+	// Награда только за сегодняшний день (МСК), иначе вчерашний «пройден» залипает.
 	var sc StageCompletion
 	err = s.pool.QueryRow(ctx, `
 		SELECT id, user_id, game_id, stage, planet, code, reward_rub, verified, completed_at, verified_at
 		FROM stage_completions
 		WHERE user_id = $1 AND game_id = $2 AND stage = $3
-	`, userID, ChallengeGameID, ch.ID).Scan(
+	`, userID, ChallengeGameID, challengeDayStage(day)).Scan(
 		&sc.ID, &sc.UserID, &sc.GameID, &sc.Stage, &sc.Planet, &sc.Code, &sc.RewardRub,
 		&sc.Verified, &sc.CompletedAt, &sc.VerifiedAt,
 	)

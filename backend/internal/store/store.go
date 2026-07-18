@@ -146,8 +146,9 @@ func (s *Store) migrate(ctx context.Context) error {
 			challenge_id INTEGER NOT NULL REFERENCES daily_challenges(id) ON DELETE CASCADE,
 			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 			game_id VARCHAR(64) NOT NULL,
+			day DATE NOT NULL DEFAULT CURRENT_DATE,
 			completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			PRIMARY KEY (challenge_id, user_id, game_id)
+			PRIMARY KEY (challenge_id, user_id, game_id, day)
 		);
 
 		CREATE TABLE IF NOT EXISTS game_grades (
@@ -179,10 +180,63 @@ func (s *Store) migrate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if err := s.migrateChallengeProgressDay(ctx); err != nil {
+		return fmt.Errorf("migrate challenge progress day: %w", err)
+	}
 	if err := s.normalizeLoginCase(ctx); err != nil {
 		return err
 	}
 	return s.ensureGameGrades(ctx)
+}
+
+// migrateChallengeProgressDay — вызов дня сбрасывается по календарному дню (Москва).
+func (s *Store) migrateChallengeProgressDay(ctx context.Context) error {
+	if _, err := s.pool.Exec(ctx, `
+		ALTER TABLE daily_challenge_progress
+			ADD COLUMN IF NOT EXISTS day DATE
+	`); err != nil {
+		return err
+	}
+	if _, err := s.pool.Exec(ctx, `
+		UPDATE daily_challenge_progress
+		SET day = (completed_at AT TIME ZONE 'Europe/Moscow')::date
+		WHERE day IS NULL
+	`); err != nil {
+		return err
+	}
+	if _, err := s.pool.Exec(ctx, `
+		UPDATE daily_challenge_progress
+		SET day = CURRENT_DATE
+		WHERE day IS NULL
+	`); err != nil {
+		return err
+	}
+
+	var pkDef string
+	err := s.pool.QueryRow(ctx, `
+		SELECT pg_get_constraintdef(c.oid)
+		FROM pg_constraint c
+		JOIN pg_class t ON c.conrelid = t.oid
+		WHERE t.relname = 'daily_challenge_progress' AND c.contype = 'p'
+	`).Scan(&pkDef)
+	if err != nil {
+		return err
+	}
+	if strings.Contains(pkDef, "day") {
+		_, err = s.pool.Exec(ctx, `
+			ALTER TABLE daily_challenge_progress
+				ALTER COLUMN day SET NOT NULL
+		`)
+		return err
+	}
+
+	_, err = s.pool.Exec(ctx, `
+		ALTER TABLE daily_challenge_progress
+			DROP CONSTRAINT daily_challenge_progress_pkey,
+			ALTER COLUMN day SET NOT NULL,
+			ADD PRIMARY KEY (challenge_id, user_id, game_id, day)
+	`)
+	return err
 }
 
 func (s *Store) normalizeLoginCase(ctx context.Context) error {
