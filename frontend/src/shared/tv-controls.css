@@ -104,7 +104,6 @@
     min-width: clamp(96px, 11vw, 128px);
   }
 
-  body.tv-ready .plant-btn,
   body.tv-ready .overlay button,
   body.tv-ready #start-btn,
   body.tv-ready #restart-btn {
@@ -120,19 +119,40 @@
     padding: 10px 14px;
   }
 
-  body.tv-ready .plant-bar {
-    width: min(50vw, 720px);
-    max-width: 50vw;
+  /* Зомби: кнопки растений — квадраты с крупной иконкой по центру */
+  body.tv-ready #plant-bar {
+    width: 100%;
+    max-width: 100%;
     gap: 10px;
+    align-items: center;
+    justify-content: center;
   }
 
-  body.tv-ready .plant-btn {
-    flex: 1 1 110px;
-    min-width: 100px;
+  body.tv-ready #plant-bar .plant-btn {
+    flex: 0 0 auto;
+    width: clamp(72px, 8vw, 96px);
+    height: clamp(72px, 8vw, 96px);
+    min-width: 72px;
+    min-height: 72px;
+    max-width: 96px;
+    max-height: 96px;
+    padding: 6px;
+    gap: 2px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: inherit;
   }
 
-  body.tv-ready .plant-btn .icon {
-    font-size: clamp(1.5rem, 2.2vw, 2rem);
+  body.tv-ready #plant-bar .plant-btn .icon {
+    font-size: clamp(1.8rem, 3vw, 2.5rem);
+    line-height: 1;
+  }
+
+  body.tv-ready #plant-bar .plant-btn .cost {
+    font-size: clamp(0.85rem, 1.3vw, 1.05rem);
+    line-height: 1;
   }
 }
 
