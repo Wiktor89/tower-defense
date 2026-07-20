@@ -87,6 +87,7 @@ const game = new MemoryGame(ui.grid, {
     void onBoardCleared();
   },
 });
+game.bindClicks();
 
 async function onBoardCleared(): Promise<void> {
   showFeedback('Все пары найдены!', 'correct');

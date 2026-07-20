@@ -63,11 +63,12 @@ export class MemoryGame {
   }
 
   private render(): void {
-    this.grid.innerHTML = '';
+    this.grid.replaceChildren();
     this.cards.forEach((card, index) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'card';
+      btn.dataset.index = String(index);
       if (card.flipped || card.matched) btn.classList.add('is-flipped');
       if (card.matched) btn.classList.add('is-matched');
       btn.disabled = card.matched || this.locked;
@@ -78,8 +79,19 @@ export class MemoryGame {
           <span class="card-face card-front">${card.symbol}</span>
         </span>
       `;
-      btn.addEventListener('click', () => this.flip(index));
       this.grid.appendChild(btn);
+    });
+  }
+
+  bindClicks(): void {
+    this.grid.addEventListener('click', (e) => {
+      const target = e.target;
+      if (!(target instanceof Element)) return;
+      const btn = target.closest('button.card');
+      if (!(btn instanceof HTMLButtonElement) || btn.disabled) return;
+      const index = Number(btn.dataset.index);
+      if (!Number.isInteger(index)) return;
+      this.flip(index);
     });
   }
 
@@ -101,6 +113,8 @@ export class MemoryGame {
     if (!first || !second) return;
 
     this.locked = true;
+    this.render();
+
     if (first.symbol === second.symbol) {
       first.matched = true;
       second.matched = true;
