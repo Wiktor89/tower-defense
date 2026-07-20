@@ -327,10 +327,11 @@ function renderFillTextsList(texts: FillBlankText[]): string {
   }
   return `
     <ul class="admin-text-list">
-      ${texts.map(t => `
+      ${texts.map((t, i) => `
         <li class="admin-text-item" data-id="${t.id}">
           <div class="admin-text-main">
             <div class="admin-text-top">
+              <span class="admin-text-num">${i + 1}</span>
               <p class="admin-text-preview">${escapeHtml(t.preview)}</p>
               <div class="admin-text-actions">
                 <button type="button" class="admin-btn admin-btn--ghost admin-fill-expand"
