@@ -136,6 +136,36 @@ body {
   height: 18px;
 }
 
+.admin-user-games-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 50vh;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.admin-user-game-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.admin-user-game-row__title {
+  flex: 1;
+}
+
+.admin-user-game-row__override {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+}
+
 .admin-error {
   color: #fca5a5;
   margin-top: 12px;

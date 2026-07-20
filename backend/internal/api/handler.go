@@ -99,7 +99,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/admin/settings/daily-challenge", h.adminSetChallenge)
 	mux.HandleFunc("GET /api/admin/settings/game-grades", h.adminListGameGrades)
 	mux.HandleFunc("PUT /api/admin/settings/game-grades", h.adminSetGameGrade)
+	mux.HandleFunc("GET /api/admin/settings/game-enabled", h.adminListGameEnabled)
+	mux.HandleFunc("PUT /api/admin/settings/game-enabled", h.adminSetGameEnabled)
 	mux.HandleFunc("PUT /api/admin/users/{id}/grade", h.adminSetUserGrade)
+	mux.HandleFunc("GET /api/admin/users/{id}/game-access", h.adminGetUserGameAccess)
+	mux.HandleFunc("PUT /api/admin/users/{id}/game-access", h.adminSetUserGameAccess)
 	mux.HandleFunc("DELETE /api/admin/users/{id}/fractions-tutorial", h.adminResetFractionsTutorial)
 	mux.HandleFunc("DELETE /api/admin/users/{id}", h.adminDeleteUser)
 }
@@ -169,7 +173,7 @@ func (h *Handler) listGames(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	catalog, err := h.db.SuitableForGrade(ctx, *user.Grade)
+	catalog, err := h.db.SuitableGamesForUser(ctx, userID, *user.Grade)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to load games")
 		return
@@ -1126,6 +1130,108 @@ func (h *Handler) adminSetGameGrade(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, gg)
 }
 
+func (h *Handler) adminListGameEnabled(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	list, err := h.db.ListGameEnabled(ctx)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load game availability")
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (h *Handler) adminSetGameEnabled(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	var req struct {
+		Games []store.GameEnabled `json:"games"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	list, err := h.db.SetGameEnabled(ctx, req.Games)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (h *Handler) adminGetUserGameAccess(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	userID, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || userID <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	list, err := h.db.ListUserGameAccess(ctx, userID)
+	if err != nil {
+		if errors.Is(err, store.ErrUserNotFound) {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to load game access")
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (h *Handler) adminSetUserGameAccess(w http.ResponseWriter, r *http.Request) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	userID, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || userID <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+	var req struct {
+		Games []store.UserGameAccess `json:"games"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	list, err := h.db.SetUserGameAccess(ctx, userID, req.Games)
+	if err != nil {
+		if errors.Is(err, store.ErrUserNotFound) {
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
 func (h *Handler) adminGetChallenge(w http.ResponseWriter, r *http.Request) {
 	token := bearerToken(r)
 	if !h.adminAuth.Valid(token) {
@@ -1141,7 +1247,10 @@ func (h *Handler) adminGetChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if ch == nil {
-		writeJSON(w, http.StatusOK, map[string]any{"games": []store.ChallengeGame{}})
+		writeJSON(w, http.StatusOK, map[string]any{
+			"games":     []store.ChallengeGame{},
+			"rewardRub": store.DefaultChallengeRewardRub,
+		})
 		return
 	}
 	enrichChallengeGames(ch.Games)
@@ -1155,10 +1264,18 @@ func (h *Handler) adminSetChallenge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		GameIDs []string `json:"gameIds"`
+		GameIDs   []string `json:"gameIds"`
+		RewardRub int      `json:"rewardRub"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.RewardRub == 0 {
+		req.RewardRub = store.DefaultChallengeRewardRub
+	}
+	if req.RewardRub < store.MinChallengeRewardRub || req.RewardRub > store.MaxChallengeRewardRub {
+		writeError(w, http.StatusBadRequest, "rewardRub must be between 1 and 100000")
 		return
 	}
 
@@ -1178,7 +1295,7 @@ func (h *Handler) adminSetChallenge(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	ch, err := h.db.SetActiveChallenge(ctx, req.GameIDs)
+	ch, err := h.db.SetActiveChallenge(ctx, req.GameIDs, req.RewardRub)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

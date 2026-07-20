@@ -10,6 +10,12 @@ import (
 
 const ChallengeGameID = "daily-challenge"
 
+const (
+	DefaultChallengeRewardRub = 100
+	MinChallengeRewardRub     = 1
+	MaxChallengeRewardRub     = 100_000
+)
+
 type ChallengeGame struct {
 	GameID   string `json:"gameId"`
 	Title    string `json:"title,omitempty"`
@@ -23,6 +29,7 @@ type DailyChallenge struct {
 	UserID    int             `json:"userId,omitempty"`
 	UserLogin string          `json:"userLogin,omitempty"`
 	Games     []ChallengeGame `json:"games"`
+	RewardRub int             `json:"rewardRub"`
 	CreatedAt time.Time       `json:"createdAt"`
 }
 
@@ -167,16 +174,19 @@ func (s *Store) loadChallengeGames(ctx context.Context, challengeID int) ([]Chal
 func (s *Store) GetActiveChallenge(ctx context.Context) (*DailyChallenge, error) {
 	var ch DailyChallenge
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, created_at FROM daily_challenges
+		SELECT id, reward_rub, created_at FROM daily_challenges
 		WHERE active = TRUE AND user_id IS NULL
 		ORDER BY id DESC
 		LIMIT 1
-	`).Scan(&ch.ID, &ch.CreatedAt)
+	`).Scan(&ch.ID, &ch.RewardRub, &ch.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
+	}
+	if ch.RewardRub < MinChallengeRewardRub {
+		ch.RewardRub = DefaultChallengeRewardRub
 	}
 
 	list, err := s.loadChallengeGames(ctx, ch.ID)
@@ -187,7 +197,11 @@ func (s *Store) GetActiveChallenge(ctx context.Context) (*DailyChallenge, error)
 	return &ch, nil
 }
 
-func (s *Store) SetActiveChallenge(ctx context.Context, gameIDs []string) (*DailyChallenge, error) {
+func (s *Store) SetActiveChallenge(ctx context.Context, gameIDs []string, rewardRub int) (*DailyChallenge, error) {
+	if rewardRub < MinChallengeRewardRub || rewardRub > MaxChallengeRewardRub {
+		return nil, errors.New("rewardRub must be between 1 and 100000")
+	}
+
 	seen := make(map[string]bool, len(gameIDs))
 	clean := make([]string, 0, len(gameIDs))
 	for _, id := range gameIDs {
@@ -213,9 +227,9 @@ func (s *Store) SetActiveChallenge(ctx context.Context, gameIDs []string) (*Dail
 
 	var ch DailyChallenge
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO daily_challenges (active, user_id) VALUES (TRUE, NULL)
-		RETURNING id, created_at
-	`).Scan(&ch.ID, &ch.CreatedAt); err != nil {
+		INSERT INTO daily_challenges (active, user_id, reward_rub) VALUES (TRUE, NULL, $1)
+		RETURNING id, reward_rub, created_at
+	`, rewardRub).Scan(&ch.ID, &ch.RewardRub, &ch.CreatedAt); err != nil {
 		return nil, err
 	}
 
@@ -250,7 +264,14 @@ func (s *Store) challengeGamesForUser(ctx context.Context, userID int, all []Cha
 		if err != nil {
 			return nil, err
 		}
-		if ok {
+		if !ok {
+			continue
+		}
+		visible, err := s.IsGameVisibleForUser(ctx, userID, g.GameID)
+		if err != nil {
+			return nil, err
+		}
+		if visible {
 			out = append(out, g)
 		}
 	}
@@ -301,14 +322,17 @@ func (s *Store) MarkChallengeGameDone(ctx context.Context, userID int, gameID st
 	if status.Reward != nil {
 		return status.Reward, nil
 	}
-	reward, err := s.grantChallengeReward(ctx, userID)
+	reward, err := s.grantChallengeReward(ctx, userID, ch.RewardRub)
 	if err != nil {
 		return nil, err
 	}
 	return &reward, nil
 }
 
-func (s *Store) grantChallengeReward(ctx context.Context, userID int) (StageCompletion, error) {
+func (s *Store) grantChallengeReward(ctx context.Context, userID, rewardRub int) (StageCompletion, error) {
+	if rewardRub < MinChallengeRewardRub {
+		rewardRub = DefaultChallengeRewardRub
+	}
 	planet := randomPlanet()
 	code := randomCode()
 	day, _ := moscowToday()
@@ -317,7 +341,7 @@ func (s *Store) grantChallengeReward(ctx context.Context, userID int) (StageComp
 	var sc StageCompletion
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO stage_completions (user_id, game_id, stage, planet, code, reward_rub, verified, verified_at)
-		VALUES ($1, $2, $3, $4, $5, 100, FALSE, NULL)
+		VALUES ($1, $2, $3, $4, $5, $6, FALSE, NULL)
 		ON CONFLICT (user_id, game_id, stage) DO UPDATE SET
 			planet = stage_completions.planet,
 			code = stage_completions.code,
@@ -326,7 +350,7 @@ func (s *Store) grantChallengeReward(ctx context.Context, userID int) (StageComp
 			verified_at = stage_completions.verified_at,
 			completed_at = stage_completions.completed_at
 		RETURNING id, user_id, game_id, stage, planet, code, reward_rub, verified, completed_at, verified_at
-	`, userID, ChallengeGameID, stage, planet, code).Scan(
+	`, userID, ChallengeGameID, stage, planet, code, rewardRub).Scan(
 		&sc.ID, &sc.UserID, &sc.GameID, &sc.Stage, &sc.Planet, &sc.Code, &sc.RewardRub,
 		&sc.Verified, &sc.CompletedAt, &sc.VerifiedAt,
 	)

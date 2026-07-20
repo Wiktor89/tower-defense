@@ -1,7 +1,7 @@
 import './admin.css';
 import '../shared/modal.css';
-import { adminDeleteUser, adminLogin, adminResetFractionsTutorial, adminSetUserGrade, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminChallenge, fetchAdminFillBlankTexts, fetchAdminFillBlanksSeriesSettings, fetchAdminFractionsSettings, fetchAdminGameGrades, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateAdminChallenge, updateAdminFillBlankPercent, updateAdminFillBlankText, updateAdminGameGrade, updateFillBlanksSeriesSettings, updateFractionsSettings, updateMathColumnsSettings } from '../api/client';
-import type { DailyChallengeAdmin, FillBlankText, GameGrade, GameSettings, StageCompletion, UserStatsRow } from '../types';
+import { adminDeleteUser, adminLogin, adminResetFractionsTutorial, adminSetUserGrade, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminChallenge, fetchAdminFillBlankTexts, fetchAdminFillBlanksSeriesSettings, fetchAdminFractionsSettings, fetchAdminGameEnabled, fetchAdminGameGrades, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, fetchAdminUserGameAccess, updateAdminChallenge, updateAdminFillBlankPercent, updateAdminFillBlankText, updateAdminGameEnabled, updateAdminGameGrade, updateAdminUserGameAccess, updateFillBlanksSeriesSettings, updateFractionsSettings, updateMathColumnsSettings } from '../api/client';
+import type { DailyChallengeAdmin, FillBlankText, GameEnabled, GameGrade, GameSettings, StageCompletion, UserGameAccess, UserStatsRow } from '../types';
 import { PLANETS } from '../shared/planets';
 import { captchaFieldHtml, setupCaptcha } from '../shared/captcha';
 import { getAdminToken, setAdminToken, clearAdminToken } from '../shared/user';
@@ -15,6 +15,9 @@ const GAME_NAMES: Record<string, string> = {
   'fill-blanks': '📝 Заполни пропуски',
   'disassemble': '🔧 Разбери и собери',
   'fractions': '🍕 Деление и дроби',
+  'snake': '🐍 Змейка',
+  'breakout': '🧱 Арканоид',
+  'memory': '🃏 Найди пару',
 };
 
 type AdminTab = 'settings' | 'verify' | 'stats';
@@ -115,6 +118,8 @@ function renderUserActions(
           Класс
           ${gradeSelectHtml(userId, grade)}
         </label>
+        <button type="button" class="admin-btn admin-btn--ghost admin-user-games-btn"
+          data-user-id="${userId}" data-user-login="${login}">Игры</button>
         <p class="admin-tutorial-status">${tutorialLabel}</p>
         <button type="button" class="admin-btn admin-reset-tutorial-btn"
           data-user-id="${userId}" data-user-login="${login}"
@@ -194,6 +199,90 @@ function showDeleteConfirm(login: string, onConfirm: () => void): void {
   overlay.querySelector('#delete-confirm')?.addEventListener('click', () => {
     overlay.remove();
     onConfirm();
+  });
+}
+
+function showUserGamesModal(token: string, userId: number, login: string): void {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal modal--wide">
+      <h2>Игры для ${escapeHtml(login)}</h2>
+      <p class="admin-section__hint">Персональная настройка важнее глобальной. Снимите «Своя» — как у всех.</p>
+      <div id="user-games-body"><p class="admin-loading-inline">Загрузка…</p></div>
+      <div class="modal-actions">
+        <button type="button" class="modal-btn modal-btn--ghost" id="user-games-cancel">Отмена</button>
+        <button type="button" class="modal-btn" id="user-games-save" disabled>Сохранить</button>
+      </div>
+      <p class="modal-error hidden" id="user-games-error"></p>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const body = overlay.querySelector('#user-games-body')!;
+  const saveBtn = overlay.querySelector<HTMLButtonElement>('#user-games-save')!;
+  const errorEl = overlay.querySelector<HTMLParagraphElement>('#user-games-error')!;
+
+  overlay.querySelector('#user-games-cancel')?.addEventListener('click', () => overlay.remove());
+
+  void fetchAdminUserGameAccess(token, userId)
+    .then(list => {
+      body.innerHTML = `
+        <div class="admin-user-games-list">
+          ${list.map(g => {
+            const label = GAME_NAMES[g.gameId] ?? g.title ?? g.gameId;
+            return `
+              <label class="admin-user-game-row">
+                <input type="checkbox" class="user-game-enabled" data-game-id="${g.gameId}"
+                  ${g.enabled ? 'checked' : ''}>
+                <span class="admin-user-game-row__title">${label}</span>
+                <label class="admin-user-game-row__override">
+                  <input type="checkbox" class="user-game-override" data-game-id="${g.gameId}"
+                    ${g.override ? 'checked' : ''}>
+                  Своя
+                </label>
+              </label>
+            `;
+          }).join('')}
+        </div>
+      `;
+      saveBtn.disabled = false;
+
+      const syncOverride = (gameId: string): void => {
+        const enabled = body.querySelector<HTMLInputElement>(`.user-game-enabled[data-game-id="${gameId}"]`);
+        const override = body.querySelector<HTMLInputElement>(`.user-game-override[data-game-id="${gameId}"]`);
+        if (enabled && override && enabled.checked !== list.find(x => x.gameId === gameId)?.enabled) {
+          override.checked = true;
+        }
+      };
+      body.querySelectorAll<HTMLInputElement>('.user-game-enabled').forEach(el => {
+        el.addEventListener('change', () => syncOverride(el.dataset.gameId ?? ''));
+      });
+    })
+    .catch(err => {
+      body.innerHTML = '';
+      errorEl.textContent = err instanceof Error ? err.message : 'Не удалось загрузить';
+      errorEl.classList.remove('hidden');
+    });
+
+  saveBtn.addEventListener('click', () => {
+    const games: UserGameAccess[] = [...body.querySelectorAll<HTMLInputElement>('.user-game-enabled')].map(el => {
+      const gameId = el.dataset.gameId ?? '';
+      const override = body.querySelector<HTMLInputElement>(`.user-game-override[data-game-id="${gameId}"]`);
+      return {
+        gameId,
+        enabled: el.checked,
+        override: !!override?.checked,
+      };
+    });
+    saveBtn.disabled = true;
+    void updateAdminUserGameAccess(token, userId, games)
+      .then(() => overlay.remove())
+      .catch(err => {
+        saveBtn.disabled = false;
+        errorEl.textContent = err instanceof Error ? err.message : 'Ошибка сохранения';
+        errorEl.classList.remove('hidden');
+      });
   });
 }
 
@@ -288,7 +377,7 @@ type SettingsGameId =
 const SETTINGS_GAME_KEY = 'admin_settings_game';
 
 const SETTINGS_GAMES: { id: SettingsGameId; label: string; hint: string; hasGrade: boolean }[] = [
-  { id: 'daily-challenge', label: '🎯 Вызов дня', hint: 'Общий список игр для всех учеников', hasGrade: false },
+  { id: 'daily-challenge', label: '🎯 Вызов дня', hint: 'Список игр и сумма награды', hasGrade: false },
   { id: 'math-columns', label: '📐 Столбик', hint: 'Знаки чисел и длина серии', hasGrade: true },
   { id: 'fill-blanks', label: '📝 Заполни пропуски', hint: 'Тексты, пропуски и длина серии', hasGrade: true },
   { id: 'tower-defense', label: '🌻 Защита от зомби', hint: 'Настройки волны и сложности', hasGrade: true },
@@ -348,7 +437,7 @@ function renderGradeSettings(gameId: string, grades: GameGrade[]): string {
   `;
 }
 
-function renderSettingsList(grades: GameGrade[]): string {
+function renderSettingsList(grades: GameGrade[], gameEnabled: GameEnabled[]): string {
   const items = SETTINGS_GAMES.map(g => {
     const gg = g.hasGrade ? findGameGrade(grades, g.id) : null;
     const gradeHint = gg ? ` · ${gg.minGrade}–${gg.maxGrade} кл.` : '';
@@ -361,7 +450,26 @@ function renderSettingsList(grades: GameGrade[]): string {
   `;
   }).join('');
 
+  const enabledChecks = gameEnabled.map(g => {
+    const label = GAME_NAMES[g.gameId] ?? g.title ?? g.gameId;
+    return `
+      <label class="admin-check">
+        <input type="checkbox" name="game-enabled" value="${g.gameId}" ${g.enabled ? 'checked' : ''}>
+        ${label}
+      </label>
+    `;
+  }).join('');
+
   return `
+    <section class="admin-section">
+      <h3 class="admin-subtitle">Доступность игр</h3>
+      <p class="admin-section__hint">Выключенная игра не показывается ученикам (персональная настройка может переопределить)</p>
+      <form id="game-enabled-form" class="admin-challenge-form">
+        <div class="admin-check-list">${enabledChecks}</div>
+        <button type="submit" class="admin-btn">Сохранить доступность</button>
+      </form>
+      <p class="admin-verify-result hidden" id="game-enabled-result"></p>
+    </section>
     <section class="admin-section">
       <p class="admin-section__hint">Выберите игру, чтобы изменить её параметры и возрастную категорию</p>
       <div class="admin-game-list">${items}</div>
@@ -383,6 +491,11 @@ function renderChallengeSettings(challenge: DailyChallengeAdmin | null): string 
       <p class="admin-section__hint">Общий список для всех. Ученик видит только игры своего класса (1–11).</p>
       <form id="challenge-form" class="admin-challenge-form">
         <div class="admin-check-list">${checks}</div>
+        <label class="admin-field">
+          <span>Награда (₽)</span>
+          <input type="number" id="challenge-reward" min="1" max="100000"
+            value="${challenge?.rewardRub ?? 100}" required>
+        </label>
         <button type="submit" class="admin-btn">Сохранить вызов</button>
       </form>
       <p class="admin-verify-result hidden" id="challenge-result"></p>
@@ -508,9 +621,10 @@ function renderSettingsTab(
   grades: GameGrade[],
   fractionsSettings: GameSettings | null,
   fillSeriesSettings: GameSettings | null,
+  gameEnabled: GameEnabled[],
 ): string {
   const gameId = getSettingsGame();
-  if (!gameId) return renderSettingsList(grades);
+  if (!gameId) return renderSettingsList(grades, gameEnabled);
 
   switch (gameId) {
     case 'daily-challenge':
@@ -525,7 +639,7 @@ function renderSettingsTab(
     case 'disassemble':
       return renderGameOnlyGradeSettings(gameId, grades);
     default:
-      return renderSettingsList(grades);
+      return renderSettingsList(grades, gameEnabled);
   }
 }
 
@@ -569,6 +683,7 @@ function renderDashboard(
   grades: GameGrade[],
   fractionsSettings: GameSettings | null,
   fillSeriesSettings: GameSettings | null,
+  gameEnabled: GameEnabled[],
   loadError?: string,
   loading = false,
 ): void {
@@ -587,7 +702,7 @@ function renderDashboard(
     <nav class="admin-tabs">${tabButtons}</nav>
 
     <div class="admin-tab-panel${activeTab === 'settings' ? ' admin-tab-panel--active' : ''}" data-panel="settings">
-      ${renderSettingsTab(mathSettings, fillTexts, challenge, grades, fractionsSettings, fillSeriesSettings)}
+      ${renderSettingsTab(mathSettings, fillTexts, challenge, grades, fractionsSettings, fillSeriesSettings, gameEnabled)}
     </div>
 
     <div class="admin-tab-panel${activeTab === 'verify' ? ' admin-tab-panel--active' : ''}" data-panel="verify">
@@ -670,9 +785,31 @@ function renderDashboard(
     const resultEl = appEl.querySelector<HTMLParagraphElement>('#challenge-result')!;
     const gameIds = [...appEl.querySelectorAll<HTMLInputElement>('input[name="challenge-game"]:checked')]
       .map(el => el.value);
+    const rewardRub = Number((appEl.querySelector('#challenge-reward') as HTMLInputElement).value);
     try {
-      const saved = await updateAdminChallenge(token, gameIds);
-      resultEl.textContent = `Вызов сохранён для всех: ${saved.games.length} игр (с учётом класса ученика)`;
+      const saved = await updateAdminChallenge(token, gameIds, rewardRub);
+      resultEl.textContent = `Вызов сохранён: ${saved.games.length} игр, награда ${saved.rewardRub}₽`;
+      resultEl.className = 'admin-verify-result admin-verify-result--ok';
+    } catch (err) {
+      resultEl.textContent = err instanceof Error ? err.message : 'Ошибка сохранения';
+      resultEl.className = 'admin-verify-result admin-verify-result--fail';
+    }
+  });
+
+  appEl.querySelector<HTMLFormElement>('#game-enabled-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const resultEl = appEl.querySelector<HTMLParagraphElement>('#game-enabled-result')!;
+    const checked = new Set(
+      [...appEl.querySelectorAll<HTMLInputElement>('input[name="game-enabled"]:checked')].map(el => el.value),
+    );
+    const games = [...appEl.querySelectorAll<HTMLInputElement>('input[name="game-enabled"]')].map(el => ({
+      gameId: el.value,
+      enabled: checked.has(el.value),
+    }));
+    try {
+      const saved = await updateAdminGameEnabled(token, games);
+      const on = saved.filter(g => g.enabled).length;
+      resultEl.textContent = `Сохранено: включено ${on} из ${saved.length}`;
       resultEl.className = 'admin-verify-result admin-verify-result--ok';
     } catch (err) {
       resultEl.textContent = err instanceof Error ? err.message : 'Ошибка сохранения';
@@ -844,6 +981,15 @@ function renderDashboard(
     });
   });
 
+  appEl.querySelectorAll<HTMLButtonElement>('.admin-user-games-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const userId = Number(btn.dataset.userId);
+      const login = btn.dataset.userLogin ?? '';
+      if (!userId) return;
+      showUserGamesModal(token, userId, login);
+    });
+  });
+
   appEl.querySelectorAll<HTMLButtonElement>('.admin-reset-tutorial-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const userId = Number(btn.dataset.userId);
@@ -883,7 +1029,7 @@ function renderDashboard(
 
 async function loadDashboard(token: string): Promise<void> {
   const activeTab = getActiveTab();
-  renderDashboard(token, [], [], null, [], null, [], null, null, undefined, true);
+  renderDashboard(token, [], [], null, [], null, [], null, null, [], undefined, true);
   setActiveTab(activeTab);
 
   const [
@@ -895,6 +1041,7 @@ async function loadDashboard(token: string): Promise<void> {
     gradesResult,
     fractionsSettingsResult,
     fillSeriesResult,
+    gameEnabledResult,
   ] = await Promise.allSettled([
     fetchAdminStats(token),
     fetchAdminStages(token),
@@ -904,11 +1051,12 @@ async function loadDashboard(token: string): Promise<void> {
     fetchAdminGameGrades(token),
     fetchAdminFractionsSettings(token),
     fetchAdminFillBlanksSeriesSettings(token),
+    fetchAdminGameEnabled(token),
   ]);
 
   const unauthorized = [
     statsResult, stagesResult, settingsResult, fillTextsResult,
-    challengeResult, gradesResult, fractionsSettingsResult, fillSeriesResult,
+    challengeResult, gradesResult, fractionsSettingsResult, fillSeriesResult, gameEnabledResult,
   ].some(
     r => r.status === 'rejected' && r.reason instanceof Error && r.reason.message.toLowerCase().includes('unauthorized'),
   );
@@ -926,6 +1074,7 @@ async function loadDashboard(token: string): Promise<void> {
   const grades = gradesResult.status === 'fulfilled' ? gradesResult.value : [];
   const fractionsSettings = fractionsSettingsResult.status === 'fulfilled' ? fractionsSettingsResult.value : null;
   const fillSeriesSettings = fillSeriesResult.status === 'fulfilled' ? fillSeriesResult.value : null;
+  const gameEnabled = gameEnabledResult.status === 'fulfilled' ? gameEnabledResult.value : [];
 
   const errors: string[] = [];
   if (statsResult.status === 'rejected') {
@@ -960,6 +1109,10 @@ async function loadDashboard(token: string): Promise<void> {
     const msg = fillSeriesResult.reason instanceof Error ? fillSeriesResult.reason.message : 'не удалось загрузить параметры серии';
     errors.push(msg);
   }
+  if (gameEnabledResult.status === 'rejected') {
+    const msg = gameEnabledResult.reason instanceof Error ? gameEnabledResult.reason.message : 'не удалось загрузить доступность игр';
+    errors.push(msg);
+  }
 
   renderDashboard(
     token,
@@ -971,6 +1124,7 @@ async function loadDashboard(token: string): Promise<void> {
     grades,
     fractionsSettings,
     fillSeriesSettings,
+    gameEnabled,
     errors.length ? `⚠️ ${errors.join('; ')}` : undefined,
   );
 }

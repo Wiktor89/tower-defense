@@ -1,4 +1,4 @@
-import type { CaptchaChallenge, CaptchaPayload, ChallengeStatus, DailyChallengeAdmin, FillBlankText, FillBlanksCheckResult, FillBlanksPuzzle, FractionCheckResult, FractionProblem, FractionsSessionProgress, GameCatalogItem, GameGrade, GameSettings, MathCheckResult, MathProblem, MathSessionProgress, StageCompletion, User, UserStatsRow, VerifyResult } from '../types';
+import type { CaptchaChallenge, CaptchaPayload, ChallengeStatus, DailyChallengeAdmin, FillBlankText, FillBlanksCheckResult, FillBlanksPuzzle, FractionCheckResult, FractionProblem, FractionsSessionProgress, GameCatalogItem, GameEnabled, GameGrade, GameSettings, MathCheckResult, MathProblem, MathSessionProgress, StageCompletion, User, UserGameAccess, UserStatsRow, VerifyResult } from '../types';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -51,11 +51,15 @@ export function fetchAdminChallenge(token: string): Promise<DailyChallengeAdmin>
   });
 }
 
-export function updateAdminChallenge(token: string, gameIds: string[]): Promise<DailyChallengeAdmin> {
+export function updateAdminChallenge(
+  token: string,
+  gameIds: string[],
+  rewardRub: number,
+): Promise<DailyChallengeAdmin> {
   return request<DailyChallengeAdmin>('/api/admin/settings/daily-challenge', {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ gameIds }),
+    body: JSON.stringify({ gameIds, rewardRub }),
   });
 }
 
@@ -362,6 +366,38 @@ export function updateAdminGameGrade(
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ gameId, minGrade, maxGrade }),
+  });
+}
+
+export function fetchAdminGameEnabled(token: string): Promise<GameEnabled[]> {
+  return request<GameEnabled[]>('/api/admin/settings/game-enabled', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function updateAdminGameEnabled(token: string, games: GameEnabled[]): Promise<GameEnabled[]> {
+  return request<GameEnabled[]>('/api/admin/settings/game-enabled', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ games }),
+  });
+}
+
+export function fetchAdminUserGameAccess(token: string, userId: number): Promise<UserGameAccess[]> {
+  return request<UserGameAccess[]>(`/api/admin/users/${userId}/game-access`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function updateAdminUserGameAccess(
+  token: string,
+  userId: number,
+  games: UserGameAccess[],
+): Promise<UserGameAccess[]> {
+  return request<UserGameAccess[]>(`/api/admin/users/${userId}/game-access`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ games }),
   });
 }
 

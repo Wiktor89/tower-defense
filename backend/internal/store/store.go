@@ -134,6 +134,9 @@ func (s *Store) migrate(ctx context.Context) error {
 		ALTER TABLE daily_challenges
 			ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
 
+		ALTER TABLE daily_challenges
+			ADD COLUMN IF NOT EXISTS reward_rub INTEGER NOT NULL DEFAULT 100;
+
 		CREATE UNIQUE INDEX IF NOT EXISTS daily_challenges_one_active_per_user
 			ON daily_challenges (user_id)
 			WHERE active = TRUE AND user_id IS NOT NULL;
@@ -168,6 +171,18 @@ func (s *Store) migrate(ctx context.Context) error {
 			PRIMARY KEY (user_id, game_id)
 		);
 
+		CREATE TABLE IF NOT EXISTS game_enabled (
+			game_id VARCHAR(64) PRIMARY KEY,
+			enabled BOOLEAN NOT NULL DEFAULT TRUE
+		);
+
+		CREATE TABLE IF NOT EXISTS user_game_access (
+			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			game_id VARCHAR(64) NOT NULL,
+			enabled BOOLEAN NOT NULL,
+			PRIMARY KEY (user_id, game_id)
+		);
+
 		CREATE TABLE IF NOT EXISTS daily_game_progress (
 			user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 			game_id VARCHAR(64) NOT NULL,
@@ -189,7 +204,10 @@ func (s *Store) migrate(ctx context.Context) error {
 	if err := s.normalizeLoginCase(ctx); err != nil {
 		return err
 	}
-	return s.ensureGameGrades(ctx)
+	if err := s.ensureGameGrades(ctx); err != nil {
+		return err
+	}
+	return s.ensureGameEnabled(ctx)
 }
 
 // migrateChallengeProgressDay — вызов дня сбрасывается по календарному дню (Москва).

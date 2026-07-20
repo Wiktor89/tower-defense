@@ -142,6 +142,14 @@ func (s *Store) SuitableForGrade(ctx context.Context, grade int) ([]games.Game, 
 	return out, nil
 }
 
+func (s *Store) SuitableGamesForUser(ctx context.Context, userID int, grade int) ([]games.Game, error) {
+	list, err := s.SuitableForGrade(ctx, grade)
+	if err != nil {
+		return nil, err
+	}
+	return s.FilterVisibleGames(ctx, userID, list)
+}
+
 func (s *Store) IsGameSuitableForGrade(ctx context.Context, gameID string, grade int) (bool, error) {
 	if grade < 1 || grade > 11 {
 		return false, nil

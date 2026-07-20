@@ -20,6 +20,10 @@
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
 }
 
+.modal--wide {
+  max-width: 520px;
+}
+
 .modal h2 {
   font-size: 1.4rem;
   margin-bottom: 8px;

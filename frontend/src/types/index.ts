@@ -126,6 +126,19 @@ export interface GameGrade {
   maxGrade: number;
 }
 
+export interface GameEnabled {
+  gameId: string;
+  enabled: boolean;
+  title?: string;
+}
+
+export interface UserGameAccess {
+  gameId: string;
+  enabled: boolean;
+  override: boolean;
+  title?: string;
+}
+
 export interface FillBlanksToken {
   type: 'text' | 'blank';
   value?: string;
@@ -211,6 +224,7 @@ export interface ChallengeStatus {
 export interface DailyChallengeAdmin {
   id?: number;
   games: ChallengeGameItem[];
+  rewardRub?: number;
   createdAt?: string;
 }
 
