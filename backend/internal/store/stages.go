@@ -32,18 +32,22 @@ func PlanetName(id string) string {
 }
 
 type StageCompletion struct {
-	ID          int       `json:"id"`
-	UserID      int       `json:"userId"`
-	UserLogin   string    `json:"userLogin,omitempty"`
-	GameID      string    `json:"gameId"`
-	Stage       int       `json:"stage"`
-	Planet      string    `json:"planet"`
-	PlanetName  string    `json:"planetName"`
-	Code        int       `json:"code"`
-	RewardRub   int       `json:"rewardRub"`
-	Verified    bool      `json:"verified"`
-	CompletedAt time.Time `json:"completedAt"`
-	VerifiedAt  *time.Time `json:"verifiedAt,omitempty"`
+	ID           int        `json:"id"`
+	UserID       int        `json:"userId"`
+	UserLogin    string     `json:"userLogin,omitempty"`
+	GameID       string     `json:"gameId"`
+	Stage        int        `json:"stage"`
+	Planet       string     `json:"planet"`
+	PlanetName   string     `json:"planetName"`
+	Code         int        `json:"code"`
+	RewardRub    int        `json:"rewardRub"`
+	BaseRewardRub int       `json:"baseRewardRub,omitempty"`
+	SkipDays     int        `json:"skipDays,omitempty"`
+	PenaltyPercent int      `json:"penaltyPercent,omitempty"`
+	PenaltyNote  string     `json:"penaltyNote,omitempty"`
+	Verified     bool       `json:"verified"`
+	CompletedAt  time.Time  `json:"completedAt"`
+	VerifiedAt   *time.Time `json:"verifiedAt,omitempty"`
 }
 
 func randomPlanet() string {
