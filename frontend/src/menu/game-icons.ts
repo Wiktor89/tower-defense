@@ -47,6 +47,13 @@ const ICONS: Record<string, string> = {
     <circle cx="48" cy="15" r="2" fill="#fff"/>
     <circle cx="18" cy="48" r="5" fill="#e74c3c"/>
   `),
+  memory: svg(`
+    <rect x="10" y="14" width="18" height="24" rx="3" fill="#6366f1"/>
+    <text x="19" y="30" text-anchor="middle" font-size="12" font-weight="800" fill="#fff" font-family="Segoe UI,sans-serif">?</text>
+    <rect x="36" y="14" width="18" height="24" rx="3" fill="#1e293b" stroke="#a5b4fc" stroke-width="2"/>
+    <circle cx="42" cy="24" r="3" fill="#f472b6"/>
+    <circle cx="48" cy="30" r="3" fill="#34d399"/>
+  `),
   breakout: svg(`
     <rect x="10" y="12" width="14" height="8" rx="2" fill="#e74c3c"/>
     <rect x="26" y="12" width="14" height="8" rx="2" fill="#f39c12"/>

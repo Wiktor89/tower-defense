@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Найди пару</title>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <a href="/" class="back-btn" title="Вернуться в меню">← Меню</a>
+      <div class="header-title">
+        <h1>🃏 Найди пару</h1>
+        <p class="subtitle">Открывайте карточки и ищите одинаковые</p>
+      </div>
+      <div class="stats">
+        <span id="score-boards">🏆 0</span>
+        <span id="score-pairs">пары 0</span>
+      </div>
+    </header>
+
+    <main class="board">
+      <div id="card-grid" class="card-grid" aria-label="Игровое поле"></div>
+      <div id="overlay" class="overlay">
+        <p id="overlay-text" class="overlay-text">Нажмите «Старт»</p>
+        <button type="button" id="start-btn" class="action-btn action-btn--primary">Старт</button>
+      </div>
+      <div id="feedback" class="feedback hidden"></div>
+      <p class="hint">Нажмите на карточку, чтобы открыть. Найдите все пары.</p>
+    </main>
+
+    <footer class="progress-section" id="progress-section">
+      <div class="progress-header">
+        <span class="progress-label">Прогресс серии</span>
+        <span id="progress-text" class="progress-count">0 / …</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+        <div class="series-marker" id="progress-marker" aria-hidden="true">🃏</div>
+      </div>
+    </footer>
+  </div>
+
+  <script type="module" src="/src/games/memory/main.ts"></script>
+</body>
+</html>

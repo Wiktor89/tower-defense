@@ -381,6 +381,36 @@ export function updateSnakeSettings(token: string, sessionSize: number): Promise
   });
 }
 
+export function fetchMemorySession(userId: number): Promise<MathSessionProgress> {
+  return request<MathSessionProgress>(`/api/memory/session?userId=${userId}`);
+}
+
+export function clearMemoryBoard(userId: number): Promise<{
+  sessionSolved: number;
+  sessionComplete: boolean;
+  sessionSize: number;
+  challengeReward?: StageCompletion;
+}> {
+  return request(`/api/memory/clear`, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  });
+}
+
+export function fetchAdminMemorySettings(token: string): Promise<GameSettings> {
+  return request<GameSettings>('/api/admin/settings/memory', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function updateMemorySettings(token: string, sessionSize: number): Promise<GameSettings> {
+  return request<GameSettings>('/api/admin/settings/memory', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ sessionSize }),
+  });
+}
+
 export function fetchAdminGameGrades(token: string): Promise<GameGrade[]> {
   return request<GameGrade[]>('/api/admin/settings/game-grades', {
     headers: { Authorization: `Bearer ${token}` },

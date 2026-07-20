@@ -97,7 +97,7 @@ func Catalog() []Game {
 			Description: "Запоминайте карточки и находите одинаковые пары.",
 			Icon:        "🃏",
 			URL:         "/games/memory/",
-			Available:   false,
+			Available:   true,
 			Tags:        []string{"головоломка"},
 			MinGrade:    1,
 			MaxGrade:    4,

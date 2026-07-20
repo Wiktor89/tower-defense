@@ -112,7 +112,8 @@ func (s *Store) migrate(ctx context.Context) error {
 			('math-columns', 50, 2),
 			('fractions', 50, 2),
 			('fill-blanks', 50, 2),
-			('snake', 10, 2)
+			('snake', 10, 2),
+			('memory', 5, 2)
 		ON CONFLICT (game_id) DO NOTHING;
 
 		CREATE TABLE IF NOT EXISTS fill_blank_texts (

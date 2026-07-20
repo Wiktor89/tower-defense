@@ -1,6 +1,6 @@
 import './admin.css';
 import '../shared/modal.css';
-import { adminDeleteUser, adminLogin, adminResetFractionsTutorial, adminSetUserGrade, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminChallenge, fetchAdminFillBlankTexts, fetchAdminFillBlanksSeriesSettings, fetchAdminFractionsSettings, fetchAdminGameEnabled, fetchAdminGameGrades, fetchAdminMathColumnsSettings, fetchAdminSnakeSettings, fetchAdminStages, fetchAdminStats, fetchAdminUserGameAccess, updateAdminChallenge, updateAdminFillBlankPercent, updateAdminFillBlankText, updateAdminGameEnabled, updateAdminGameGrade, updateAdminUserGameAccess, updateFillBlanksSeriesSettings, updateFractionsSettings, updateMathColumnsSettings, updateSnakeSettings } from '../api/client';
+import { adminDeleteUser, adminLogin, adminResetFractionsTutorial, adminSetUserGrade, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminChallenge, fetchAdminFillBlankTexts, fetchAdminFillBlanksSeriesSettings, fetchAdminFractionsSettings, fetchAdminGameEnabled, fetchAdminGameGrades, fetchAdminMathColumnsSettings, fetchAdminMemorySettings, fetchAdminSnakeSettings, fetchAdminStages, fetchAdminStats, fetchAdminUserGameAccess, updateAdminChallenge, updateAdminFillBlankPercent, updateAdminFillBlankText, updateAdminGameEnabled, updateAdminGameGrade, updateAdminUserGameAccess, updateFillBlanksSeriesSettings, updateFractionsSettings, updateMathColumnsSettings, updateMemorySettings, updateSnakeSettings } from '../api/client';
 import type { DailyChallengeAdmin, FillBlankText, GameEnabled, GameGrade, GameSettings, StageCompletion, UserGameAccess, UserStatsRow } from '../types';
 import { PLANETS } from '../shared/planets';
 import { captchaFieldHtml, setupCaptcha } from '../shared/captcha';
@@ -374,7 +374,8 @@ type SettingsGameId =
   | 'tower-defense'
   | 'disassemble'
   | 'fractions'
-  | 'snake';
+  | 'snake'
+  | 'memory';
 
 const SETTINGS_GAME_KEY = 'admin_settings_game';
 
@@ -386,6 +387,7 @@ const SETTINGS_GAMES: { id: SettingsGameId; label: string; hint: string; hasGrad
   { id: 'disassemble', label: '🔧 Разбери и собери', hint: 'Настройки сборки', hasGrade: true },
   { id: 'fractions', label: '🍕 Деление и дроби', hint: 'Задания по классу и длина серии', hasGrade: true },
   { id: 'snake', label: '🐍 Змейка', hint: 'Яблоки в серии и классы', hasGrade: true },
+  { id: 'memory', label: '🃏 Найди пару', hint: 'Раунды в серии и классы', hasGrade: true },
 ];
 
 const CHALLENGE_GAME_OPTIONS: { id: string; label: string }[] = [
@@ -395,6 +397,7 @@ const CHALLENGE_GAME_OPTIONS: { id: string; label: string }[] = [
   { id: 'disassemble', label: '🔧 Разбери и собери' },
   { id: 'fractions', label: '🍕 Деление и дроби' },
   { id: 'snake', label: '🐍 Змейка' },
+  { id: 'memory', label: '🃏 Найди пару' },
 ];
 
 function getSettingsGame(): SettingsGameId | null {
@@ -595,6 +598,18 @@ function renderSnakeSettings(seriesSettings: GameSettings | null, grades: GameGr
   `;
 }
 
+function renderMemorySettings(seriesSettings: GameSettings | null, grades: GameGrade[]): string {
+  return `
+    ${renderGradeSettings('memory', grades)}
+    ${renderSeriesSettings(
+      seriesSettings ?? { gameId: 'memory', sessionSize: 5, digitCount: 2 },
+      'series-form',
+      'Сколько раундов (полей) нужно пройти для серии / вызова дня',
+      'Раундов в серии',
+    )}
+  `;
+}
+
 function renderGameOnlyGradeSettings(gameId: string, grades: GameGrade[]): string {
   return `
     ${renderGradeSettings(gameId, grades)}
@@ -644,6 +659,7 @@ function renderSettingsTab(
   fillSeriesSettings: GameSettings | null,
   gameEnabled: GameEnabled[],
   snakeSettings: GameSettings | null,
+  memorySettings: GameSettings | null,
 ): string {
   const gameId = getSettingsGame();
   if (!gameId) return renderSettingsList(grades, gameEnabled);
@@ -659,6 +675,8 @@ function renderSettingsTab(
       return renderFractionsSettings(fractionsSettings, grades);
     case 'snake':
       return renderSnakeSettings(snakeSettings, grades);
+    case 'memory':
+      return renderMemorySettings(memorySettings, grades);
     case 'tower-defense':
     case 'disassemble':
       return renderGameOnlyGradeSettings(gameId, grades);
@@ -709,6 +727,7 @@ function renderDashboard(
   fillSeriesSettings: GameSettings | null,
   gameEnabled: GameEnabled[],
   snakeSettings: GameSettings | null,
+  memorySettings: GameSettings | null,
   loadError?: string,
   loading = false,
 ): void {
@@ -727,7 +746,7 @@ function renderDashboard(
     <nav class="admin-tabs">${tabButtons}</nav>
 
     <div class="admin-tab-panel${activeTab === 'settings' ? ' admin-tab-panel--active' : ''}" data-panel="settings">
-      ${renderSettingsTab(mathSettings, fillTexts, challenge, grades, fractionsSettings, fillSeriesSettings, gameEnabled, snakeSettings)}
+      ${renderSettingsTab(mathSettings, fillTexts, challenge, grades, fractionsSettings, fillSeriesSettings, gameEnabled, snakeSettings, memorySettings)}
     </div>
 
     <div class="admin-tab-panel${activeTab === 'verify' ? ' admin-tab-panel--active' : ''}" data-panel="verify">
@@ -887,6 +906,8 @@ function renderDashboard(
         settings = await updateFillBlanksSeriesSettings(token, sessionSize);
       } else if (gameId === 'snake') {
         settings = await updateSnakeSettings(token, sessionSize);
+      } else if (gameId === 'memory') {
+        settings = await updateMemorySettings(token, sessionSize);
       } else {
         settings = await updateFractionsSettings(token, sessionSize);
       }
@@ -1059,7 +1080,7 @@ function renderDashboard(
 
 async function loadDashboard(token: string): Promise<void> {
   const activeTab = getActiveTab();
-  renderDashboard(token, [], [], null, [], null, [], null, null, [], null, undefined, true);
+  renderDashboard(token, [], [], null, [], null, [], null, null, [], null, null, undefined, true);
   setActiveTab(activeTab);
 
   const [
@@ -1073,6 +1094,7 @@ async function loadDashboard(token: string): Promise<void> {
     fillSeriesResult,
     gameEnabledResult,
     snakeSettingsResult,
+    memorySettingsResult,
   ] = await Promise.allSettled([
     fetchAdminStats(token),
     fetchAdminStages(token),
@@ -1084,12 +1106,13 @@ async function loadDashboard(token: string): Promise<void> {
     fetchAdminFillBlanksSeriesSettings(token),
     fetchAdminGameEnabled(token),
     fetchAdminSnakeSettings(token),
+    fetchAdminMemorySettings(token),
   ]);
 
   const unauthorized = [
     statsResult, stagesResult, settingsResult, fillTextsResult,
     challengeResult, gradesResult, fractionsSettingsResult, fillSeriesResult,
-    gameEnabledResult, snakeSettingsResult,
+    gameEnabledResult, snakeSettingsResult, memorySettingsResult,
   ].some(
     r => r.status === 'rejected' && r.reason instanceof Error && r.reason.message.toLowerCase().includes('unauthorized'),
   );
@@ -1109,6 +1132,7 @@ async function loadDashboard(token: string): Promise<void> {
   const fillSeriesSettings = fillSeriesResult.status === 'fulfilled' ? fillSeriesResult.value : null;
   const gameEnabled = gameEnabledResult.status === 'fulfilled' ? gameEnabledResult.value : [];
   const snakeSettings = snakeSettingsResult.status === 'fulfilled' ? snakeSettingsResult.value : null;
+  const memorySettings = memorySettingsResult.status === 'fulfilled' ? memorySettingsResult.value : null;
 
   const errors: string[] = [];
   if (statsResult.status === 'rejected') {
@@ -1151,6 +1175,10 @@ async function loadDashboard(token: string): Promise<void> {
     const msg = snakeSettingsResult.reason instanceof Error ? snakeSettingsResult.reason.message : 'не удалось загрузить настройки змейки';
     errors.push(msg);
   }
+  if (memorySettingsResult.status === 'rejected') {
+    const msg = memorySettingsResult.reason instanceof Error ? memorySettingsResult.reason.message : 'не удалось загрузить настройки «Найди пару»';
+    errors.push(msg);
+  }
 
   renderDashboard(
     token,
@@ -1164,6 +1192,7 @@ async function loadDashboard(token: string): Promise<void> {
     fillSeriesSettings,
     gameEnabled,
     snakeSettings,
+    memorySettings,
     errors.length ? `⚠️ ${errors.join('; ')}` : undefined,
   );
 }

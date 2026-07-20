@@ -13,6 +13,7 @@ export default defineConfig({
         disassemble: resolve(__dirname, 'games/disassemble/index.html'),
         fractions: resolve(__dirname, 'games/fractions/index.html'),
         snake: resolve(__dirname, 'games/snake/index.html'),
+        memory: resolve(__dirname, 'games/memory/index.html'),
         admin: resolve(__dirname, 'admin/index.html'),
       },
     },
