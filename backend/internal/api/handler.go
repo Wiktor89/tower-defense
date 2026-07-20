@@ -71,6 +71,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/tower-defense/finish", h.tdFinish)
 	mux.HandleFunc("GET /api/fill-blanks/puzzle", h.fillBlanksPuzzle)
 	mux.HandleFunc("POST /api/fill-blanks/check", h.fillBlanksCheck)
+	mux.HandleFunc("GET /api/fill-blanks/session", h.getFillBlanksSession)
 	mux.HandleFunc("POST /api/disassemble/complete", h.disassembleComplete)
 	mux.HandleFunc("POST /api/fractions/problem", h.createFractionProblem)
 	mux.HandleFunc("POST /api/fractions/check", h.checkFractionAnswer)
@@ -78,12 +79,18 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/fractions/tutorial/complete", h.completeFractionsTutorial)
 	mux.HandleFunc("GET /api/fractions/session", h.getFractionsSession)
 	mux.HandleFunc("GET /api/settings/math-columns", h.mathColumnsSettings)
+	mux.HandleFunc("GET /api/settings/fractions", h.fractionsSettings)
+	mux.HandleFunc("GET /api/settings/fill-blanks", h.fillBlanksSettings)
 	mux.HandleFunc("POST /api/admin/login", h.adminLogin)
 	mux.HandleFunc("GET /api/admin/stats", h.adminStats)
 	mux.HandleFunc("GET /api/admin/stages", h.adminStages)
 	mux.HandleFunc("POST /api/admin/verify", h.adminVerify)
 	mux.HandleFunc("GET /api/admin/settings/math-columns", h.adminGetMathColumnsSettings)
 	mux.HandleFunc("PUT /api/admin/settings/math-columns", h.adminSetMathColumnsSettings)
+	mux.HandleFunc("GET /api/admin/settings/fractions", h.adminGetFractionsSettings)
+	mux.HandleFunc("PUT /api/admin/settings/fractions", h.adminSetFractionsSettings)
+	mux.HandleFunc("GET /api/admin/settings/fill-blanks/series", h.adminGetFillBlanksSeriesSettings)
+	mux.HandleFunc("PUT /api/admin/settings/fill-blanks/series", h.adminSetFillBlanksSeriesSettings)
 	mux.HandleFunc("GET /api/admin/settings/fill-blanks", h.adminListFillTexts)
 	mux.HandleFunc("POST /api/admin/settings/fill-blanks", h.adminAddFillText)
 	mux.HandleFunc("PUT /api/admin/settings/fill-blanks/{id}", h.adminSetFillBlankPercent)
@@ -682,6 +689,8 @@ type fillBlanksCheckRequest struct {
 
 type fillBlanksCheckResponse struct {
 	Correct          bool                   `json:"correct"`
+	SessionSolved    int                    `json:"sessionSolved,omitempty"`
+	SessionComplete  bool                   `json:"sessionComplete,omitempty"`
 	ChallengeReward  *store.StageCompletion `json:"challengeReward,omitempty"`
 }
 
@@ -716,7 +725,6 @@ func (h *Handler) fillBlanksCheck(w http.ResponseWriter, r *http.Request) {
 		delta := store.StatsDelta{}
 		if correct {
 			delta.Correct = 1
-			delta.SessionsCompleted = 1
 		} else {
 			delta.Wrong = 1
 		}
@@ -724,17 +732,74 @@ func (h *Handler) fillBlanksCheck(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to save stats")
 			return
 		}
+
+		sessionSize, err := h.db.GetSessionSize(ctx, "fill-blanks")
+		if err != nil {
+			sessionSize = store.DefaultSessionSize
+		}
 		if correct {
-			if reward, err := h.db.MarkChallengeGameDone(ctx, req.UserID, "fill-blanks"); err != nil {
-				writeError(w, http.StatusInternalServerError, "failed to update challenge")
+			prog, completed, err := h.db.RecordDailyCorrect(ctx, req.UserID, "fill-blanks", sessionSize)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to save progress")
 				return
-			} else if reward != nil {
-				resp.ChallengeReward = reward
 			}
+			resp.SessionSolved = prog.Solved
+			if completed {
+				resp.SessionComplete = true
+				if err := h.db.AddStats(ctx, req.UserID, "fill-blanks", store.StatsDelta{SessionsCompleted: 1}); err != nil {
+					writeError(w, http.StatusInternalServerError, "failed to save stats")
+					return
+				}
+				if reward, err := h.db.MarkChallengeGameDone(ctx, req.UserID, "fill-blanks"); err != nil {
+					writeError(w, http.StatusInternalServerError, "failed to update challenge")
+					return
+				} else if reward != nil {
+					resp.ChallengeReward = reward
+				}
+			}
+		} else {
+			prog, err := h.db.RecordDailyWrong(ctx, req.UserID, "fill-blanks")
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to save progress")
+				return
+			}
+			resp.SessionSolved = prog.Solved
 		}
 	}
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (h *Handler) getFillBlanksSession(w http.ResponseWriter, r *http.Request) {
+	userID, err := strconv.Atoi(r.URL.Query().Get("userId"))
+	if err != nil || userID <= 0 {
+		writeError(w, http.StatusBadRequest, "userId is required")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if _, err := h.db.GetUser(ctx, userID); err != nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	sessionSize, err := h.db.GetSessionSize(ctx, "fill-blanks")
+	if err != nil {
+		sessionSize = store.DefaultSessionSize
+	}
+	prog, err := h.db.GetDailyProgress(ctx, userID, "fill-blanks")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load progress")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"solved":      prog.Solved,
+		"correct":     prog.Correct,
+		"wrong":       prog.Wrong,
+		"complete":    prog.Complete,
+		"sessionSize": sessionSize,
+		"day":         prog.Day,
+	})
 }
 
 func (h *Handler) disassembleComplete(w http.ResponseWriter, r *http.Request) {
@@ -879,6 +944,8 @@ type fractionCheckResponse struct {
 	RankTitle       string                 `json:"rankTitle,omitempty"`
 	DayCorrect      int                    `json:"dayCorrect,omitempty"`
 	DayWrong        int                    `json:"dayWrong,omitempty"`
+	SessionSolved   int                    `json:"sessionSolved,omitempty"`
+	SessionComplete bool                   `json:"sessionComplete,omitempty"`
 	ChallengeReward *store.StageCompletion `json:"challengeReward,omitempty"`
 }
 
@@ -917,17 +984,31 @@ func (h *Handler) checkFractionAnswer(w http.ResponseWriter, r *http.Request) {
 			delta := store.StatsDelta{}
 			if correct {
 				delta.Correct = 1
-				delta.SessionsCompleted = 1
 			} else {
 				delta.Wrong = 1
 			}
 			if err := h.db.AddStats(ctx, req.UserID, "fractions", delta); err != nil {
 				log.Printf("fractions check: save stats user=%d: %v", req.UserID, err)
 			} else {
+				sessionSize, err := h.db.GetSessionSize(ctx, "fractions")
+				if err != nil {
+					sessionSize = store.DefaultSessionSize
+				}
 				var prog store.DailyGameProgress
-				var err error
 				if correct {
-					prog, _, err = h.db.RecordDailyCorrect(ctx, req.UserID, "fractions", 0)
+					var completed bool
+					prog, completed, err = h.db.RecordDailyCorrect(ctx, req.UserID, "fractions", sessionSize)
+					if err == nil && completed {
+						resp.SessionComplete = true
+						if err := h.db.AddStats(ctx, req.UserID, "fractions", store.StatsDelta{SessionsCompleted: 1}); err != nil {
+							log.Printf("fractions check: save session stats user=%d: %v", req.UserID, err)
+						}
+						if reward, err := h.db.MarkChallengeGameDone(ctx, req.UserID, "fractions"); err != nil {
+							log.Printf("fractions check: challenge user=%d: %v", req.UserID, err)
+						} else if reward != nil {
+							resp.ChallengeReward = reward
+						}
+					}
 				} else {
 					prog, err = h.db.RecordDailyWrong(ctx, req.UserID, "fractions")
 				}
@@ -936,14 +1017,8 @@ func (h *Handler) checkFractionAnswer(w http.ResponseWriter, r *http.Request) {
 				} else {
 					resp.DayCorrect = prog.Correct
 					resp.DayWrong = prog.Wrong
+					resp.SessionSolved = prog.Solved
 					resp.RankTitle = fractions.RankTitle(prog.Correct)
-				}
-				if correct {
-					if reward, err := h.db.MarkChallengeGameDone(ctx, req.UserID, "fractions"); err != nil {
-						log.Printf("fractions check: challenge user=%d: %v", req.UserID, err)
-					} else if reward != nil {
-						resp.ChallengeReward = reward
-					}
 				}
 			}
 		}
@@ -966,17 +1041,23 @@ func (h *Handler) getFractionsSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "user not found")
 		return
 	}
+	sessionSize, err := h.db.GetSessionSize(ctx, "fractions")
+	if err != nil {
+		sessionSize = store.DefaultSessionSize
+	}
 	prog, err := h.db.GetDailyProgress(ctx, userID, "fractions")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to load progress")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"correct":   prog.Correct,
-		"wrong":     prog.Wrong,
-		"solved":    prog.Solved,
-		"day":       prog.Day,
-		"rankTitle": fractions.RankTitle(prog.Correct),
+		"correct":     prog.Correct,
+		"wrong":       prog.Wrong,
+		"solved":      prog.Solved,
+		"complete":    prog.Complete,
+		"sessionSize": sessionSize,
+		"day":         prog.Day,
+		"rankTitle":   fractions.RankTitle(prog.Correct),
 	})
 }
 
@@ -1359,13 +1440,25 @@ func (h *Handler) adminVerify(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) mathColumnsSettings(w http.ResponseWriter, r *http.Request) {
+	h.writeGameSettings(w, r, "math-columns")
+}
+
+func (h *Handler) fractionsSettings(w http.ResponseWriter, r *http.Request) {
+	h.writeGameSettings(w, r, "fractions")
+}
+
+func (h *Handler) fillBlanksSettings(w http.ResponseWriter, r *http.Request) {
+	h.writeGameSettings(w, r, "fill-blanks")
+}
+
+func (h *Handler) writeGameSettings(w http.ResponseWriter, r *http.Request, gameID string) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	gs, err := h.db.GetGameSettings(ctx, "math-columns")
+	gs, err := h.db.GetGameSettings(ctx, gameID)
 	if err != nil {
 		writeJSON(w, http.StatusOK, store.GameSettings{
-			GameID:      "math-columns",
+			GameID:      gameID,
 			SessionSize: store.DefaultSessionSize,
 			DigitCount:  store.DefaultDigitCount,
 		})
@@ -1375,30 +1468,33 @@ func (h *Handler) mathColumnsSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) adminGetMathColumnsSettings(w http.ResponseWriter, r *http.Request) {
+	h.adminGetGameSettings(w, r, "math-columns")
+}
+
+func (h *Handler) adminGetFractionsSettings(w http.ResponseWriter, r *http.Request) {
+	h.adminGetGameSettings(w, r, "fractions")
+}
+
+func (h *Handler) adminGetFillBlanksSeriesSettings(w http.ResponseWriter, r *http.Request) {
+	h.adminGetGameSettings(w, r, "fill-blanks")
+}
+
+func (h *Handler) adminGetGameSettings(w http.ResponseWriter, r *http.Request, gameID string) {
 	token := bearerToken(r)
 	if !h.adminAuth.Valid(token) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	gs, err := h.db.GetGameSettings(ctx, "math-columns")
-	if err != nil {
-		writeJSON(w, http.StatusOK, store.GameSettings{
-			GameID:      "math-columns",
-			SessionSize: store.DefaultSessionSize,
-			DigitCount:  store.DefaultDigitCount,
-		})
-		return
-	}
-	writeJSON(w, http.StatusOK, gs)
+	h.writeGameSettings(w, r, gameID)
 }
 
 type mathColumnsSettingsRequest struct {
 	SessionSize int `json:"sessionSize"`
 	DigitCount  int `json:"digitCount"`
+}
+
+type sessionSizeSettingsRequest struct {
+	SessionSize int `json:"sessionSize"`
 }
 
 func (h *Handler) adminSetMathColumnsSettings(w http.ResponseWriter, r *http.Request) {
@@ -1426,6 +1522,42 @@ func (h *Handler) adminSetMathColumnsSettings(w http.ResponseWriter, r *http.Req
 	defer cancel()
 
 	gs, err := h.db.SetMathColumnsSettings(ctx, req.SessionSize, req.DigitCount)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, gs)
+}
+
+func (h *Handler) adminSetFractionsSettings(w http.ResponseWriter, r *http.Request) {
+	h.adminSetSessionSizeSettings(w, r, "fractions")
+}
+
+func (h *Handler) adminSetFillBlanksSeriesSettings(w http.ResponseWriter, r *http.Request) {
+	h.adminSetSessionSizeSettings(w, r, "fill-blanks")
+}
+
+func (h *Handler) adminSetSessionSizeSettings(w http.ResponseWriter, r *http.Request, gameID string) {
+	token := bearerToken(r)
+	if !h.adminAuth.Valid(token) {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req sessionSizeSettingsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.SessionSize < store.MinSessionSize || req.SessionSize > store.MaxSessionSize {
+		writeError(w, http.StatusBadRequest, "sessionSize must be between 1 and 200")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	gs, err := h.db.SetSessionSize(ctx, gameID, req.SessionSize)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return

@@ -385,7 +385,11 @@ async function onCheck(): Promise<void> {
     if (result.rankTitle) ui.rankTitleEl.textContent = result.rankTitle;
 
     if (result.correct) {
-      showFeedback('Верно! Целостность восстановлена.', 'correct');
+      if (result.sessionComplete) {
+        showFeedback('Серия завершена! Целостность восстановлена.', 'correct');
+      } else {
+        showFeedback('Верно! Целостность восстановлена.', 'correct');
+      }
       if (result.challengeReward) showChallengeReward(result.challengeReward);
     } else {
       showFeedback('Пока мимо. Смотри визуальную подсказку — это откат к долям.', 'wrong');

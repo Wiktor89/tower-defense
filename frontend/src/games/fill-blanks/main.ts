@@ -1,6 +1,6 @@
 import './style.css';
 import '../../shared/tv-controls.css';
-import { checkFillBlanks, fetchFillBlanksPuzzle } from '../../api/client';
+import { checkFillBlanks, fetchFillBlanksPuzzle, fetchFillBlanksSession } from '../../api/client';
 import { showChallengeReward } from '../../shared/solar-reward';
 import type { FillBlanksParagraph, FillBlanksPuzzle, FillBlanksToken } from '../../types';
 import { ensureUserLogin } from '../../shared/login';
@@ -320,7 +320,10 @@ async function onCheck(): Promise<void> {
     if (result.correct) {
       correctCount++;
       updateScore();
-      showFeedback('Верно! Текст совпал.', 'correct');
+      showFeedback(
+        result.sessionComplete ? 'Серия завершена! Текст совпал.' : 'Верно! Текст совпал.',
+        'correct',
+      );
       ui.nextBtn.classList.remove('hidden');
       ui.clearBtn.classList.add('hidden');
       ui.checkBtn.classList.add('hidden');
@@ -357,4 +360,14 @@ ui.clearBtn.addEventListener('click', onClear);
 ui.nextBtn.addEventListener('click', () => void loadPuzzle());
 
 updateScore();
-void ensureUserLogin().then(() => loadPuzzle());
+void ensureUserLogin().then(async (user) => {
+  try {
+    const session = await fetchFillBlanksSession(user.id);
+    correctCount = session.correct;
+    wrongCount = session.wrong;
+    updateScore();
+  } catch {
+    /* keep zeros */
+  }
+  await loadPuzzle();
+});

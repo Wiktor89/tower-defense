@@ -306,6 +306,46 @@ export function updateMathColumnsSettings(
   });
 }
 
+export function fetchFractionsSettings(): Promise<GameSettings> {
+  return request<GameSettings>('/api/settings/fractions');
+}
+
+export function fetchAdminFractionsSettings(token: string): Promise<GameSettings> {
+  return request<GameSettings>('/api/admin/settings/fractions', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function updateFractionsSettings(token: string, sessionSize: number): Promise<GameSettings> {
+  return request<GameSettings>('/api/admin/settings/fractions', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ sessionSize }),
+  });
+}
+
+export function fetchFillBlanksSettings(): Promise<GameSettings> {
+  return request<GameSettings>('/api/settings/fill-blanks');
+}
+
+export function fetchFillBlanksSession(userId: number): Promise<MathSessionProgress> {
+  return request<MathSessionProgress>(`/api/fill-blanks/session?userId=${userId}`);
+}
+
+export function fetchAdminFillBlanksSeriesSettings(token: string): Promise<GameSettings> {
+  return request<GameSettings>('/api/admin/settings/fill-blanks/series', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function updateFillBlanksSeriesSettings(token: string, sessionSize: number): Promise<GameSettings> {
+  return request<GameSettings>('/api/admin/settings/fill-blanks/series', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ sessionSize }),
+  });
+}
+
 export function fetchAdminGameGrades(token: string): Promise<GameGrade[]> {
   return request<GameGrade[]>('/api/admin/settings/game-grades', {
     headers: { Authorization: `Bearer ${token}` },

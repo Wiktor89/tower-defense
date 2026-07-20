@@ -1,6 +1,6 @@
 import './admin.css';
 import '../shared/modal.css';
-import { adminDeleteUser, adminLogin, adminResetFractionsTutorial, adminSetUserGrade, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminChallenge, fetchAdminFillBlankTexts, fetchAdminGameGrades, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateAdminChallenge, updateAdminFillBlankPercent, updateAdminFillBlankText, updateAdminGameGrade, updateMathColumnsSettings } from '../api/client';
+import { adminDeleteUser, adminLogin, adminResetFractionsTutorial, adminSetUserGrade, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminChallenge, fetchAdminFillBlankTexts, fetchAdminFillBlanksSeriesSettings, fetchAdminFractionsSettings, fetchAdminGameGrades, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, updateAdminChallenge, updateAdminFillBlankPercent, updateAdminFillBlankText, updateAdminGameGrade, updateFillBlanksSeriesSettings, updateFractionsSettings, updateMathColumnsSettings } from '../api/client';
 import type { DailyChallengeAdmin, FillBlankText, GameGrade, GameSettings, StageCompletion, UserStatsRow } from '../types';
 import { PLANETS } from '../shared/planets';
 import { captchaFieldHtml, setupCaptcha } from '../shared/captcha';
@@ -290,10 +290,10 @@ const SETTINGS_GAME_KEY = 'admin_settings_game';
 const SETTINGS_GAMES: { id: SettingsGameId; label: string; hint: string; hasGrade: boolean }[] = [
   { id: 'daily-challenge', label: '🎯 Вызов дня', hint: 'Общий список игр для всех учеников', hasGrade: false },
   { id: 'math-columns', label: '📐 Столбик', hint: 'Знаки чисел и длина серии', hasGrade: true },
-  { id: 'fill-blanks', label: '📝 Заполни пропуски', hint: 'Тексты и процент пропусков', hasGrade: true },
+  { id: 'fill-blanks', label: '📝 Заполни пропуски', hint: 'Тексты, пропуски и длина серии', hasGrade: true },
   { id: 'tower-defense', label: '🌻 Защита от зомби', hint: 'Настройки волны и сложности', hasGrade: true },
   { id: 'disassemble', label: '🔧 Разбери и собери', hint: 'Настройки сборки', hasGrade: true },
-  { id: 'fractions', label: '🍕 Деление и дроби', hint: 'Задания по классу (1–9)', hasGrade: true },
+  { id: 'fractions', label: '🍕 Деление и дроби', hint: 'Задания по классу и длина серии', hasGrade: true },
 ];
 
 const CHALLENGE_GAME_OPTIONS: { id: string; label: string }[] = [
@@ -390,6 +390,24 @@ function renderChallengeSettings(challenge: DailyChallengeAdmin | null): string 
   `;
 }
 
+function renderSeriesSettings(settings: GameSettings | null, formId = 'series-form'): string {
+  return `
+    <section class="admin-section">
+      <h3 class="admin-subtitle">Параметры серии</h3>
+      <p class="admin-section__hint">Сколько правильных ответов нужно для серии</p>
+      <form id="${formId}" class="admin-verify-form">
+        <label class="admin-field">
+          <span>Примеров в серии</span>
+          <input type="number" id="session-size" min="1" max="200"
+            value="${settings?.sessionSize ?? 50}" required>
+        </label>
+        <button type="submit" class="admin-btn">Сохранить</button>
+      </form>
+      <p class="admin-verify-result hidden" id="series-result"></p>
+    </section>
+  `;
+}
+
 function renderMathSettings(mathSettings: GameSettings | null, grades: GameGrade[]): string {
   return `
     ${renderGradeSettings('math-columns', grades)}
@@ -414,9 +432,14 @@ function renderMathSettings(mathSettings: GameSettings | null, grades: GameGrade
   `;
 }
 
-function renderFillBlanksSettings(fillTexts: FillBlankText[], grades: GameGrade[]): string {
+function renderFillBlanksSettings(
+  fillTexts: FillBlankText[],
+  grades: GameGrade[],
+  seriesSettings: GameSettings | null,
+): string {
   return `
     ${renderGradeSettings('fill-blanks', grades)}
+    ${renderSeriesSettings(seriesSettings)}
     <section class="admin-section">
       <h3 class="admin-subtitle">Тексты</h3>
       <p class="admin-section__hint">Добавьте полный текст. Если больше 30 слов — разобьётся на абзацы/предложения; у каждого — свой список слов справа.</p>
@@ -428,6 +451,13 @@ function renderFillBlanksSettings(fillTexts: FillBlankText[], grades: GameGrade[
       <h3 class="admin-subtitle">Тексты в игре</h3>
       ${renderFillTextsList(fillTexts)}
     </section>
+  `;
+}
+
+function renderFractionsSettings(seriesSettings: GameSettings | null, grades: GameGrade[]): string {
+  return `
+    ${renderGradeSettings('fractions', grades)}
+    ${renderSeriesSettings(seriesSettings)}
   `;
 }
 
@@ -476,6 +506,8 @@ function renderSettingsTab(
   fillTexts: FillBlankText[],
   challenge: DailyChallengeAdmin | null,
   grades: GameGrade[],
+  fractionsSettings: GameSettings | null,
+  fillSeriesSettings: GameSettings | null,
 ): string {
   const gameId = getSettingsGame();
   if (!gameId) return renderSettingsList(grades);
@@ -486,10 +518,11 @@ function renderSettingsTab(
     case 'math-columns':
       return renderMathSettings(mathSettings, grades);
     case 'fill-blanks':
-      return renderFillBlanksSettings(fillTexts, grades);
+      return renderFillBlanksSettings(fillTexts, grades, fillSeriesSettings);
+    case 'fractions':
+      return renderFractionsSettings(fractionsSettings, grades);
     case 'tower-defense':
     case 'disassemble':
-    case 'fractions':
       return renderGameOnlyGradeSettings(gameId, grades);
     default:
       return renderSettingsList(grades);
@@ -534,6 +567,8 @@ function renderDashboard(
   fillTexts: FillBlankText[],
   challenge: DailyChallengeAdmin | null,
   grades: GameGrade[],
+  fractionsSettings: GameSettings | null,
+  fillSeriesSettings: GameSettings | null,
   loadError?: string,
   loading = false,
 ): void {
@@ -552,7 +587,7 @@ function renderDashboard(
     <nav class="admin-tabs">${tabButtons}</nav>
 
     <div class="admin-tab-panel${activeTab === 'settings' ? ' admin-tab-panel--active' : ''}" data-panel="settings">
-      ${renderSettingsTab(mathSettings, fillTexts, challenge, grades)}
+      ${renderSettingsTab(mathSettings, fillTexts, challenge, grades, fractionsSettings, fillSeriesSettings)}
     </div>
 
     <div class="admin-tab-panel${activeTab === 'verify' ? ' admin-tab-panel--active' : ''}" data-panel="verify">
@@ -671,6 +706,24 @@ function renderDashboard(
     try {
       const settings = await updateMathColumnsSettings(token, sessionSize, digitCount);
       resultEl.textContent = `Сохранено: ${settings.digitCount} знаков, ${settings.sessionSize} примеров в серии`;
+      resultEl.className = 'admin-verify-result admin-verify-result--ok';
+    } catch (err) {
+      resultEl.textContent = err instanceof Error ? err.message : 'Ошибка сохранения';
+      resultEl.className = 'admin-verify-result admin-verify-result--fail';
+    }
+  });
+
+  appEl.querySelector<HTMLFormElement>('#series-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const resultEl = appEl.querySelector<HTMLParagraphElement>('#series-result')!;
+    const sessionSize = Number((appEl.querySelector('#session-size') as HTMLInputElement).value);
+    const gameId = getSettingsGame();
+
+    try {
+      const settings = gameId === 'fill-blanks'
+        ? await updateFillBlanksSeriesSettings(token, sessionSize)
+        : await updateFractionsSettings(token, sessionSize);
+      resultEl.textContent = `Сохранено: ${settings.sessionSize} примеров в серии`;
       resultEl.className = 'admin-verify-result admin-verify-result--ok';
     } catch (err) {
       resultEl.textContent = err instanceof Error ? err.message : 'Ошибка сохранения';
@@ -830,19 +883,33 @@ function renderDashboard(
 
 async function loadDashboard(token: string): Promise<void> {
   const activeTab = getActiveTab();
-  renderDashboard(token, [], [], null, [], null, [], undefined, true);
+  renderDashboard(token, [], [], null, [], null, [], null, null, undefined, true);
   setActiveTab(activeTab);
 
-  const [statsResult, stagesResult, settingsResult, fillTextsResult, challengeResult, gradesResult] = await Promise.allSettled([
+  const [
+    statsResult,
+    stagesResult,
+    settingsResult,
+    fillTextsResult,
+    challengeResult,
+    gradesResult,
+    fractionsSettingsResult,
+    fillSeriesResult,
+  ] = await Promise.allSettled([
     fetchAdminStats(token),
     fetchAdminStages(token),
     fetchAdminMathColumnsSettings(token),
     fetchAdminFillBlankTexts(token),
     fetchAdminChallenge(token),
     fetchAdminGameGrades(token),
+    fetchAdminFractionsSettings(token),
+    fetchAdminFillBlanksSeriesSettings(token),
   ]);
 
-  const unauthorized = [statsResult, stagesResult, settingsResult, fillTextsResult, challengeResult, gradesResult].some(
+  const unauthorized = [
+    statsResult, stagesResult, settingsResult, fillTextsResult,
+    challengeResult, gradesResult, fractionsSettingsResult, fillSeriesResult,
+  ].some(
     r => r.status === 'rejected' && r.reason instanceof Error && r.reason.message.toLowerCase().includes('unauthorized'),
   );
   if (unauthorized) {
@@ -857,6 +924,8 @@ async function loadDashboard(token: string): Promise<void> {
   const fillTexts = fillTextsResult.status === 'fulfilled' ? fillTextsResult.value : [];
   const challenge = challengeResult.status === 'fulfilled' ? challengeResult.value : null;
   const grades = gradesResult.status === 'fulfilled' ? gradesResult.value : [];
+  const fractionsSettings = fractionsSettingsResult.status === 'fulfilled' ? fractionsSettingsResult.value : null;
+  const fillSeriesSettings = fillSeriesResult.status === 'fulfilled' ? fillSeriesResult.value : null;
 
   const errors: string[] = [];
   if (statsResult.status === 'rejected') {
@@ -883,6 +952,14 @@ async function loadDashboard(token: string): Promise<void> {
     const msg = gradesResult.reason instanceof Error ? gradesResult.reason.message : 'не удалось загрузить классы игр';
     errors.push(msg);
   }
+  if (fractionsSettingsResult.status === 'rejected') {
+    const msg = fractionsSettingsResult.reason instanceof Error ? fractionsSettingsResult.reason.message : 'не удалось загрузить настройки дробей';
+    errors.push(msg);
+  }
+  if (fillSeriesResult.status === 'rejected') {
+    const msg = fillSeriesResult.reason instanceof Error ? fillSeriesResult.reason.message : 'не удалось загрузить параметры серии';
+    errors.push(msg);
+  }
 
   renderDashboard(
     token,
@@ -892,6 +969,8 @@ async function loadDashboard(token: string): Promise<void> {
     fillTexts,
     challenge,
     grades,
+    fractionsSettings,
+    fillSeriesSettings,
     errors.length ? `⚠️ ${errors.join('; ')}` : undefined,
   );
 }

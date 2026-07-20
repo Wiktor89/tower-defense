@@ -108,7 +108,10 @@ func (s *Store) migrate(ctx context.Context) error {
 			ADD COLUMN IF NOT EXISTS digit_count INTEGER NOT NULL DEFAULT 2;
 
 		INSERT INTO game_settings (game_id, session_size, digit_count)
-		VALUES ('math-columns', 50, 2)
+		VALUES
+			('math-columns', 50, 2),
+			('fractions', 50, 2),
+			('fill-blanks', 50, 2)
 		ON CONFLICT (game_id) DO NOTHING;
 
 		CREATE TABLE IF NOT EXISTS fill_blank_texts (

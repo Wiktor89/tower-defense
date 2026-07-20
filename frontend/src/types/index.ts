@@ -103,6 +103,8 @@ export interface FractionsSessionProgress {
   correct: number;
   wrong: number;
   solved: number;
+  complete?: boolean;
+  sessionSize?: number;
   day: string;
   rankTitle: string;
 }
@@ -144,6 +146,8 @@ export interface FillBlanksPuzzle {
 
 export interface FillBlanksCheckResult {
   correct: boolean;
+  sessionSolved?: number;
+  sessionComplete?: boolean;
   challengeReward?: StageCompletion;
 }
 
@@ -168,6 +172,8 @@ export interface FractionCheckResult {
   rankTitle?: string;
   dayCorrect?: number;
   dayWrong?: number;
+  sessionSolved?: number;
+  sessionComplete?: boolean;
   challengeReward?: StageCompletion;
 }
 
