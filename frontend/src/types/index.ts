@@ -77,6 +77,10 @@ export interface StageCompletion {
   planetName: string;
   code: number;
   rewardRub: number;
+  baseRewardRub?: number;
+  skipDays?: number;
+  penaltyPercent?: number;
+  penaltyNote?: string;
   verified: boolean;
   completedAt: string;
   verifiedAt?: string;

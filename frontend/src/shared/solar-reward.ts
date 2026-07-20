@@ -32,10 +32,18 @@ export function showChallengeReward(completion: StageCompletion, onClose?: () =>
     `<div class="solar-orbit" style="width:${p.orbit * 2}px;height:${p.orbit * 2}px"></div>`
   ).join('');
 
+  const penaltyHtml = completion.penaltyNote
+    ? `<p class="solar-penalty">${completion.penaltyNote}</p>`
+    : '';
+  const rewardLabel = completion.baseRewardRub && completion.baseRewardRub !== completion.rewardRub
+    ? `Вы заработали <strong>${completion.rewardRub}₽</strong> <span class="solar-reward__base">(из ${completion.baseRewardRub}₽)</span>`
+    : `Вы заработали <strong>${completion.rewardRub}₽</strong>`;
+
   overlay.innerHTML = `
     <div class="solar-modal">
       <h2 class="solar-title">🎉 Вызов дня пройден!</h2>
-      <p class="solar-reward">Вы заработали <strong>${completion.rewardRub}₽</strong></p>
+      <p class="solar-reward">${rewardLabel}</p>
+      ${penaltyHtml}
       <p class="solar-hint">Запомните планету и цифру — администратор проверит их</p>
       <div class="solar-system">
         ${orbitsHtml}

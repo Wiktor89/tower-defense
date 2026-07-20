@@ -31,6 +31,22 @@
   font-size: 1.5rem;
 }
 
+.solar-reward__base {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 400;
+}
+
+.solar-penalty {
+  font-size: 0.9rem;
+  color: #fbbf24;
+  line-height: 1.4;
+  margin: 0 0 12px;
+  max-width: 36rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .solar-hint {
   font-size: 0.85rem;
   color: rgba(255, 255, 255, 0.55);

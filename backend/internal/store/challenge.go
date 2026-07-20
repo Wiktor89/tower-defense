@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -329,17 +330,78 @@ func (s *Store) MarkChallengeGameDone(ctx context.Context, userID int, gameID st
 	return &reward, nil
 }
 
-func (s *Store) grantChallengeReward(ctx context.Context, userID, rewardRub int) (StageCompletion, error) {
-	if rewardRub < MinChallengeRewardRub {
-		rewardRub = DefaultChallengeRewardRub
+const challengeSkipPenaltyStep = 25
+const challengeSkipPenaltyMaxDays = 4
+
+func (s *Store) countChallengeSkipDays(ctx context.Context, userID int) (int, error) {
+	day, _ := moscowToday()
+	var lastDone *time.Time
+	err := s.pool.QueryRow(ctx, `
+		SELECT MAX((completed_at AT TIME ZONE 'Europe/Moscow')::date)
+		FROM stage_completions
+		WHERE user_id = $1
+		  AND game_id = $2
+		  AND (completed_at AT TIME ZONE 'Europe/Moscow')::date < $3::date
+	`, userID, ChallengeGameID, day).Scan(&lastDone)
+	if err != nil {
+		return 0, err
 	}
+	if lastDone == nil {
+		return 0, nil
+	}
+	last := time.Date(lastDone.Year(), lastDone.Month(), lastDone.Day(), 0, 0, 0, 0, day.Location())
+	skipped := int(day.Sub(last).Hours()/24) - 1
+	if skipped < 0 {
+		return 0, nil
+	}
+	return skipped, nil
+}
+
+func applyChallengeSkipPenalty(baseReward, skipDays int) (finalReward, penaltyPercent int) {
+	if skipDays < 0 {
+		skipDays = 0
+	}
+	if skipDays > challengeSkipPenaltyMaxDays {
+		skipDays = challengeSkipPenaltyMaxDays
+	}
+	penaltyPercent = skipDays * challengeSkipPenaltyStep
+	finalReward = baseReward * (100 - penaltyPercent) / 100
+	if finalReward < 0 {
+		finalReward = 0
+	}
+	return finalReward, penaltyPercent
+}
+
+func challengePenaltyNote(skipDays, penaltyPercent, baseReward, finalReward int) string {
+	if penaltyPercent <= 0 {
+		return ""
+	}
+	return fmt.Sprintf(
+		"Так как вы прервали серию «Вызов дня» (%d дн.), вам не доначисляется %d%% (%d ₽ → %d ₽). Не пропускайте вызов дня, чтобы сохранять полную выплату.",
+		skipDays, penaltyPercent, baseReward, finalReward,
+	)
+}
+
+func (s *Store) grantChallengeReward(ctx context.Context, userID, baseReward int) (StageCompletion, error) {
+	if baseReward < MinChallengeRewardRub {
+		baseReward = DefaultChallengeRewardRub
+	}
+	skipDays, err := s.countChallengeSkipDays(ctx, userID)
+	if err != nil {
+		return StageCompletion{}, err
+	}
+	rewardRub, penaltyPercent := applyChallengeSkipPenalty(baseReward, skipDays)
+	if skipDays > challengeSkipPenaltyMaxDays {
+		skipDays = challengeSkipPenaltyMaxDays
+	}
+
 	planet := randomPlanet()
 	code := randomCode()
 	day, _ := moscowToday()
 	stage := challengeDayStage(day)
 
 	var sc StageCompletion
-	err := s.pool.QueryRow(ctx, `
+	err = s.pool.QueryRow(ctx, `
 		INSERT INTO stage_completions (user_id, game_id, stage, planet, code, reward_rub, verified, verified_at)
 		VALUES ($1, $2, $3, $4, $5, $6, FALSE, NULL)
 		ON CONFLICT (user_id, game_id, stage) DO UPDATE SET
@@ -358,6 +420,10 @@ func (s *Store) grantChallengeReward(ctx context.Context, userID, rewardRub int)
 		return StageCompletion{}, err
 	}
 	sc.PlanetName = PlanetName(sc.Planet)
+	sc.BaseRewardRub = baseReward
+	sc.SkipDays = skipDays
+	sc.PenaltyPercent = penaltyPercent
+	sc.PenaltyNote = challengePenaltyNote(skipDays, penaltyPercent, baseReward, rewardRub)
 	return sc, nil
 }
 
