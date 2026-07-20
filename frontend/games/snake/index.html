@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Змейка</title>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <a href="/" class="back-btn" title="Вернуться в меню">← Меню</a>
+      <div class="header-title">
+        <h1>🐍 Змейка</h1>
+        <p class="subtitle">Соберите яблоки и не врезайтесь</p>
+      </div>
+      <div class="stats">
+        <span id="score-apples">🍎 0</span>
+        <span id="score-length">длина 3</span>
+      </div>
+    </header>
+
+    <main class="board">
+      <canvas id="snake-canvas" width="400" height="400" aria-label="Игровое поле змейки"></canvas>
+      <div id="overlay" class="overlay">
+        <p id="overlay-text" class="overlay-text">Нажмите «Старт»</p>
+        <button type="button" id="start-btn" class="action-btn action-btn--primary">Старт</button>
+      </div>
+      <div id="feedback" class="feedback hidden"></div>
+      <p class="hint">Стрелки или WASD. На ТВ — свайпы по полю.</p>
+    </main>
+
+    <footer class="progress-section" id="progress-section">
+      <div class="progress-header">
+        <span class="progress-label">Прогресс серии</span>
+        <span id="progress-text" class="progress-count">0 / …</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+        <div class="series-marker" id="progress-marker" aria-hidden="true">🐍</div>
+      </div>
+    </footer>
+  </div>
+
+  <script type="module" src="/src/games/snake/main.ts"></script>
+</body>
+</html>

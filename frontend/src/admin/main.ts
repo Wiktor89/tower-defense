@@ -1,6 +1,6 @@
 import './admin.css';
 import '../shared/modal.css';
-import { adminDeleteUser, adminLogin, adminResetFractionsTutorial, adminSetUserGrade, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminChallenge, fetchAdminFillBlankTexts, fetchAdminFillBlanksSeriesSettings, fetchAdminFractionsSettings, fetchAdminGameEnabled, fetchAdminGameGrades, fetchAdminMathColumnsSettings, fetchAdminStages, fetchAdminStats, fetchAdminUserGameAccess, updateAdminChallenge, updateAdminFillBlankPercent, updateAdminFillBlankText, updateAdminGameEnabled, updateAdminGameGrade, updateAdminUserGameAccess, updateFillBlanksSeriesSettings, updateFractionsSettings, updateMathColumnsSettings } from '../api/client';
+import { adminDeleteUser, adminLogin, adminResetFractionsTutorial, adminSetUserGrade, adminVerify, addAdminFillBlankText, deleteAdminFillBlankText, fetchAdminChallenge, fetchAdminFillBlankTexts, fetchAdminFillBlanksSeriesSettings, fetchAdminFractionsSettings, fetchAdminGameEnabled, fetchAdminGameGrades, fetchAdminMathColumnsSettings, fetchAdminSnakeSettings, fetchAdminStages, fetchAdminStats, fetchAdminUserGameAccess, updateAdminChallenge, updateAdminFillBlankPercent, updateAdminFillBlankText, updateAdminGameEnabled, updateAdminGameGrade, updateAdminUserGameAccess, updateFillBlanksSeriesSettings, updateFractionsSettings, updateMathColumnsSettings, updateSnakeSettings } from '../api/client';
 import type { DailyChallengeAdmin, FillBlankText, GameEnabled, GameGrade, GameSettings, StageCompletion, UserGameAccess, UserStatsRow } from '../types';
 import { PLANETS } from '../shared/planets';
 import { captchaFieldHtml, setupCaptcha } from '../shared/captcha';
@@ -373,7 +373,8 @@ type SettingsGameId =
   | 'fill-blanks'
   | 'tower-defense'
   | 'disassemble'
-  | 'fractions';
+  | 'fractions'
+  | 'snake';
 
 const SETTINGS_GAME_KEY = 'admin_settings_game';
 
@@ -384,6 +385,7 @@ const SETTINGS_GAMES: { id: SettingsGameId; label: string; hint: string; hasGrad
   { id: 'tower-defense', label: '🌻 Защита от зомби', hint: 'Настройки волны и сложности', hasGrade: true },
   { id: 'disassemble', label: '🔧 Разбери и собери', hint: 'Настройки сборки', hasGrade: true },
   { id: 'fractions', label: '🍕 Деление и дроби', hint: 'Задания по классу и длина серии', hasGrade: true },
+  { id: 'snake', label: '🐍 Змейка', hint: 'Яблоки в серии и классы', hasGrade: true },
 ];
 
 const CHALLENGE_GAME_OPTIONS: { id: string; label: string }[] = [
@@ -392,6 +394,7 @@ const CHALLENGE_GAME_OPTIONS: { id: string; label: string }[] = [
   { id: 'tower-defense', label: '🌻 Защита от зомби' },
   { id: 'disassemble', label: '🔧 Разбери и собери' },
   { id: 'fractions', label: '🍕 Деление и дроби' },
+  { id: 'snake', label: '🐍 Змейка' },
 ];
 
 function getSettingsGame(): SettingsGameId | null {
@@ -504,14 +507,19 @@ function renderChallengeSettings(challenge: DailyChallengeAdmin | null): string 
   `;
 }
 
-function renderSeriesSettings(settings: GameSettings | null, formId = 'series-form'): string {
+function renderSeriesSettings(
+  settings: GameSettings | null,
+  formId = 'series-form',
+  hint = 'Сколько правильных ответов нужно для серии',
+  fieldLabel = 'Примеров в серии',
+): string {
   return `
     <section class="admin-section">
       <h3 class="admin-subtitle">Параметры серии</h3>
-      <p class="admin-section__hint">Сколько правильных ответов нужно для серии</p>
+      <p class="admin-section__hint">${hint}</p>
       <form id="${formId}" class="admin-verify-form">
         <label class="admin-field">
-          <span>Примеров в серии</span>
+          <span>${fieldLabel}</span>
           <input type="number" id="session-size" min="1" max="200"
             value="${settings?.sessionSize ?? 50}" required>
         </label>
@@ -575,6 +583,18 @@ function renderFractionsSettings(seriesSettings: GameSettings | null, grades: Ga
   `;
 }
 
+function renderSnakeSettings(seriesSettings: GameSettings | null, grades: GameGrade[]): string {
+  return `
+    ${renderGradeSettings('snake', grades)}
+    ${renderSeriesSettings(
+      seriesSettings ?? { gameId: 'snake', sessionSize: 10, digitCount: 2 },
+      'series-form',
+      'Сколько яблок нужно собрать для серии / вызова дня',
+      'Яблок в серии',
+    )}
+  `;
+}
+
 function renderGameOnlyGradeSettings(gameId: string, grades: GameGrade[]): string {
   return `
     ${renderGradeSettings(gameId, grades)}
@@ -623,6 +643,7 @@ function renderSettingsTab(
   fractionsSettings: GameSettings | null,
   fillSeriesSettings: GameSettings | null,
   gameEnabled: GameEnabled[],
+  snakeSettings: GameSettings | null,
 ): string {
   const gameId = getSettingsGame();
   if (!gameId) return renderSettingsList(grades, gameEnabled);
@@ -636,6 +657,8 @@ function renderSettingsTab(
       return renderFillBlanksSettings(fillTexts, grades, fillSeriesSettings);
     case 'fractions':
       return renderFractionsSettings(fractionsSettings, grades);
+    case 'snake':
+      return renderSnakeSettings(snakeSettings, grades);
     case 'tower-defense':
     case 'disassemble':
       return renderGameOnlyGradeSettings(gameId, grades);
@@ -685,6 +708,7 @@ function renderDashboard(
   fractionsSettings: GameSettings | null,
   fillSeriesSettings: GameSettings | null,
   gameEnabled: GameEnabled[],
+  snakeSettings: GameSettings | null,
   loadError?: string,
   loading = false,
 ): void {
@@ -703,7 +727,7 @@ function renderDashboard(
     <nav class="admin-tabs">${tabButtons}</nav>
 
     <div class="admin-tab-panel${activeTab === 'settings' ? ' admin-tab-panel--active' : ''}" data-panel="settings">
-      ${renderSettingsTab(mathSettings, fillTexts, challenge, grades, fractionsSettings, fillSeriesSettings, gameEnabled)}
+      ${renderSettingsTab(mathSettings, fillTexts, challenge, grades, fractionsSettings, fillSeriesSettings, gameEnabled, snakeSettings)}
     </div>
 
     <div class="admin-tab-panel${activeTab === 'verify' ? ' admin-tab-panel--active' : ''}" data-panel="verify">
@@ -858,10 +882,15 @@ function renderDashboard(
     const gameId = getSettingsGame();
 
     try {
-      const settings = gameId === 'fill-blanks'
-        ? await updateFillBlanksSeriesSettings(token, sessionSize)
-        : await updateFractionsSettings(token, sessionSize);
-      resultEl.textContent = `Сохранено: ${settings.sessionSize} примеров в серии`;
+      let settings: GameSettings;
+      if (gameId === 'fill-blanks') {
+        settings = await updateFillBlanksSeriesSettings(token, sessionSize);
+      } else if (gameId === 'snake') {
+        settings = await updateSnakeSettings(token, sessionSize);
+      } else {
+        settings = await updateFractionsSettings(token, sessionSize);
+      }
+      resultEl.textContent = `Сохранено: ${settings.sessionSize} в серии`;
       resultEl.className = 'admin-verify-result admin-verify-result--ok';
     } catch (err) {
       resultEl.textContent = err instanceof Error ? err.message : 'Ошибка сохранения';
@@ -1030,7 +1059,7 @@ function renderDashboard(
 
 async function loadDashboard(token: string): Promise<void> {
   const activeTab = getActiveTab();
-  renderDashboard(token, [], [], null, [], null, [], null, null, [], undefined, true);
+  renderDashboard(token, [], [], null, [], null, [], null, null, [], null, undefined, true);
   setActiveTab(activeTab);
 
   const [
@@ -1043,6 +1072,7 @@ async function loadDashboard(token: string): Promise<void> {
     fractionsSettingsResult,
     fillSeriesResult,
     gameEnabledResult,
+    snakeSettingsResult,
   ] = await Promise.allSettled([
     fetchAdminStats(token),
     fetchAdminStages(token),
@@ -1053,11 +1083,13 @@ async function loadDashboard(token: string): Promise<void> {
     fetchAdminFractionsSettings(token),
     fetchAdminFillBlanksSeriesSettings(token),
     fetchAdminGameEnabled(token),
+    fetchAdminSnakeSettings(token),
   ]);
 
   const unauthorized = [
     statsResult, stagesResult, settingsResult, fillTextsResult,
-    challengeResult, gradesResult, fractionsSettingsResult, fillSeriesResult, gameEnabledResult,
+    challengeResult, gradesResult, fractionsSettingsResult, fillSeriesResult,
+    gameEnabledResult, snakeSettingsResult,
   ].some(
     r => r.status === 'rejected' && r.reason instanceof Error && r.reason.message.toLowerCase().includes('unauthorized'),
   );
@@ -1076,6 +1108,7 @@ async function loadDashboard(token: string): Promise<void> {
   const fractionsSettings = fractionsSettingsResult.status === 'fulfilled' ? fractionsSettingsResult.value : null;
   const fillSeriesSettings = fillSeriesResult.status === 'fulfilled' ? fillSeriesResult.value : null;
   const gameEnabled = gameEnabledResult.status === 'fulfilled' ? gameEnabledResult.value : [];
+  const snakeSettings = snakeSettingsResult.status === 'fulfilled' ? snakeSettingsResult.value : null;
 
   const errors: string[] = [];
   if (statsResult.status === 'rejected') {
@@ -1114,6 +1147,10 @@ async function loadDashboard(token: string): Promise<void> {
     const msg = gameEnabledResult.reason instanceof Error ? gameEnabledResult.reason.message : 'не удалось загрузить доступность игр';
     errors.push(msg);
   }
+  if (snakeSettingsResult.status === 'rejected') {
+    const msg = snakeSettingsResult.reason instanceof Error ? snakeSettingsResult.reason.message : 'не удалось загрузить настройки змейки';
+    errors.push(msg);
+  }
 
   renderDashboard(
     token,
@@ -1126,6 +1163,7 @@ async function loadDashboard(token: string): Promise<void> {
     fractionsSettings,
     fillSeriesSettings,
     gameEnabled,
+    snakeSettings,
     errors.length ? `⚠️ ${errors.join('; ')}` : undefined,
   );
 }

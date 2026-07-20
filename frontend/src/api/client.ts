@@ -351,6 +351,36 @@ export function updateFillBlanksSeriesSettings(token: string, sessionSize: numbe
   });
 }
 
+export function fetchSnakeSession(userId: number): Promise<MathSessionProgress> {
+  return request<MathSessionProgress>(`/api/snake/session?userId=${userId}`);
+}
+
+export function eatSnakeApple(userId: number): Promise<{
+  sessionSolved: number;
+  sessionComplete: boolean;
+  sessionSize: number;
+  challengeReward?: StageCompletion;
+}> {
+  return request(`/api/snake/eat`, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  });
+}
+
+export function fetchAdminSnakeSettings(token: string): Promise<GameSettings> {
+  return request<GameSettings>('/api/admin/settings/snake', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function updateSnakeSettings(token: string, sessionSize: number): Promise<GameSettings> {
+  return request<GameSettings>('/api/admin/settings/snake', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ sessionSize }),
+  });
+}
+
 export function fetchAdminGameGrades(token: string): Promise<GameGrade[]> {
   return request<GameGrade[]>('/api/admin/settings/game-grades', {
     headers: { Authorization: `Bearer ${token}` },

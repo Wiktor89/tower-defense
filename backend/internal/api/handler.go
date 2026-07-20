@@ -16,6 +16,7 @@ import (
 	"games/internal/fractions"
 	"games/internal/games"
 	mathpkg "games/internal/math"
+	"games/internal/snake"
 	"games/internal/store"
 	"games/internal/td"
 )
@@ -26,6 +27,7 @@ type Handler struct {
 	tdSessions   *td.Store
 	fillStore    *fillblanks.Store
 	fracStore    *fractions.Store
+	snakeEat     *snake.RateLimiter
 	db           *store.Store
 	adminAuth    *admin.Auth
 	captcha      *captcha.Store
@@ -47,6 +49,7 @@ func NewHandler(
 		tdSessions:   tdSessions,
 		fillStore:    fillStore,
 		fracStore:    fracStore,
+		snakeEat:     snake.NewRateLimiter(),
 		db:           db,
 		adminAuth:    adminAuth,
 		captcha:      captchaStore,
@@ -73,6 +76,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/fill-blanks/check", h.fillBlanksCheck)
 	mux.HandleFunc("GET /api/fill-blanks/session", h.getFillBlanksSession)
 	mux.HandleFunc("POST /api/disassemble/complete", h.disassembleComplete)
+	mux.HandleFunc("GET /api/snake/session", h.getSnakeSession)
+	mux.HandleFunc("POST /api/snake/eat", h.snakeEatApple)
 	mux.HandleFunc("POST /api/fractions/problem", h.createFractionProblem)
 	mux.HandleFunc("POST /api/fractions/check", h.checkFractionAnswer)
 	mux.HandleFunc("GET /api/fractions/tutorial", h.getFractionsTutorial)
@@ -81,6 +86,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/settings/math-columns", h.mathColumnsSettings)
 	mux.HandleFunc("GET /api/settings/fractions", h.fractionsSettings)
 	mux.HandleFunc("GET /api/settings/fill-blanks", h.fillBlanksSettings)
+	mux.HandleFunc("GET /api/settings/snake", h.snakeSettings)
 	mux.HandleFunc("POST /api/admin/login", h.adminLogin)
 	mux.HandleFunc("GET /api/admin/stats", h.adminStats)
 	mux.HandleFunc("GET /api/admin/stages", h.adminStages)
@@ -91,6 +97,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/admin/settings/fractions", h.adminSetFractionsSettings)
 	mux.HandleFunc("GET /api/admin/settings/fill-blanks/series", h.adminGetFillBlanksSeriesSettings)
 	mux.HandleFunc("PUT /api/admin/settings/fill-blanks/series", h.adminSetFillBlanksSeriesSettings)
+	mux.HandleFunc("GET /api/admin/settings/snake", h.adminGetSnakeSettings)
+	mux.HandleFunc("PUT /api/admin/settings/snake", h.adminSetSnakeSettings)
 	mux.HandleFunc("GET /api/admin/settings/fill-blanks", h.adminListFillTexts)
 	mux.HandleFunc("POST /api/admin/settings/fill-blanks", h.adminAddFillText)
 	mux.HandleFunc("PUT /api/admin/settings/fill-blanks/{id}", h.adminSetFillBlankPercent)
@@ -838,6 +846,94 @@ func (h *Handler) disassembleComplete(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+func (h *Handler) getSnakeSession(w http.ResponseWriter, r *http.Request) {
+	userID, err := strconv.Atoi(r.URL.Query().Get("userId"))
+	if err != nil || userID <= 0 {
+		writeError(w, http.StatusBadRequest, "userId is required")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if _, err := h.db.GetUser(ctx, userID); err != nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	sessionSize, err := h.db.GetSessionSize(ctx, "snake")
+	if err != nil {
+		sessionSize = store.DefaultSessionSize
+	}
+	prog, err := h.db.GetDailyProgress(ctx, userID, "snake")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load progress")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"solved":      prog.Solved,
+		"correct":     prog.Correct,
+		"wrong":       prog.Wrong,
+		"complete":    prog.Complete,
+		"sessionSize": sessionSize,
+		"day":         prog.Day,
+	})
+}
+
+func (h *Handler) snakeEatApple(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UserID int `json:"userId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.UserID <= 0 {
+		writeError(w, http.StatusBadRequest, "userId is required")
+		return
+	}
+	if !h.snakeEat.Allow(req.UserID) {
+		writeError(w, http.StatusTooManyRequests, "too fast")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if _, err := h.db.GetUser(ctx, req.UserID); err != nil {
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	}
+
+	if err := h.db.AddStats(ctx, req.UserID, "snake", store.StatsDelta{Correct: 1}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save stats")
+		return
+	}
+
+	sessionSize, err := h.db.GetSessionSize(ctx, "snake")
+	if err != nil {
+		sessionSize = 10
+	}
+	prog, completed, err := h.db.RecordDailyCorrect(ctx, req.UserID, "snake", sessionSize)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save progress")
+		return
+	}
+
+	resp := map[string]any{
+		"sessionSolved":   prog.Solved,
+		"sessionComplete": completed,
+		"sessionSize":     sessionSize,
+	}
+	if completed {
+		if err := h.db.AddStats(ctx, req.UserID, "snake", store.StatsDelta{SessionsCompleted: 1, GamesWon: 1}); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to save stats")
+			return
+		}
+		if reward, err := h.db.MarkChallengeGameDone(ctx, req.UserID, "snake"); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to update challenge")
+			return
+		} else if reward != nil {
+			resp["challengeReward"] = reward
+		}
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
 func (h *Handler) createFractionProblem(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		UserID int `json:"userId"`
@@ -1569,6 +1665,10 @@ func (h *Handler) fillBlanksSettings(w http.ResponseWriter, r *http.Request) {
 	h.writeGameSettings(w, r, "fill-blanks")
 }
 
+func (h *Handler) snakeSettings(w http.ResponseWriter, r *http.Request) {
+	h.writeGameSettings(w, r, "snake")
+}
+
 func (h *Handler) writeGameSettings(w http.ResponseWriter, r *http.Request, gameID string) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
@@ -1595,6 +1695,10 @@ func (h *Handler) adminGetFractionsSettings(w http.ResponseWriter, r *http.Reque
 
 func (h *Handler) adminGetFillBlanksSeriesSettings(w http.ResponseWriter, r *http.Request) {
 	h.adminGetGameSettings(w, r, "fill-blanks")
+}
+
+func (h *Handler) adminGetSnakeSettings(w http.ResponseWriter, r *http.Request) {
+	h.adminGetGameSettings(w, r, "snake")
 }
 
 func (h *Handler) adminGetGameSettings(w http.ResponseWriter, r *http.Request, gameID string) {
@@ -1653,6 +1757,10 @@ func (h *Handler) adminSetFractionsSettings(w http.ResponseWriter, r *http.Reque
 
 func (h *Handler) adminSetFillBlanksSeriesSettings(w http.ResponseWriter, r *http.Request) {
 	h.adminSetSessionSizeSettings(w, r, "fill-blanks")
+}
+
+func (h *Handler) adminSetSnakeSettings(w http.ResponseWriter, r *http.Request) {
+	h.adminSetSessionSizeSettings(w, r, "snake")
 }
 
 func (h *Handler) adminSetSessionSizeSettings(w http.ResponseWriter, r *http.Request, gameID string) {

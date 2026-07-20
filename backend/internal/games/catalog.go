@@ -75,7 +75,7 @@ func Catalog() []Game {
 			Description: "Классическая аркада — собирайте яблоки и не врезайтесь в стены.",
 			Icon:        "🐍",
 			URL:         "/games/snake/",
-			Available:   false,
+			Available:   true,
 			Tags:        []string{"аркада", "классика"},
 			MinGrade:    1,
 			MaxGrade:    6,
