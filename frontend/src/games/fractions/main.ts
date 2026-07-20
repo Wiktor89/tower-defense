@@ -1,5 +1,6 @@
 import './style.css';
 import '../../shared/tv-controls.css';
+import '../../shared/series-progress.css';
 import {
   checkFractionAnswer,
   completeFractionsTutorial,
@@ -10,6 +11,7 @@ import {
 import type { FractionProblem, FractionVisualHint } from '../../types';
 import { ensureUserLogin } from '../../shared/login';
 import { showChallengeReward } from '../../shared/solar-reward';
+import { updateSeriesProgress } from '../../shared/series-progress';
 import { clearUser } from '../../shared/user';
 import { fracDisplayHtml, fracInputsHtml } from './fraction-ui';
 import { setupLab } from './lab';
@@ -17,6 +19,8 @@ import { countSelected, renderPie } from './pie';
 import { clearLegacyTutorialFlag, createTutorialController, hadLegacyTutorialFlag } from './tutorial';
 
 document.body.classList.add('tv-ready');
+
+const DEFAULT_SESSION_SIZE = 50;
 
 const gateEl = document.getElementById('gate');
 const playEl = document.getElementById('play');
@@ -59,6 +63,10 @@ const tutorialPrev = document.getElementById('tutorial-prev') as HTMLButtonEleme
 const tutorialNext = document.getElementById('tutorial-next') as HTMLButtonElement | null;
 const lessonPane = document.getElementById('lesson-pane');
 const quizPane = document.getElementById('quiz-pane');
+const progressSection = document.getElementById('progress-section');
+const progressFillEl = document.getElementById('progress-fill');
+const progressMarkerEl = document.getElementById('progress-marker');
+const progressTextEl = document.getElementById('progress-text');
 
 if (
   !gateEl || !playEl || !tutorialEl || !gateEyebrow || !gateHeading || !gateDesc || !gatePhase ||
@@ -67,7 +75,8 @@ if (
   !promptEl || !stageEl || !hintPieEl || !feedbackEl || !checkBtn || !nextBtn ||
   !rankTitleEl || !scoreCorrectEl || !scoreWrongEl || !tutorialProgress || !tutorialTitle ||
   !tutorialBody || !tutorialTip || !tutorialPie || !quizPrompt || !quizStage ||
-  !tutorialFeedback || !tutorialPrev || !tutorialNext || !lessonPane || !quizPane
+  !tutorialFeedback || !tutorialPrev || !tutorialNext || !lessonPane || !quizPane ||
+  !progressSection || !progressFillEl || !progressMarkerEl || !progressTextEl
 ) {
   throw new Error('Missing required DOM elements');
 }
@@ -78,15 +87,28 @@ const ui = {
   checkBtn, nextBtn, rankTitleEl, scoreCorrectEl, scoreWrongEl,
 };
 
+const progressElements = {
+  fillEl: progressFillEl,
+  markerEl: progressMarkerEl,
+  textEl: progressTextEl,
+  sectionEl: progressSection,
+};
+
 let userId = 0;
 let unlocked = false;
 let problem: FractionProblem | null = null;
 let locked = false;
 let correctCount = 0;
 let wrongCount = 0;
+let sessionSolved = 0;
+let sessionSize = DEFAULT_SESSION_SIZE;
 let pieSelected: boolean[] = [];
 let comparePick: 'a' | 'b' | null = null;
 let userGrade: number | null = null;
+
+function refreshSeriesProgress(): void {
+  updateSeriesProgress(sessionSolved, sessionSize, progressElements);
+}
 
 const PHASES: Record<number, string> = {
   1: 'Фаза «Знакомство с долями» — половины и равные части',
@@ -381,12 +403,16 @@ async function onCheck(): Promise<void> {
     else if (result.correct) correctCount += 1;
     if (typeof result.dayWrong === 'number') wrongCount = result.dayWrong;
     else if (!result.correct) wrongCount += 1;
+    if (typeof result.sessionSolved === 'number') sessionSolved = result.sessionSolved;
+    else if (result.correct) sessionSolved += 1;
+    if (result.sessionComplete) sessionSolved = sessionSize;
     updateScore();
+    refreshSeriesProgress();
     if (result.rankTitle) ui.rankTitleEl.textContent = result.rankTitle;
 
     if (result.correct) {
       if (result.sessionComplete) {
-        showFeedback('Серия завершена! Целостность восстановлена.', 'correct');
+        showFeedback(`Серия из ${sessionSize} заданий завершена!`, 'correct');
       } else {
         showFeedback('Верно! Целостность восстановлена.', 'correct');
       }
@@ -498,12 +524,18 @@ async function boot(): Promise<void> {
     const day = await fetchFractionsSession(userId);
     correctCount = day.correct;
     wrongCount = day.wrong;
+    sessionSolved = day.solved;
+    if (typeof day.sessionSize === 'number' && day.sessionSize > 0) {
+      sessionSize = day.sessionSize;
+    }
+    if (day.complete) sessionSolved = sessionSize;
     if (day.rankTitle) ui.rankTitleEl.textContent = day.rankTitle;
   } catch {
     /* keep zeros */
   }
   renderGate();
   updateScore();
+  refreshSeriesProgress();
 }
 
 void boot();

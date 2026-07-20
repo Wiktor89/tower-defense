@@ -1,0 +1,90 @@
+.progress-section {
+  padding: 18px 20px 14px;
+  background: #fff;
+  border-radius: 16px;
+  border: 2px solid #e8d5b5;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  flex-shrink: 0;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.progress-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+.progress-count {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #16a34a;
+}
+
+.progress-track {
+  position: relative;
+  height: 10px;
+  background: #dcfce7;
+  border-radius: 999px;
+  border: 1px solid #bbf7d0;
+  overflow: visible;
+}
+
+.progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #4ade80, #16a34a);
+  border-radius: 999px;
+  transition: width 0.45s ease;
+}
+
+.series-marker {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  transform: translate(-50%, -65%);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  line-height: 1;
+  transition: left 0.45s ease;
+  z-index: 2;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
+  pointer-events: none;
+}
+
+.series-marker--active {
+  animation: series-marker-pulse 2s ease-in-out infinite;
+}
+
+.series-marker--max {
+  animation: series-marker-celebrate 0.6s ease;
+}
+
+.progress-section--done .progress-count {
+  color: #15803d;
+}
+
+@keyframes series-marker-pulse {
+  0%, 100% { transform: translate(-50%, -65%) scale(1); }
+  50% { transform: translate(-50%, -65%) scale(1.08); }
+}
+
+@keyframes series-marker-celebrate {
+  0% { transform: translate(-50%, -65%) scale(1); }
+  40% { transform: translate(-50%, -75%) scale(1.2); }
+  100% { transform: translate(-50%, -65%) scale(1); }
+}

@@ -1,12 +1,16 @@
 import './style.css';
 import '../../shared/tv-controls.css';
+import '../../shared/series-progress.css';
 import { checkFillBlanks, fetchFillBlanksPuzzle, fetchFillBlanksSession } from '../../api/client';
 import { showChallengeReward } from '../../shared/solar-reward';
+import { updateSeriesProgress } from '../../shared/series-progress';
 import type { FillBlanksParagraph, FillBlanksPuzzle, FillBlanksToken } from '../../types';
 import { ensureUserLogin } from '../../shared/login';
 import { getUser } from '../../shared/user';
 
 document.body.classList.add('tv-ready');
+
+const DEFAULT_SESSION_SIZE = 50;
 
 const paragraphsEl = document.getElementById('paragraphs');
 const feedbackEl = document.getElementById('feedback');
@@ -15,8 +19,16 @@ const clearBtn = document.getElementById('clear-btn') as HTMLButtonElement | nul
 const nextBtn = document.getElementById('next-btn') as HTMLButtonElement | null;
 const scoreCorrectEl = document.getElementById('score-correct');
 const scoreWrongEl = document.getElementById('score-wrong');
+const progressSection = document.getElementById('progress-section');
+const progressFillEl = document.getElementById('progress-fill');
+const progressMarkerEl = document.getElementById('progress-marker');
+const progressTextEl = document.getElementById('progress-text');
 
-if (!paragraphsEl || !feedbackEl || !checkBtn || !clearBtn || !nextBtn || !scoreCorrectEl || !scoreWrongEl) {
+if (
+  !paragraphsEl || !feedbackEl || !checkBtn || !clearBtn || !nextBtn ||
+  !scoreCorrectEl || !scoreWrongEl || !progressSection || !progressFillEl ||
+  !progressMarkerEl || !progressTextEl
+) {
   throw new Error('Missing required DOM elements');
 }
 
@@ -30,14 +42,27 @@ const ui = {
   scoreWrongEl,
 };
 
+const progressElements = {
+  fillEl: progressFillEl,
+  markerEl: progressMarkerEl,
+  textEl: progressTextEl,
+  sectionEl: progressSection,
+};
+
 let puzzle: FillBlanksPuzzle | null = null;
 let fills: (string | null)[] = [];
 let locked = false;
 let correctCount = 0;
 let wrongCount = 0;
+let sessionSolved = 0;
+let sessionSize = DEFAULT_SESSION_SIZE;
 let dragWord: string | null = null;
 let dragFromBlank: number | null = null;
 let dragPara: number | null = null;
+
+function refreshSeriesProgress(): void {
+  updateSeriesProgress(sessionSolved, sessionSize, progressElements);
+}
 
 function showFeedback(text: string, type: 'correct' | 'wrong' | 'hint'): void {
   ui.feedbackEl.textContent = text;
@@ -319,9 +344,15 @@ async function onCheck(): Promise<void> {
 
     if (result.correct) {
       correctCount++;
+      if (typeof result.sessionSolved === 'number') sessionSolved = result.sessionSolved;
+      else sessionSolved += 1;
+      if (result.sessionComplete) sessionSolved = sessionSize;
       updateScore();
+      refreshSeriesProgress();
       showFeedback(
-        result.sessionComplete ? 'Серия завершена! Текст совпал.' : 'Верно! Текст совпал.',
+        result.sessionComplete
+          ? `Серия из ${sessionSize} заданий завершена!`
+          : 'Верно! Текст совпал.',
         'correct',
       );
       ui.nextBtn.classList.remove('hidden');
@@ -360,12 +391,19 @@ ui.clearBtn.addEventListener('click', onClear);
 ui.nextBtn.addEventListener('click', () => void loadPuzzle());
 
 updateScore();
+refreshSeriesProgress();
 void ensureUserLogin().then(async (user) => {
   try {
     const session = await fetchFillBlanksSession(user.id);
     correctCount = session.correct;
     wrongCount = session.wrong;
+    sessionSolved = session.solved;
+    if (typeof session.sessionSize === 'number' && session.sessionSize > 0) {
+      sessionSize = session.sessionSize;
+    }
+    if (session.complete) sessionSolved = sessionSize;
     updateScore();
+    refreshSeriesProgress();
   } catch {
     /* keep zeros */
   }

@@ -29,6 +29,17 @@
         <button id="next-btn" class="action-btn hidden">Ещё текст</button>
       </div>
     </main>
+
+    <footer class="progress-section" id="progress-section">
+      <div class="progress-header">
+        <span class="progress-label">Прогресс серии</span>
+        <span id="progress-text" class="progress-count">0 / …</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+        <div class="series-marker" id="progress-marker" aria-hidden="true">📝</div>
+      </div>
+    </footer>
   </div>
 
   <script type="module" src="/src/games/fill-blanks/main.ts"></script>
