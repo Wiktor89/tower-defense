@@ -4,3 +4,6 @@ bin/
 **/ .idea/
 **/*.iml
 pass.txt
+.cursorrules
+certs/
+*.pem
