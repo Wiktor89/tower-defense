@@ -161,8 +161,9 @@ export function finishTowerDefense(
   });
 }
 
-export function fetchFillBlanksPuzzle(): Promise<FillBlanksPuzzle> {
-  return request<FillBlanksPuzzle>('/api/fill-blanks/puzzle');
+export function fetchFillBlanksPuzzle(userId?: number): Promise<FillBlanksPuzzle> {
+  const q = userId && userId > 0 ? `?userId=${userId}` : '';
+  return request<FillBlanksPuzzle>(`/api/fill-blanks/puzzle${q}`);
 }
 
 export function checkFillBlanks(id: string, answers: string[], userId?: number): Promise<FillBlanksCheckResult> {

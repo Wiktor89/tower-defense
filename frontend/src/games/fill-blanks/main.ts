@@ -306,7 +306,8 @@ async function loadPuzzle(): Promise<void> {
   ui.checkBtn.classList.add('hidden');
 
   try {
-    puzzle = await fetchFillBlanksPuzzle();
+    const user = getUser();
+    puzzle = await fetchFillBlanksPuzzle(user?.id);
     fills = Array.from({ length: puzzle.blankCount }, () => null);
     render();
   } catch (err) {

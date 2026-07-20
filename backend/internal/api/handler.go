@@ -672,7 +672,8 @@ func (h *Handler) fillBlanksPuzzle(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	text, err := h.db.RandomFillBlankText(ctx)
+	userID, _ := strconv.Atoi(r.URL.Query().Get("userId"))
+	text, err := h.db.PickFillBlankTextForUser(ctx, userID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "no texts configured")
 		return
