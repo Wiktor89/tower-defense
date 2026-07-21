@@ -81,7 +81,7 @@ export function promptUserLogin(): Promise<User> {
         submitBtn.textContent = 'Войти';
         toggleBtn.textContent = 'Зарегистрироваться';
       } else {
-        hintEl.textContent = 'Создайте логин и пароль. Регистр букв не важен: Арина и аРиНа — один логин.';
+        hintEl.textContent = 'Создайте логин и пароль.';
         submitBtn.textContent = 'Создать аккаунт';
         toggleBtn.textContent = 'Уже есть аккаунт? Войти';
       }

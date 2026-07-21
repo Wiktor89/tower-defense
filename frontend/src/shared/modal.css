@@ -147,6 +147,26 @@
   display: none;
 }
 
+.topbar__settings {
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.topbar__settings:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.topbar__settings.hidden {
+  display: none;
+}
+
 .modal--avatars {
   max-width: 420px;
 }
