@@ -11,7 +11,7 @@ const (
 	ImageHeight = 150
 	PieceWidth  = 44
 	PieceHeight = 44
-	Tolerance   = 8
+	Tolerance   = 12
 )
 
 func colorAt(seed, x, y int) string {
