@@ -9,10 +9,12 @@ func TestApplyChallengeSkipPenalty(t *testing.T) {
 		{100, 0, 100, 0},
 		{100, 1, 75, 25},
 		{100, 2, 50, 50},
-		{100, 3, 25, 75},
-		{100, 4, 0, 100},
-		{100, 7, 0, 100},
+		{100, 3, 50, 75},
+		{100, 4, 50, 100},
+		{100, 7, 50, 100},
 		{200, 1, 150, 25},
+		{200, 4, 50, 100},
+		{40, 4, 40, 100},
 	}
 	for _, c := range cases {
 		got, pct := applyChallengeSkipPenalty(c.base, c.skip)

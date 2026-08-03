@@ -4,7 +4,7 @@ import { fetchChallenge, fetchGames } from '../api/client';
 import type { ChallengeStatus, GameCatalogItem } from '../types';
 import { showAvatarPicker } from '../shared/avatar-picker';
 import { getAvatar } from '../shared/avatars';
-import { ensureUserLogin, promptUserLogin } from '../shared/login';
+import { ensureUserLogin, promptUserLogin, showSetPasswordModal } from '../shared/login';
 import { showChallengeReward } from '../shared/solar-reward';
 import { clearUser, getUser, isAdminUser } from '../shared/user';
 import { gameIconHtml } from './game-icons';
@@ -13,17 +13,19 @@ import { startMoneyRain } from './money-rain';
 const grid = document.getElementById('games-grid');
 const userLabel = document.getElementById('user-label');
 const avatarBtn = document.getElementById('avatar-btn');
+const settingsBtn = document.getElementById('settings-btn');
 const adminBtn = document.getElementById('admin-btn');
 const logoutBtn = document.getElementById('logout-btn');
 const challengePanel = document.getElementById('challenge-panel');
 
-if (!grid || !userLabel || !avatarBtn || !adminBtn || !logoutBtn || !challengePanel) {
+if (!grid || !userLabel || !avatarBtn || !settingsBtn || !adminBtn || !logoutBtn || !challengePanel) {
   throw new Error('Missing DOM elements');
 }
 
 const gamesGrid = grid;
 const userLabelEl = userLabel;
 const avatarBtnEl = avatarBtn as HTMLButtonElement;
+const settingsBtnEl = settingsBtn as HTMLButtonElement;
 const adminBtnEl = adminBtn;
 const logoutBtnEl = logoutBtn;
 const challengePanelEl = challengePanel;
@@ -159,11 +161,13 @@ function updateUserLabel(): void {
     avatarBtnEl.textContent = avatar.emoji;
     avatarBtnEl.title = `Аватар: ${avatar.name}`;
     avatarBtnEl.classList.remove('hidden');
+    settingsBtnEl.classList.remove('hidden');
     userLabelEl.textContent = `${user.login}${gradeLabel}`;
     logoutBtnEl.classList.remove('hidden');
   } else {
     avatarBtnEl.classList.add('hidden');
     avatarBtnEl.textContent = '';
+    settingsBtnEl.classList.add('hidden');
     userLabelEl.textContent = '';
     logoutBtnEl.classList.add('hidden');
   }
@@ -174,6 +178,40 @@ function updateUserLabel(): void {
   } else {
     adminBtnEl.classList.add('hidden');
   }
+}
+
+function showUserSettings(): void {
+  const user = getUser();
+  if (!user) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h2>Настройки</h2>
+      <p>Что хотите изменить?</p>
+      <div class="modal-actions modal-actions--stack">
+        <button type="button" class="modal-btn modal-btn--primary" id="settings-avatar">Сменить аватар</button>
+        <button type="button" class="modal-btn modal-btn--primary" id="settings-password">Сменить пароль</button>
+        <button type="button" class="modal-btn modal-btn--ghost" id="settings-close">Закрыть</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.querySelector('#settings-close')?.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
+  overlay.querySelector('#settings-avatar')?.addEventListener('click', () => {
+    close();
+    showAvatarPicker(() => updateUserLabel());
+  });
+  overlay.querySelector('#settings-password')?.addEventListener('click', () => {
+    close();
+    showSetPasswordModal(user);
+  });
 }
 
 async function loadMenuForUser(userId: number, isAdmin: boolean): Promise<void> {
@@ -217,6 +255,10 @@ async function afterLogin(): Promise<void> {
 
 avatarBtnEl.addEventListener('click', () => {
   showAvatarPicker(() => updateUserLabel());
+});
+
+settingsBtnEl.addEventListener('click', () => {
+  showUserSettings();
 });
 
 logoutBtnEl.addEventListener('click', () => {

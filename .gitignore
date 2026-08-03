@@ -7,3 +7,6 @@ pass.txt
 .cursorrules
 certs/
 *.pem
+.cursorrules
+certs/
+*.pem

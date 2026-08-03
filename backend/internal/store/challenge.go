@@ -15,6 +15,7 @@ const (
 	DefaultChallengeRewardRub = 100
 	MinChallengeRewardRub     = 1
 	MaxChallengeRewardRub     = 100_000
+	ChallengeMinPayoutRub     = 50
 )
 
 type ChallengeGame struct {
@@ -366,8 +367,12 @@ func applyChallengeSkipPenalty(baseReward, skipDays int) (finalReward, penaltyPe
 	}
 	penaltyPercent = skipDays * challengeSkipPenaltyStep
 	finalReward = baseReward * (100 - penaltyPercent) / 100
-	if finalReward < 0 {
-		finalReward = 0
+	minPayout := ChallengeMinPayoutRub
+	if baseReward < minPayout {
+		minPayout = baseReward
+	}
+	if finalReward < minPayout {
+		finalReward = minPayout
 	}
 	return finalReward, penaltyPercent
 }
