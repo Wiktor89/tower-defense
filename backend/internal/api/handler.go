@@ -181,6 +181,11 @@ func (h *Handler) listGames(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to load games")
 			return
 		}
+		catalog, err = h.db.FilterVisibleGames(ctx, userID, catalog)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to load games")
+			return
+		}
 		writeJSON(w, http.StatusOK, catalog)
 		return
 	}

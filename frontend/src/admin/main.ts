@@ -470,7 +470,7 @@ function renderSettingsList(grades: GameGrade[], gameEnabled: GameEnabled[]): st
   return `
     <section class="admin-section">
       <h3 class="admin-subtitle">Доступность игр</h3>
-      <p class="admin-section__hint">Выключенная игра не показывается ученикам (персональная настройка может переопределить)</p>
+      <p class="admin-section__hint">Выключенная игра скрыта у всех. Персонально можно только дополнительно скрыть игру у ученика.</p>
       <form id="game-enabled-form" class="admin-challenge-form">
         <div class="admin-check-list">${enabledChecks}</div>
         <button type="submit" class="admin-btn">Сохранить доступность</button>

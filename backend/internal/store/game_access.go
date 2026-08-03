@@ -133,18 +133,18 @@ func (s *Store) userAccessMap(ctx context.Context, userID int) (map[string]bool,
 }
 
 func (s *Store) IsGameVisibleForUser(ctx context.Context, userID int, gameID string) (bool, error) {
+	globals, err := s.globalEnabledMap(ctx)
+	if err != nil {
+		return false, err
+	}
+	if enabled, ok := globals[gameID]; ok && !enabled {
+		return false, nil
+	}
 	overrides, err := s.userAccessMap(ctx, userID)
 	if err != nil {
 		return false, err
 	}
 	if enabled, ok := overrides[gameID]; ok {
-		return enabled, nil
-	}
-	globals, err := s.globalEnabledMap(ctx)
-	if err != nil {
-		return false, err
-	}
-	if enabled, ok := globals[gameID]; ok {
 		return enabled, nil
 	}
 	return true, nil
@@ -161,16 +161,13 @@ func (s *Store) FilterVisibleGames(ctx context.Context, userID int, list []games
 	}
 	out := make([]games.Game, 0, len(list))
 	for _, g := range list {
-		enabled := true
-		if v, ok := globals[g.ID]; ok {
-			enabled = v
+		if enabled, ok := globals[g.ID]; ok && !enabled {
+			continue
 		}
-		if v, ok := overrides[g.ID]; ok {
-			enabled = v
+		if enabled, ok := overrides[g.ID]; ok && !enabled {
+			continue
 		}
-		if enabled {
-			out = append(out, g)
-		}
+		out = append(out, g)
 	}
 	return out, nil
 }
@@ -198,6 +195,10 @@ func (s *Store) ListUserGameAccess(ctx context.Context, userID int) ([]UserGameA
 			item.Enabled = v
 		} else {
 			item.Enabled = true
+		}
+		// Глобально выключенную нельзя «включить» персонально — только скрыть сверх глобального.
+		if v, ok := globals[g.ID]; ok && !v {
+			item.Enabled = false
 		}
 		out = append(out, item)
 	}
