@@ -28,6 +28,25 @@ func (s *Store) GetSessionSize(ctx context.Context, gameID string) (int, error) 
 	return gs.SessionSize, nil
 }
 
+// SessionSizeForUser — длина серии для игрока; у админа всегда 1 (быстрая проверка вызова дня).
+func (s *Store) SessionSizeForUser(ctx context.Context, userID int, gameID string) (int, error) {
+	size, err := s.GetSessionSize(ctx, gameID)
+	if err != nil || size < 1 {
+		size = DefaultSessionSize
+	}
+	if userID <= 0 {
+		return size, nil
+	}
+	user, err := s.GetUser(ctx, userID)
+	if err != nil {
+		return size, nil
+	}
+	if user.Role == RoleAdmin {
+		return 1, nil
+	}
+	return size, nil
+}
+
 func (s *Store) GetDigitCount(ctx context.Context, gameID string) (int, error) {
 	gs, err := s.GetGameSettings(ctx, gameID)
 	if err != nil {

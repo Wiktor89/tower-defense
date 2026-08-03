@@ -256,6 +256,19 @@ func (s *Store) challengeGamesForUser(ctx context.Context, userID int, all []Cha
 	if err != nil {
 		return nil, err
 	}
+	if user.Role == RoleAdmin {
+		out := make([]ChallengeGame, 0, len(all))
+		for _, g := range all {
+			visible, err := s.IsGameVisibleForUser(ctx, userID, g.GameID)
+			if err != nil {
+				return nil, err
+			}
+			if visible {
+				out = append(out, g)
+			}
+		}
+		return out, nil
+	}
 	if user.Grade == nil {
 		return []ChallengeGame{}, nil
 	}

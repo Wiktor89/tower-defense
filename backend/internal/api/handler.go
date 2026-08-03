@@ -310,7 +310,7 @@ func (h *Handler) checkMathAnswer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		sessionSize, err := h.db.GetSessionSize(ctx, "math-columns")
+		sessionSize, err := h.db.SessionSizeForUser(ctx, req.UserID, "math-columns")
 		if err != nil {
 			sessionSize = store.DefaultSessionSize
 		}
@@ -361,7 +361,7 @@ func (h *Handler) getMathSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "user not found")
 		return
 	}
-	sessionSize, err := h.db.GetSessionSize(ctx, "math-columns")
+	sessionSize, err := h.db.SessionSizeForUser(ctx, userID, "math-columns")
 	if err != nil {
 		sessionSize = store.DefaultSessionSize
 	}
@@ -754,7 +754,7 @@ func (h *Handler) fillBlanksCheck(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		sessionSize, err := h.db.GetSessionSize(ctx, "fill-blanks")
+		sessionSize, err := h.db.SessionSizeForUser(ctx, req.UserID, "fill-blanks")
 		if err != nil {
 			sessionSize = store.DefaultSessionSize
 		}
@@ -804,7 +804,7 @@ func (h *Handler) getFillBlanksSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "user not found")
 		return
 	}
-	sessionSize, err := h.db.GetSessionSize(ctx, "fill-blanks")
+	sessionSize, err := h.db.SessionSizeForUser(ctx, userID, "fill-blanks")
 	if err != nil {
 		sessionSize = store.DefaultSessionSize
 	}
@@ -867,7 +867,7 @@ func (h *Handler) getSnakeSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "user not found")
 		return
 	}
-	sessionSize, err := h.db.GetSessionSize(ctx, "snake")
+	sessionSize, err := h.db.SessionSizeForUser(ctx, userID, "snake")
 	if err != nil {
 		sessionSize = store.DefaultSessionSize
 	}
@@ -912,7 +912,7 @@ func (h *Handler) snakeEatApple(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionSize, err := h.db.GetSessionSize(ctx, "snake")
+	sessionSize, err := h.db.SessionSizeForUser(ctx, req.UserID, "snake")
 	if err != nil {
 		sessionSize = 10
 	}
@@ -956,7 +956,7 @@ func (h *Handler) getMemorySession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "user not found")
 		return
 	}
-	sessionSize, err := h.db.GetSessionSize(ctx, "memory")
+	sessionSize, err := h.db.SessionSizeForUser(ctx, userID, "memory")
 	if err != nil {
 		sessionSize = 5
 	}
@@ -1001,7 +1001,7 @@ func (h *Handler) memoryClearBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sessionSize, err := h.db.GetSessionSize(ctx, "memory")
+	sessionSize, err := h.db.SessionSizeForUser(ctx, req.UserID, "memory")
 	if err != nil {
 		sessionSize = 5
 	}
@@ -1188,7 +1188,7 @@ func (h *Handler) checkFractionAnswer(w http.ResponseWriter, r *http.Request) {
 			if err := h.db.AddStats(ctx, req.UserID, "fractions", delta); err != nil {
 				log.Printf("fractions check: save stats user=%d: %v", req.UserID, err)
 			} else {
-				sessionSize, err := h.db.GetSessionSize(ctx, "fractions")
+				sessionSize, err := h.db.SessionSizeForUser(ctx, req.UserID, "fractions")
 				if err != nil {
 					sessionSize = store.DefaultSessionSize
 				}
@@ -1239,7 +1239,7 @@ func (h *Handler) getFractionsSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "user not found")
 		return
 	}
-	sessionSize, err := h.db.GetSessionSize(ctx, "fractions")
+	sessionSize, err := h.db.SessionSizeForUser(ctx, userID, "fractions")
 	if err != nil {
 		sessionSize = store.DefaultSessionSize
 	}

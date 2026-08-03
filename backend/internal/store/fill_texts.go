@@ -229,7 +229,7 @@ func (s *Store) PickFillBlankTextForUser(ctx context.Context, userID int) (FillB
 		return FillBlankText{}, ErrFillTextNotFound
 	}
 
-	sessionSize, err := s.GetSessionSize(ctx, "fill-blanks")
+	sessionSize, err := s.SessionSizeForUser(ctx, userID, "fill-blanks")
 	if err != nil || sessionSize < 1 {
 		sessionSize = DefaultSessionSize
 	}
